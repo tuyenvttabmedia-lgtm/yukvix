@@ -124,7 +124,8 @@ export function serveStatic(app: Express) {
       const seoSettings = await getSeoSettings();
       html = injectSeoIntoHtml(html, seoSettings);
       const siteUrl = process.env.SITE_URL || `${req.protocol}://${req.get("host")}`;
-      html = await injectPageMeta(html, req.path, siteUrl);
+      const urlPath = req.originalUrl.split('?')[0];
+      html = await injectPageMeta(html, urlPath, siteUrl);
       res.status(200).set({ "Content-Type": "text/html" }).end(html);
     } catch {
       res.sendFile(path.resolve(distPath, "index.html"));
