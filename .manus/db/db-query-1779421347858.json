@@ -1,0 +1,34 @@
+{
+  "query": "SHOW COLUMNS FROM import_sources LIKE 'pageUrlPattern'; SHOW COLUMNS FROM import_sources LIKE 'contentAreaSelector';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SHOW COLUMNS FROM import_sources LIKE 'pageUrlPattern'; SHOW COLUMNS FROM import_sources LIKE 'contentAreaSelector';",
+  "rows": [
+    {
+      "Field": "pageUrlPattern",
+      "Type": "varchar(256)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "Field",
+      "Type": "Type",
+      "Null": "Null",
+      "Key": "Key",
+      "Default": "Default",
+      "Extra": "Extra"
+    },
+    {
+      "Field": "contentAreaSelector",
+      "Type": "varchar(256)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\npageUrlPattern\tvarchar(256)\tYES\t\tNULL\t\nField\tType\tNull\tKey\tDefault\tExtra\ncontentAreaSelector\tvarchar(256)\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 2163
+}

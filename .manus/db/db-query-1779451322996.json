@@ -1,0 +1,60 @@
+{
+  "query": "SELECT id, sourceUrl, status, downloadedImages, processedImages, errorMessage, createdAt, completedAt FROM import_jobs ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, sourceUrl, status, downloadedImages, processedImages, errorMessage, createdAt, completedAt FROM import_jobs ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "90007",
+      "sourceUrl": "https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/",
+      "status": "processing",
+      "downloadedImages": "75",
+      "processedImages": "23",
+      "errorMessage": "NULL",
+      "createdAt": "2026-05-22 11:44:42",
+      "completedAt": "NULL"
+    },
+    {
+      "id": "90006",
+      "sourceUrl": "https://everia.club/2026/05/08/leeesovely-%ec%8f%98%eb%b8%94%eb%a6%ac-photobook-%ec%8b%a0%ec%9e%91-2024%eb%85%844%ec%9b%94/",
+      "status": "cancelled",
+      "downloadedImages": "0",
+      "processedImages": "25",
+      "errorMessage": "NULL",
+      "createdAt": "2026-05-22 11:27:56",
+      "completedAt": "2026-05-22 12:00:42"
+    },
+    {
+      "id": "90005",
+      "sourceUrl": "https://everia.club/2026/05/08/hr_ju-herovia-last-summer/",
+      "status": "cancelled",
+      "downloadedImages": "0",
+      "processedImages": "0",
+      "errorMessage": "NULL",
+      "createdAt": "2026-05-22 09:51:59",
+      "completedAt": "2026-05-22 11:44:38"
+    },
+    {
+      "id": "90004",
+      "sourceUrl": "https://everia.club/2026/05/08/u-hwa-%ec%9d%80%ec%9c%a0%ed%99%94-leehee-express-ledg-085/",
+      "status": "done",
+      "downloadedImages": "0",
+      "processedImages": "0",
+      "errorMessage": "Duplicate: already imported as job 90004",
+      "createdAt": "2026-05-22 09:17:19",
+      "completedAt": "2026-05-22 09:51:31"
+    },
+    {
+      "id": "90003",
+      "sourceUrl": "https://everia.club/2026/05/14/son-yeeun-%ec%86%90%ec%98%88%ec%9d%80-photobook-%e3%80%8cignis-girl%e3%80%8d/",
+      "status": "cancelled",
+      "downloadedImages": "0",
+      "processedImages": "0",
+      "errorMessage": "NULL",
+      "createdAt": "2026-05-22 09:03:20",
+      "completedAt": "2026-05-22 09:51:31"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tsourceUrl\tstatus\tdownloadedImages\tprocessedImages\terrorMessage\tcreatedAt\tcompletedAt\n90007\thttps://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/\tprocessing\t75\t23\tNULL\t2026-05-22 11:44:42\tNULL\n90006\thttps://everia.club/2026/05/08/leeesovely-%ec%8f%98%eb%b8%94%eb%a6%ac-photobook-%ec%8b%a0%ec%9e%91-2024%eb%85%844%ec%9b%94/\tcancelled\t0\t25\tNULL\t2026-05-22 11:27:56\t2026-05-22 12:00:42\n90005\thttps://everia.club/2026/05/08/hr_ju-herovia-last-summer/\tcancelled\t0\t0\tNULL\t2026-05-22 09:51:59\t2026-05-22 11:44:38\n90004\thttps://everia.club/2026/05/08/u-hwa-%ec%9d%80%ec%9c%a0%ed%99%94-leehee-express-ledg-085/\tdone\t0\t0\tDuplicate: already imported as job 90004\t2026-05-22 09:17:19\t2026-05-22 09:51:31\n90003\thttps://everia.club/2026/05/14/son-yeeun-%ec%86%90%ec%98%88%ec%9d%80-photobook-%e3%80%8cignis-girl%e3%80%8d/\tcancelled\t0\t0\tNULL\t2026-05-22 09:03:20\t2026-05-22 09:51:31\n",
+  "stderr": "",
+  "execution_time_ms": 1843
+}

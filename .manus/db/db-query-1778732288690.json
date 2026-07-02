@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `webhook_events` RENAME COLUMN `stripeEventId` TO `providerEventId`;\nALTER TABLE `webhook_events` DROP INDEX `webhook_events_stripeEventId_unique`;\nALTER TABLE `subscriptions` ADD `provider` varchar(32) DEFAULT 'stripe' NOT NULL;\nALTER TABLE `webhook_events` ADD `provider` varchar(32) DEFAULT 'stripe' NOT NULL;\nALTER TABLE `webhook_events` ADD CONSTRAINT `webhook_events_providerEventId_unique` UNIQUE(`providerEventId`);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute ALTER TABLE `webhook_events` RENAME COLUMN `stripeEventId` TO `providerEventId`;\nALTER TABLE `webhook_events` DROP INDEX `webhook_events_stripeEventId_unique`;\nALTER TABLE `subscriptions` ADD `provider` varchar(32) DEFAULT 'stripe' NOT NULL;\nALTER TABLE `webhook_events` ADD `provider` varchar(32) DEFAULT 'stripe' NOT NULL;\nALTER TABLE `webhook_events` ADD CONSTRAINT `webhook_events_providerEventId_unique` UNIQUE(`providerEventId`);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 4278
+}

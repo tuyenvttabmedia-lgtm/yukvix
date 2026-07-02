@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE site_settings \nSET value = CONCAT('https://media.yukvix.com/', SUBSTRING_INDEX(SUBSTRING(value, LOCATE('/cms/', value) + 1), '?', 1))\nWHERE `key` = 'logo_url' AND value LIKE 'https://s3.ap-southeast-1.wasabisys.com/%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute UPDATE site_settings \nSET value = CONCAT('https://media.yukvix.com/', SUBSTRING_INDEX(SUBSTRING(value, LOCATE('/cms/', value) + 1), '?', 1))\nWHERE `key` = 'logo_url' AND value LIKE 'https://s3.ap-southeast-1.wasabisys.com/%';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1900
+}

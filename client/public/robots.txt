@@ -1,0 +1,43 @@
+User-agent: *
+Allow: /
+
+# Block admin and private areas
+Disallow: /admin/
+Disallow: /admin
+Disallow: /dashboard/
+Disallow: /dashboard
+Disallow: /account/
+Disallow: /account
+Disallow: /checkout/
+Disallow: /checkout
+Disallow: /payment/
+Disallow: /payment
+Disallow: /api/
+Disallow: /api
+
+# Block auth pages (no SEO value)
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+
+# Allow important public pages
+Allow: /gallery
+Allow: /browse
+Allow: /creators
+Allow: /tags
+Allow: /vip
+Allow: /search
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+Allow: /dmca
+
+# Sitemaps
+Sitemap: https://yukvix.com/sitemap.xml
+Sitemap: https://yukvix.com/sitemap-albums.xml
+Sitemap: https://yukvix.com/sitemap-creators.xml
+Sitemap: https://yukvix.com/sitemap-tags.xml
+Sitemap: https://yukvix.com/sitemap-images.xml
+Sitemap: https://yukvix.com/sitemap-pages.xml

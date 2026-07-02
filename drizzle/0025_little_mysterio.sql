@@ -1,0 +1,1 @@
+ALTER TABLE `import_sources` ADD `freePreviewCount` int;

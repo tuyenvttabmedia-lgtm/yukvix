@@ -1,0 +1,9 @@
+{
+  "query": "\n-- Step 1: Reset all isFreePreview to false for photos in VIP albums\nUPDATE photos p\nINNER JOIN albums a ON p.albumId = a.id\nSET p.isFreePreview = 0\nWHERE a.isVip = 1;\n\n-- Step 2: Set isFreePreview = true for the first 5 photos (by sortOrder, createdAt) per VIP album\nUPDATE photos p\nINNER JOIN (\n  SELECT p2.id\n  FROM photos p2\n  INNER JOIN albums a2 ON p2.albumId = a2.id\n  WHERE a2.isVip = 1\n    AND (\n      SELECT COUNT(*) FROM photos p3\n      WHERE p3.albumId = p2.albumId\n        AND (p3.sortOrder < p2.sortOrder OR (p3.sortOrder = p2.sortOrder AND p3.createdAt < p2.createdAt) OR (p3.sortOrder = p2.sortOrder AND p3.createdAt = p2.createdAt AND p3.id < p2.id))\n    ) < 5\n) ranked ON p.id = ranked.id\nSET p.isFreePreview = 1;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute \n-- Step 1: Reset all isFreePreview to false for photos in VIP albums\nUPDATE photos p\nINNER JOIN albums a ON p.albumId = a.id\nSET p.isFreePreview = 0\nWHERE a.isVip = 1;\n\n-- Step 2: Set isFreePreview = true for the first 5 photos (by sortOrder, createdAt) per VIP album\nUPDATE photos p\nINNER JOIN (\n  SELECT p2.id\n  FROM photos p2\n  INNER JOIN albums a2 ON p2.albumId = a2.id\n  WHERE a2.isVip = 1\n    AND (\n      SELECT COUNT(*) FROM photos p3\n      WHERE p3.albumId = p2.albumId\n        AND (p3.sortOrder < p2.sortOrder OR (p3.sortOrder = p2.sortOrder AND p3.createdAt < p2.createdAt) OR (p3.sortOrder = p2.sortOrder AND p3.createdAt = p2.createdAt AND p3.id < p2.id))\n    ) < 5\n) ranked ON p.id = ranked.id\nSET p.isFreePreview = 1;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2411
+}

@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, albumId, thumbUrl, webpUrl, originalUrl, isFreePreview FROM photos WHERE albumId = 90001 LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, albumId, thumbUrl, webpUrl, originalUrl, isFreePreview FROM photos WHERE albumId = 90001 LIMIT 5;",
+  "rows": [
+    {
+      "id": "120001",
+      "albumId": "90001",
+      "thumbUrl": "https://media.yukvix.com/albums/90001/thumb/1778858009076_3290194986190969357_6722183453_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/albums/90001/webp/1778858009076_3290194986190969357_6722183453.webp",
+      "originalUrl": "https://media.yukvix.com/albums/90001/original/1778858001995_3290194986190969357_6722183453.jpg",
+      "isFreePreview": "1"
+    },
+    {
+      "id": "120002",
+      "albumId": "90001",
+      "thumbUrl": "https://media.yukvix.com/albums/90001/thumb/1778858013831_3290194986174119087_6722183453_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/albums/90001/webp/1778858013831_3290194986174119087_6722183453.webp",
+      "originalUrl": "https://media.yukvix.com/albums/90001/original/1778858001988_3290194986174119087_6722183453.jpg",
+      "isFreePreview": "1"
+    },
+    {
+      "id": "120003",
+      "albumId": "90001",
+      "thumbUrl": "https://media.yukvix.com/albums/90001/thumb/1778858017988_3290194986190895814_6722183453_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/albums/90001/webp/1778858017988_3290194986190895814_6722183453.webp",
+      "originalUrl": "https://media.yukvix.com/albums/90001/original/1778858001992_3290194986190895814_6722183453.jpg",
+      "isFreePreview": "1"
+    },
+    {
+      "id": "120004",
+      "albumId": "90001",
+      "thumbUrl": "https://media.yukvix.com/albums/90001/thumb/1778858022024_3290194986191026625_6722183453_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/albums/90001/webp/1778858022024_3290194986191026625_6722183453.webp",
+      "originalUrl": "https://media.yukvix.com/albums/90001/original/1778858018139_3290194986191026625_6722183453.jpg",
+      "isFreePreview": "0"
+    },
+    {
+      "id": "120005",
+      "albumId": "90001",
+      "thumbUrl": "https://media.yukvix.com/albums/90001/thumb/1778858027188_3290194986199272646_6722183453_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/albums/90001/webp/1778858027188_3290194986199272646_6722183453.webp",
+      "originalUrl": "https://media.yukvix.com/albums/90001/original/1778858021589_3290194986199272646_6722183453.jpg",
+      "isFreePreview": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\talbumId\tthumbUrl\twebpUrl\toriginalUrl\tisFreePreview\n120001\t90001\thttps://media.yukvix.com/albums/90001/thumb/1778858009076_3290194986190969357_6722183453_thumb.webp\thttps://media.yukvix.com/albums/90001/webp/1778858009076_3290194986190969357_6722183453.webp\thttps://media.yukvix.com/albums/90001/original/1778858001995_3290194986190969357_6722183453.jpg\t1\n120002\t90001\thttps://media.yukvix.com/albums/90001/thumb/1778858013831_3290194986174119087_6722183453_thumb.webp\thttps://media.yukvix.com/albums/90001/webp/1778858013831_3290194986174119087_6722183453.webp\thttps://media.yukvix.com/albums/90001/original/1778858001988_3290194986174119087_6722183453.jpg\t1\n120003\t90001\thttps://media.yukvix.com/albums/90001/thumb/1778858017988_3290194986190895814_6722183453_thumb.webp\thttps://media.yukvix.com/albums/90001/webp/1778858017988_3290194986190895814_6722183453.webp\thttps://media.yukvix.com/albums/90001/original/1778858001992_3290194986190895814_6722183453.jpg\t1\n120004\t90001\thttps://media.yukvix.com/albums/90001/thumb/1778858022024_3290194986191026625_6722183453_thumb.webp\thttps://media.yukvix.com/albums/90001/webp/1778858022024_3290194986191026625_6722183453.webp\thttps://media.yukvix.com/albums/90001/original/1778858018139_3290194986191026625_6722183453.jpg\t0\n120005\t90001\thttps://media.yukvix.com/albums/90001/thumb/1778858027188_3290194986199272646_6722183453_thumb.webp\thttps://media.yukvix.com/albums/90001/webp/1778858027188_3290194986199272646_6722183453.webp\thttps://media.yukvix.com/albums/90001/original/1778858021589_3290194986199272646_6722183453.jpg\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1796
+}

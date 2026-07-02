@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `import_jobs` ADD `processedImagesData` mediumtext;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute ALTER TABLE `import_jobs` ADD `processedImagesData` mediumtext;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2093
+}

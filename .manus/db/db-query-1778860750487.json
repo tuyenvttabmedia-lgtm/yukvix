@@ -1,0 +1,14 @@
+{
+  "query": "SELECT `key`, `value` FROM site_settings WHERE `key` = 'logo_url';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT `key`, `value` FROM site_settings WHERE `key` = 'logo_url';",
+  "rows": [
+    {
+      "key": "logo_url",
+      "value": "https://media.yukvix.com/cms/logos/SLirsS4qqdub.png"
+    }
+  ],
+  "messages": [],
+  "stdout": "key\tvalue\nlogo_url\thttps://media.yukvix.com/cms/logos/SLirsS4qqdub.png\n",
+  "stderr": "",
+  "execution_time_ms": 1916
+}

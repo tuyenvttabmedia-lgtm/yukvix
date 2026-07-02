@@ -1,0 +1,190 @@
+{
+  "query": "SELECT id, level, message, createdAt FROM import_logs WHERE jobId = 90007 ORDER BY id DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, level, message, createdAt FROM import_logs WHERE jobId = 90007 ORDER BY id DESC LIMIT 30;",
+  "rows": [
+    {
+      "id": "90279",
+      "level": "info",
+      "message": "Processed 23/75 images (13 failed)",
+      "createdAt": "2026-05-22 12:00:45"
+    },
+    {
+      "id": "90278",
+      "level": "info",
+      "message": "Processed 20/75 images (13 failed)",
+      "createdAt": "2026-05-22 12:00:00"
+    },
+    {
+      "id": "90277",
+      "level": "warn",
+      "message": "Failed: img_0032_KOR05D004_33.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:59:43"
+    },
+    {
+      "id": "90276",
+      "level": "warn",
+      "message": "Failed: img_0031_KOR05D004_32.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:59:36"
+    },
+    {
+      "id": "90275",
+      "level": "warn",
+      "message": "Failed: img_0030_KOR05D004_31.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:59:32"
+    },
+    {
+      "id": "90274",
+      "level": "info",
+      "message": "Processed 20/75 images (10 failed)",
+      "createdAt": "2026-05-22 11:57:19"
+    },
+    {
+      "id": "90273",
+      "level": "warn",
+      "message": "Failed: img_0029_KOR05D004_30.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:57:18"
+    },
+    {
+      "id": "90272",
+      "level": "warn",
+      "message": "Failed: img_0028_KOR05D004_29.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:57:17"
+    },
+    {
+      "id": "90271",
+      "level": "warn",
+      "message": "Failed: img_0027_KOR05D004_28.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:57:15"
+    },
+    {
+      "id": "90270",
+      "level": "info",
+      "message": "Processed 20/75 images (7 failed)",
+      "createdAt": "2026-05-22 11:55:07"
+    },
+    {
+      "id": "90269",
+      "level": "warn",
+      "message": "Failed: img_0026_KOR05D004_27.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:55:04"
+    },
+    {
+      "id": "90268",
+      "level": "warn",
+      "message": "Failed: img_0025_KOR05D004_26.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:55:03"
+    },
+    {
+      "id": "90267",
+      "level": "warn",
+      "message": "Failed: img_0024_KOR05D004_25.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:55:00"
+    },
+    {
+      "id": "90265",
+      "level": "info",
+      "message": "Processed 20/75 images (4 failed)",
+      "createdAt": "2026-05-22 11:52:57"
+    },
+    {
+      "id": "90264",
+      "level": "warn",
+      "message": "Failed: img_0023_KOR05D004_24.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:52:56"
+    },
+    {
+      "id": "90263",
+      "level": "warn",
+      "message": "Failed: img_0022_KOR05D004_23.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:52:54"
+    },
+    {
+      "id": "90262",
+      "level": "warn",
+      "message": "Failed: img_0021_KOR05D004_22.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:52:46"
+    },
+    {
+      "id": "90261",
+      "level": "info",
+      "message": "Processed 20/75 images (1 failed)",
+      "createdAt": "2026-05-22 11:50:29"
+    },
+    {
+      "id": "90260",
+      "level": "warn",
+      "message": "Failed: img_0018_KOR05D004_19.webp: Timeout after 120s",
+      "createdAt": "2026-05-22 11:50:25"
+    },
+    {
+      "id": "90259",
+      "level": "info",
+      "message": "Processed 18/75 images (0 failed)",
+      "createdAt": "2026-05-22 11:46:44"
+    },
+    {
+      "id": "90258",
+      "level": "info",
+      "message": "Processed 15/75 images (0 failed)",
+      "createdAt": "2026-05-22 11:46:35"
+    },
+    {
+      "id": "90257",
+      "level": "info",
+      "message": "Processed 12/75 images (0 failed)",
+      "createdAt": "2026-05-22 11:46:06"
+    },
+    {
+      "id": "90256",
+      "level": "info",
+      "message": "Processed 9/75 images (0 failed)",
+      "createdAt": "2026-05-22 11:45:46"
+    },
+    {
+      "id": "90255",
+      "level": "info",
+      "message": "Processed 6/75 images (0 failed)",
+      "createdAt": "2026-05-22 11:45:40"
+    },
+    {
+      "id": "90254",
+      "level": "info",
+      "message": "Processed 3/75 images (0 failed)",
+      "createdAt": "2026-05-22 11:45:37"
+    },
+    {
+      "id": "90253",
+      "level": "info",
+      "message": "Starting image processing: 75 images (concurrency: 3)",
+      "createdAt": "2026-05-22 11:45:27"
+    },
+    {
+      "id": "90252",
+      "level": "info",
+      "message": "Enqueued process job for 75 images",
+      "createdAt": "2026-05-22 11:45:27"
+    },
+    {
+      "id": "90251",
+      "level": "info",
+      "message": "Download complete: 75 downloaded, 0 skipped",
+      "createdAt": "2026-05-22 11:45:27"
+    },
+    {
+      "id": "90250",
+      "level": "info",
+      "message": "Downloaded 75/75 (0 skipped, batch 8)",
+      "createdAt": "2026-05-22 11:45:27"
+    },
+    {
+      "id": "90249",
+      "level": "info",
+      "message": "Downloaded 70/75 (0 skipped, batch 7)",
+      "createdAt": "2026-05-22 11:45:26"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlevel\tmessage\tcreatedAt\n90279\tinfo\tProcessed 23/75 images (13 failed)\t2026-05-22 12:00:45\n90278\tinfo\tProcessed 20/75 images (13 failed)\t2026-05-22 12:00:00\n90277\twarn\tFailed: img_0032_KOR05D004_33.webp: Timeout after 120s\t2026-05-22 11:59:43\n90276\twarn\tFailed: img_0031_KOR05D004_32.webp: Timeout after 120s\t2026-05-22 11:59:36\n90275\twarn\tFailed: img_0030_KOR05D004_31.webp: Timeout after 120s\t2026-05-22 11:59:32\n90274\tinfo\tProcessed 20/75 images (10 failed)\t2026-05-22 11:57:19\n90273\twarn\tFailed: img_0029_KOR05D004_30.webp: Timeout after 120s\t2026-05-22 11:57:18\n90272\twarn\tFailed: img_0028_KOR05D004_29.webp: Timeout after 120s\t2026-05-22 11:57:17\n90271\twarn\tFailed: img_0027_KOR05D004_28.webp: Timeout after 120s\t2026-05-22 11:57:15\n90270\tinfo\tProcessed 20/75 images (7 failed)\t2026-05-22 11:55:07\n90269\twarn\tFailed: img_0026_KOR05D004_27.webp: Timeout after 120s\t2026-05-22 11:55:04\n90268\twarn\tFailed: img_0025_KOR05D004_26.webp: Timeout after 120s\t2026-05-22 11:55:03\n90267\twarn\tFailed: img_0024_KOR05D004_25.webp: Timeout after 120s\t2026-05-22 11:55:00\n90265\tinfo\tProcessed 20/75 images (4 failed)\t2026-05-22 11:52:57\n90264\twarn\tFailed: img_0023_KOR05D004_24.webp: Timeout after 120s\t2026-05-22 11:52:56\n90263\twarn\tFailed: img_0022_KOR05D004_23.webp: Timeout after 120s\t2026-05-22 11:52:54\n90262\twarn\tFailed: img_0021_KOR05D004_22.webp: Timeout after 120s\t2026-05-22 11:52:46\n90261\tinfo\tProcessed 20/75 images (1 failed)\t2026-05-22 11:50:29\n90260\twarn\tFailed: img_0018_KOR05D004_19.webp: Timeout after 120s\t2026-05-22 11:50:25\n90259\tinfo\tProcessed 18/75 images (0 failed)\t2026-05-22 11:46:44\n90258\tinfo\tProcessed 15/75 images (0 failed)\t2026-05-22 11:46:35\n90257\tinfo\tProcessed 12/75 images (0 failed)\t2026-05-22 11:46:06\n90256\tinfo\tProcessed 9/75 images (0 failed)\t2026-05-22 11:45:46\n90255\tinfo\tProcessed 6/75 images (0 failed)\t2026-05-22 11:45:40\n90254\tinfo\tProcessed 3/75 images (0 failed)\t2026-05-22 11:45:37\n90253\tinfo\tStarting image processing: 75 images (concurrency: 3)\t2026-05-22 11:45:27\n90252\tinfo\tEnqueued process job for 75 images\t2026-05-22 11:45:27\n90251\tinfo\tDownload complete: 75 downloaded, 0 skipped\t2026-05-22 11:45:27\n90250\tinfo\tDownloaded 75/75 (0 skipped, batch 8)\t2026-05-22 11:45:27\n90249\tinfo\tDownloaded 70/75 (0 skipped, batch 7)\t2026-05-22 11:45:26\n",
+  "stderr": "",
+  "execution_time_ms": 1780
+}

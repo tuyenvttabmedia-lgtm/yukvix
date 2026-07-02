@@ -1,0 +1,35 @@
+{
+  "query": "SELECT slug, title, status FROM albums WHERE status = 'published' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT slug, title, status FROM albums WHERE status = 'published' LIMIT 5;",
+  "rows": [
+    {
+      "slug": "asuna-sword-art-online-demo",
+      "title": "Asuna — Sword Art Online",
+      "status": "published"
+    },
+    {
+      "slug": "nezuko-demon-slayer-demo",
+      "title": "Nezuko — Demon Slayer",
+      "status": "published"
+    },
+    {
+      "slug": "mikasa-attack-on-titan-demo",
+      "title": "Mikasa — Attack on Titan",
+      "status": "published"
+    },
+    {
+      "slug": "hu-tao-genshin-impact-demo",
+      "title": "Hu Tao — Genshin Impact",
+      "status": "published"
+    },
+    {
+      "slug": "jinx-league-of-legends-demo",
+      "title": "Jinx — League of Legends",
+      "status": "published"
+    }
+  ],
+  "messages": [],
+  "stdout": "slug\ttitle\tstatus\nasuna-sword-art-online-demo\tAsuna — Sword Art Online\tpublished\nnezuko-demon-slayer-demo\tNezuko — Demon Slayer\tpublished\nmikasa-attack-on-titan-demo\tMikasa — Attack on Titan\tpublished\nhu-tao-genshin-impact-demo\tHu Tao — Genshin Impact\tpublished\njinx-league-of-legends-demo\tJinx — League of Legends\tpublished\n",
+  "stderr": "",
+  "execution_time_ms": 1815
+}

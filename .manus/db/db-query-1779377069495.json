@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, filename, thumbUrl, webpUrl, originalUrl FROM media_items ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, filename, thumbUrl, webpUrl, originalUrl FROM media_items ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "30008",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-08_result.webp",
+      "thumbUrl": "https://media.yukvix.com/library/thumb/1779375121933_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/library/webp/1779375121933_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result.webp",
+      "originalUrl": "https://media.yukvix.com/library/original/1779375089630_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result.webp"
+    },
+    {
+      "id": "30007",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp",
+      "thumbUrl": "https://media.yukvix.com/library/thumb/1779375113394_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/library/webp/1779375113394_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp",
+      "originalUrl": "https://media.yukvix.com/library/original/1779375087726_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp"
+    },
+    {
+      "id": "30006",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp",
+      "thumbUrl": "https://media.yukvix.com/library/thumb/1779375110679_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/library/webp/1779375110679_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp",
+      "originalUrl": "https://media.yukvix.com/library/original/1779375087726_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp"
+    },
+    {
+      "id": "30005",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-10_result.webp",
+      "thumbUrl": "https://media.yukvix.com/library/thumb/1779375109878_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-10_result_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/library/webp/1779375109878_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-10_result.webp",
+      "originalUrl": "https://media.yukvix.com/library/original/1779375090491_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-10_result.webp"
+    },
+    {
+      "id": "30004",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-09_result.webp",
+      "thumbUrl": "https://media.yukvix.com/library/thumb/1779375107967_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-09_result_thumb.webp",
+      "webpUrl": "https://media.yukvix.com/library/webp/1779375107967_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-09_result.webp",
+      "originalUrl": "https://media.yukvix.com/library/original/1779375089743_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-09_result.webp"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tfilename\tthumbUrl\twebpUrl\toriginalUrl\n30008\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-08_result.webp\thttps://media.yukvix.com/library/thumb/1779375121933_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result_thumb.webp\thttps://media.yukvix.com/library/webp/1779375121933_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result.webp\thttps://media.yukvix.com/library/original/1779375089630_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result.webp\n30007\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp\thttps://media.yukvix.com/library/thumb/1779375113394_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result_thumb.webp\thttps://media.yukvix.com/library/webp/1779375113394_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp\thttps://media.yukvix.com/library/original/1779375087726_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp\n30006\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp\thttps://media.yukvix.com/library/thumb/1779375110679_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result_thumb.webp\thttps://media.yukvix.com/library/webp/1779375110679_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp\thttps://media.yukvix.com/library/original/1779375087726_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-06_result.webp\n30005\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-10_result.webp\thttps://media.yukvix.com/library/thumb/1779375109878_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-10_result_thumb.webp\thttps://media.yukvix.com/library/webp/1779375109878_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-10_result.webp\thttps://media.yukvix.com/library/original/1779375090491_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-10_result.webp\n30004\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-09_result.webp\thttps://media.yukvix.com/library/thumb/1779375107967_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-09_result_thumb.webp\thttps://media.yukvix.com/library/webp/1779375107967_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-09_result.webp\thttps://media.yukvix.com/library/original/1779375089743_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-09_result.webp\n",
+  "stderr": "",
+  "execution_time_ms": 1729
+}

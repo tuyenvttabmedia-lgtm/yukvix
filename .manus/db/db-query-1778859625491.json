@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, albumId, thumbUrl, webpUrl, isFreePreview FROM photos WHERE albumId = 30001 LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, albumId, thumbUrl, webpUrl, isFreePreview FROM photos WHERE albumId = 30001 LIMIT 5;",
+  "rows": [
+    {
+      "id": "30001",
+      "albumId": "30001",
+      "thumbUrl": "/manus-storage/albums/30001/thumb/1778657732391_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_thumb_9baec802.webp",
+      "webpUrl": "/manus-storage/albums/30001/webp/1778657732391_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_344a9c7c.webp",
+      "isFreePreview": "1"
+    },
+    {
+      "id": "30002",
+      "albumId": "30001",
+      "thumbUrl": "/manus-storage/albums/30001/thumb/1778657796669_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_thumb_23eccc63.webp",
+      "webpUrl": "/manus-storage/albums/30001/webp/1778657796669_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_e1834078.webp",
+      "isFreePreview": "1"
+    },
+    {
+      "id": "60001",
+      "albumId": "30001",
+      "thumbUrl": "/manus-storage/albums/30001/thumb/1778778833816_Coser-Nnian-Vol_001-A-01_thumb_d1417b81.webp",
+      "webpUrl": "/manus-storage/albums/30001/webp/1778778833816_Coser-Nnian-Vol_001-A-01_ae39123c.webp",
+      "isFreePreview": "1"
+    },
+    {
+      "id": "60002",
+      "albumId": "30001",
+      "thumbUrl": "/manus-storage/albums/30001/thumb/1778778833824_Coser-Nnian-Vol_001-A-02_thumb_730ca66f.webp",
+      "webpUrl": "/manus-storage/albums/30001/webp/1778778833824_Coser-Nnian-Vol_001-A-02_77c484c7.webp",
+      "isFreePreview": "0"
+    },
+    {
+      "id": "60003",
+      "albumId": "30001",
+      "thumbUrl": "/manus-storage/albums/30001/thumb/1778778833809_Coser-Nnian-Vol_001-A-03_thumb_e610ddcd.webp",
+      "webpUrl": "/manus-storage/albums/30001/webp/1778778833809_Coser-Nnian-Vol_001-A-03_b0424ef8.webp",
+      "isFreePreview": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\talbumId\tthumbUrl\twebpUrl\tisFreePreview\n30001\t30001\t/manus-storage/albums/30001/thumb/1778657732391_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_thumb_9baec802.webp\t/manus-storage/albums/30001/webp/1778657732391_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_344a9c7c.webp\t1\n30002\t30001\t/manus-storage/albums/30001/thumb/1778657796669_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_thumb_23eccc63.webp\t/manus-storage/albums/30001/webp/1778657796669_Trinh-nu-hoang-cung-cao-xa-den-tabfarm-5-600x600_e1834078.webp\t1\n60001\t30001\t/manus-storage/albums/30001/thumb/1778778833816_Coser-Nnian-Vol_001-A-01_thumb_d1417b81.webp\t/manus-storage/albums/30001/webp/1778778833816_Coser-Nnian-Vol_001-A-01_ae39123c.webp\t1\n60002\t30001\t/manus-storage/albums/30001/thumb/1778778833824_Coser-Nnian-Vol_001-A-02_thumb_730ca66f.webp\t/manus-storage/albums/30001/webp/1778778833824_Coser-Nnian-Vol_001-A-02_77c484c7.webp\t0\n60003\t30001\t/manus-storage/albums/30001/thumb/1778778833809_Coser-Nnian-Vol_001-A-03_thumb_e610ddcd.webp\t/manus-storage/albums/30001/webp/1778778833809_Coser-Nnian-Vol_001-A-03_b0424ef8.webp\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1963
+}

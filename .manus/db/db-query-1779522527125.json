@@ -1,0 +1,115 @@
+{
+  "query": "\nSELECT a.id, a.title, a.freePreviewCount,\n       COUNT(p.id) as total_photos,\n       SUM(CASE WHEN p.isFreePreview = 1 THEN 1 ELSE 0 END) as free_preview_photos\nFROM albums a\nLEFT JOIN photos p ON p.albumId = a.id\nWHERE a.isVip = 1\nGROUP BY a.id, a.title, a.freePreviewCount\nORDER BY a.id;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute \nSELECT a.id, a.title, a.freePreviewCount,\n       COUNT(p.id) as total_photos,\n       SUM(CASE WHEN p.isFreePreview = 1 THEN 1 ELSE 0 END) as free_preview_photos\nFROM albums a\nLEFT JOIN photos p ON p.albumId = a.id\nWHERE a.isVip = 1\nGROUP BY a.id, a.title, a.freePreviewCount\nORDER BY a.id;\n",
+  "rows": [
+    {
+      "id": "11",
+      "title": "Asuna — Fairy Dance Arc [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "18",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "12",
+      "title": "Raiden Shogun — Genshin [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "20",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "13",
+      "title": "Makima — Chainsaw Man [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "16",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "14",
+      "title": "Jinx — Arcane Edition [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "22",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "15",
+      "title": "Yor Forger — Wedding Dress [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "15",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "16",
+      "title": "Mikasa — Final Season [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "17",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "17",
+      "title": "Malenia — Goddess of Rot [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "25",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "18",
+      "title": "Nezuko — Awakened Form [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "19",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "19",
+      "title": "Hu Tao — Ghost Festival [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "16",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "20",
+      "title": "Itadori — Sukuna Domain [VIP]",
+      "freePreviewCount": "5",
+      "total_photos": "14",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "30001",
+      "title": "Test hàng",
+      "freePreviewCount": "5",
+      "total_photos": "7",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "90002",
+      "title": "Van 22",
+      "freePreviewCount": "5",
+      "total_photos": "11",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "120001",
+      "title": "threhherh",
+      "freePreviewCount": "5",
+      "total_photos": "8",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "120002",
+      "title": "hhehreeher",
+      "freePreviewCount": "5",
+      "total_photos": "12",
+      "free_preview_photos": "5"
+    },
+    {
+      "id": "210003",
+      "title": "[CreamSoda] Zia (지아) - White Cat",
+      "freePreviewCount": "5",
+      "total_photos": "55",
+      "free_preview_photos": "5"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tfreePreviewCount\ttotal_photos\tfree_preview_photos\n11\tAsuna — Fairy Dance Arc [VIP]\t5\t18\t5\n12\tRaiden Shogun — Genshin [VIP]\t5\t20\t5\n13\tMakima — Chainsaw Man [VIP]\t5\t16\t5\n14\tJinx — Arcane Edition [VIP]\t5\t22\t5\n15\tYor Forger — Wedding Dress [VIP]\t5\t15\t5\n16\tMikasa — Final Season [VIP]\t5\t17\t5\n17\tMalenia — Goddess of Rot [VIP]\t5\t25\t5\n18\tNezuko — Awakened Form [VIP]\t5\t19\t5\n19\tHu Tao — Ghost Festival [VIP]\t5\t16\t5\n20\tItadori — Sukuna Domain [VIP]\t5\t14\t5\n30001\tTest hàng\t5\t7\t5\n90002\tVan 22\t5\t11\t5\n120001\tthrehherh\t5\t8\t5\n120002\thhehreeher\t5\t12\t5\n210003\t[CreamSoda] Zia (지아) - White Cat\t5\t55\t5\n",
+  "stderr": "",
+  "execution_time_ms": 1730
+}

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `image_processing_jobs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`albumId` int NOT NULL,\n\t`originalKey` varchar(512) NOT NULL,\n\t`fileName` varchar(256) NOT NULL,\n\t`mimeType` varchar(64) NOT NULL,\n\t`fileSize` bigint NOT NULL,\n\t`status` enum('pending','processing','done','failed') NOT NULL DEFAULT 'pending',\n\t`error` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`processedAt` timestamp,\n\tCONSTRAINT `image_processing_jobs_id` PRIMARY KEY(`id`)\n);\n\nALTER TABLE `photos` ADD `signedUrl` text;\nALTER TABLE `photos` ADD `signedUrlExpiresAt` bigint;\nCREATE INDEX `idx_ipj_albumId` ON `image_processing_jobs` (`albumId`);\nCREATE INDEX `idx_ipj_status` ON `image_processing_jobs` (`status`);\nCREATE INDEX `idx_ipj_createdAt` ON `image_processing_jobs` (`createdAt`);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute CREATE TABLE `image_processing_jobs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`albumId` int NOT NULL,\n\t`originalKey` varchar(512) NOT NULL,\n\t`fileName` varchar(256) NOT NULL,\n\t`mimeType` varchar(64) NOT NULL,\n\t`fileSize` bigint NOT NULL,\n\t`status` enum('pending','processing','done','failed') NOT NULL DEFAULT 'pending',\n\t`error` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`processedAt` timestamp,\n\tCONSTRAINT `image_processing_jobs_id` PRIMARY KEY(`id`)\n);\n\nALTER TABLE `photos` ADD `signedUrl` text;\nALTER TABLE `photos` ADD `signedUrlExpiresAt` bigint;\nCREATE INDEX `idx_ipj_albumId` ON `image_processing_jobs` (`albumId`);\nCREATE INDEX `idx_ipj_status` ON `image_processing_jobs` (`status`);\nCREATE INDEX `idx_ipj_createdAt` ON `image_processing_jobs` (`createdAt`);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 4129
+}

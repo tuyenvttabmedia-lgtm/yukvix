@@ -1,0 +1,22 @@
+{
+  "query": "SELECT `key`, LEFT(`value`, 200) as value FROM site_settings WHERE `key` IN ('logo_url', 'favicon_url', 'homepage_banners') LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT `key`, LEFT(`value`, 200) as value FROM site_settings WHERE `key` IN ('logo_url', 'favicon_url', 'homepage_banners') LIMIT 5;",
+  "rows": [
+    {
+      "key": "favicon_url",
+      "value": ""
+    },
+    {
+      "key": "homepage_banners",
+      "value": "[]"
+    },
+    {
+      "key": "logo_url",
+      "value": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/cms/logos/SLirsS4qqdub.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=XVSBCJ4DSAA0ICNHLHA9%2F20260"
+    }
+  ],
+  "messages": [],
+  "stdout": "key\tvalue\nfavicon_url\t\nhomepage_banners\t[]\nlogo_url\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/cms/logos/SLirsS4qqdub.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=XVSBCJ4DSAA0ICNHLHA9%2F20260\n",
+  "stderr": "",
+  "execution_time_ms": 1929
+}

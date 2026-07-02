@@ -1,0 +1,16 @@
+{
+  "query": "SELECT a.id, a.title, a.coverUrl, COUNT(p.id) as photoCount FROM albums a LEFT JOIN photos p ON p.albumId = a.id WHERE (a.coverUrl IS NULL OR a.coverUrl = '') GROUP BY a.id ORDER BY a.createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT a.id, a.title, a.coverUrl, COUNT(p.id) as photoCount FROM albums a LEFT JOIN photos p ON p.albumId = a.id WHERE (a.coverUrl IS NULL OR a.coverUrl = '') GROUP BY a.id ORDER BY a.createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "120001",
+      "title": "threhherh",
+      "coverUrl": "NULL",
+      "photoCount": "8"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcoverUrl\tphotoCount\n120001\tthrehherh\tNULL\t8\n",
+  "stderr": "",
+  "execution_time_ms": 1783
+}

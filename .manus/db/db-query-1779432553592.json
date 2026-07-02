@@ -1,0 +1,22 @@
+{
+  "query": "UPDATE import_sources \nSET \n  titleCleanupRules = '[{\"find\":\" – EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" - EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" – everia.club\",\"replace\":\"\"},{\"find\":\" - everia.club\",\"replace\":\"\"}]',\n  categoryUrls = '[{\"url\":\"https://everia.club/category/korea/\"},{\"url\":\"https://everia.club/category/japan/\"},{\"url\":\"https://everia.club/category/chinese/\"}]'\nWHERE siteName = 'EVERIA.CLUB';\nSELECT id, siteName, titleCleanupRules, categoryUrls FROM import_sources WHERE siteName = 'EVERIA.CLUB';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute UPDATE import_sources \nSET \n  titleCleanupRules = '[{\"find\":\" – EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" - EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" – everia.club\",\"replace\":\"\"},{\"find\":\" - everia.club\",\"replace\":\"\"}]',\n  categoryUrls = '[{\"url\":\"https://everia.club/category/korea/\"},{\"url\":\"https://everia.club/category/japan/\"},{\"url\":\"https://everia.club/category/chinese/\"}]'\nWHERE siteName = 'EVERIA.CLUB';\nSELECT id, siteName, titleCleanupRules, categoryUrls FROM import_sources WHERE siteName = 'EVERIA.CLUB';",
+  "rows": [
+    {
+      "id": "1",
+      "siteName": "everia.club",
+      "titleCleanupRules": "[{\"find\":\" – EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" - EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" – everia.club\",\"replace\":\"\"},{\"find\":\" - everia.club\",\"replace\":\"\"}]",
+      "categoryUrls": "[{\"url\":\"https://everia.club/category/korea/\"},{\"url\":\"https://everia.club/category/japan/\"},{\"url\":\"https://everia.club/category/chinese/\"}]"
+    },
+    {
+      "id": "30001",
+      "siteName": "EVERIA.CLUB",
+      "titleCleanupRules": "[{\"find\":\" – EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" - EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" – everia.club\",\"replace\":\"\"},{\"find\":\" - everia.club\",\"replace\":\"\"}]",
+      "categoryUrls": "[{\"url\":\"https://everia.club/category/korea/\"},{\"url\":\"https://everia.club/category/japan/\"},{\"url\":\"https://everia.club/category/chinese/\"}]"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tsiteName\ttitleCleanupRules\tcategoryUrls\n1\teveria.club\t[{\"find\":\" – EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" - EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" – everia.club\",\"replace\":\"\"},{\"find\":\" - everia.club\",\"replace\":\"\"}]\t[{\"url\":\"https://everia.club/category/korea/\"},{\"url\":\"https://everia.club/category/japan/\"},{\"url\":\"https://everia.club/category/chinese/\"}]\n30001\tEVERIA.CLUB\t[{\"find\":\" – EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" - EVERIA.CLUB\",\"replace\":\"\"},{\"find\":\" – everia.club\",\"replace\":\"\"},{\"find\":\" - everia.club\",\"replace\":\"\"}]\t[{\"url\":\"https://everia.club/category/korea/\"},{\"url\":\"https://everia.club/category/japan/\"},{\"url\":\"https://everia.club/category/chinese/\"}]\n",
+  "stderr": "",
+  "execution_time_ms": 2132
+}

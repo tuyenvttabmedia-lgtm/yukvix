@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `subscriptions` MODIFY COLUMN `provider` varchar(32) NOT NULL DEFAULT 'ccbill';\nALTER TABLE `subscriptions` ADD `paymentMethod` varchar(32) DEFAULT 'card' NOT NULL;\nALTER TABLE `subscriptions` ADD `cryptoOrderId` varchar(256);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute ALTER TABLE `subscriptions` MODIFY COLUMN `provider` varchar(32) NOT NULL DEFAULT 'ccbill';\nALTER TABLE `subscriptions` ADD `paymentMethod` varchar(32) DEFAULT 'card' NOT NULL;\nALTER TABLE `subscriptions` ADD `cryptoOrderId` varchar(256);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2830
+}

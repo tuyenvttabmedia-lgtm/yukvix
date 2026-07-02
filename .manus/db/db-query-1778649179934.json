@@ -1,0 +1,38 @@
+{
+  "query": "\nSELECT 'users' as tbl, COUNT(*) as cnt FROM users\nUNION ALL SELECT 'albums', COUNT(*) FROM albums WHERE status='published'\nUNION ALL SELECT 'photos', COUNT(*) FROM photos\nUNION ALL SELECT 'categories', COUNT(*) FROM categories\nUNION ALL SELECT 'tags', COUNT(*) FROM tags\nUNION ALL SELECT 'subscriptions', COUNT(*) FROM subscriptions WHERE status='active'\nUNION ALL SELECT 'bookmarks', COUNT(*) FROM bookmarks;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute \nSELECT 'users' as tbl, COUNT(*) as cnt FROM users\nUNION ALL SELECT 'albums', COUNT(*) FROM albums WHERE status='published'\nUNION ALL SELECT 'photos', COUNT(*) FROM photos\nUNION ALL SELECT 'categories', COUNT(*) FROM categories\nUNION ALL SELECT 'tags', COUNT(*) FROM tags\nUNION ALL SELECT 'subscriptions', COUNT(*) FROM subscriptions WHERE status='active'\nUNION ALL SELECT 'bookmarks', COUNT(*) FROM bookmarks;\n",
+  "rows": [
+    {
+      "tbl": "albums",
+      "cnt": "20"
+    },
+    {
+      "tbl": "categories",
+      "cnt": "9"
+    },
+    {
+      "tbl": "users",
+      "cnt": "4"
+    },
+    {
+      "tbl": "photos",
+      "cnt": "297"
+    },
+    {
+      "tbl": "tags",
+      "cnt": "12"
+    },
+    {
+      "tbl": "subscriptions",
+      "cnt": "1"
+    },
+    {
+      "tbl": "bookmarks",
+      "cnt": "3"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nalbums\t20\ncategories\t9\nusers\t4\nphotos\t297\ntags\t12\nsubscriptions\t1\nbookmarks\t3\n",
+  "stderr": "",
+  "execution_time_ms": 1900
+}

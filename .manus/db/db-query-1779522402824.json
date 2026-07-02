@@ -1,0 +1,90 @@
+{
+  "query": "\nSELECT a.id, a.title, a.isVip, a.freePreviewCount, \n       COUNT(p.id) as total_photos,\n       SUM(CASE WHEN p.isFreePreview = 1 THEN 1 ELSE 0 END) as free_preview_photos\nFROM albums a\nLEFT JOIN photos p ON p.albumId = a.id\nWHERE a.isVip = 1\nGROUP BY a.id, a.title, a.isVip, a.freePreviewCount\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute \nSELECT a.id, a.title, a.isVip, a.freePreviewCount, \n       COUNT(p.id) as total_photos,\n       SUM(CASE WHEN p.isFreePreview = 1 THEN 1 ELSE 0 END) as free_preview_photos\nFROM albums a\nLEFT JOIN photos p ON p.albumId = a.id\nWHERE a.isVip = 1\nGROUP BY a.id, a.title, a.isVip, a.freePreviewCount\nLIMIT 10;\n",
+  "rows": [
+    {
+      "id": "14",
+      "title": "Jinx — Arcane Edition [VIP]",
+      "isVip": "1",
+      "freePreviewCount": "4",
+      "total_photos": "22",
+      "free_preview_photos": "4"
+    },
+    {
+      "id": "30001",
+      "title": "Test hàng",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "7",
+      "free_preview_photos": "3"
+    },
+    {
+      "id": "90002",
+      "title": "Van 22",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "11",
+      "free_preview_photos": "3"
+    },
+    {
+      "id": "120002",
+      "title": "hhehreeher",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "12",
+      "free_preview_photos": "3"
+    },
+    {
+      "id": "12",
+      "title": "Raiden Shogun — Genshin [VIP]",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "20",
+      "free_preview_photos": "3"
+    },
+    {
+      "id": "17",
+      "title": "Malenia — Goddess of Rot [VIP]",
+      "isVip": "1",
+      "freePreviewCount": "4",
+      "total_photos": "25",
+      "free_preview_photos": "4"
+    },
+    {
+      "id": "18",
+      "title": "Nezuko — Awakened Form [VIP]",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "19",
+      "free_preview_photos": "3"
+    },
+    {
+      "id": "19",
+      "title": "Hu Tao — Ghost Festival [VIP]",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "16",
+      "free_preview_photos": "3"
+    },
+    {
+      "id": "210003",
+      "title": "[CreamSoda] Zia (지아) - White Cat",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "55",
+      "free_preview_photos": "3"
+    },
+    {
+      "id": "11",
+      "title": "Asuna — Fairy Dance Arc [VIP]",
+      "isVip": "1",
+      "freePreviewCount": "3",
+      "total_photos": "18",
+      "free_preview_photos": "3"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tisVip\tfreePreviewCount\ttotal_photos\tfree_preview_photos\n14\tJinx — Arcane Edition [VIP]\t1\t4\t22\t4\n30001\tTest hàng\t1\t3\t7\t3\n90002\tVan 22\t1\t3\t11\t3\n120002\thhehreeher\t1\t3\t12\t3\n12\tRaiden Shogun — Genshin [VIP]\t1\t3\t20\t3\n17\tMalenia — Goddess of Rot [VIP]\t1\t4\t25\t4\n18\tNezuko — Awakened Form [VIP]\t1\t3\t19\t3\n19\tHu Tao — Ghost Festival [VIP]\t1\t3\t16\t3\n210003\t[CreamSoda] Zia (지아) - White Cat\t1\t3\t55\t3\n11\tAsuna — Fairy Dance Arc [VIP]\t1\t3\t18\t3\n",
+  "stderr": "",
+  "execution_time_ms": 1818
+}

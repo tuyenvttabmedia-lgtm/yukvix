@@ -1,0 +1,2 @@
+ALTER TABLE `downloads` ADD `quality` enum('original','high','medium') DEFAULT 'original';--> statement-breakpoint
+ALTER TABLE `zip_jobs` ADD `quality` enum('original','high','medium') DEFAULT 'original';

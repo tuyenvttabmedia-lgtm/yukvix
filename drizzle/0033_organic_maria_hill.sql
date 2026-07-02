@@ -1,0 +1,1 @@
+ALTER TABLE `image_processing_jobs` ADD `retry_count` int DEFAULT 0 NOT NULL;

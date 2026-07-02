@@ -1,0 +1,32 @@
+{
+  "query": "\n-- Kiểm tra media_items sau migrate\nSELECT id, filename, LEFT(thumbUrl, 80) as thumbUrl FROM media_items ORDER BY createdAt DESC LIMIT 3;\n\n-- Kiểm tra còn URL nào dùng CDN không\nSELECT COUNT(*) as cdn_media_count FROM media_items WHERE thumbUrl LIKE 'https://media.yukvix.com/%';\nSELECT COUNT(*) as cdn_photos_count FROM photos WHERE thumbUrl LIKE 'https://media.yukvix.com/%';\nSELECT COUNT(*) as direct_media_count FROM media_items WHERE thumbUrl LIKE 'https://s3.ap-southeast-1%';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute \n-- Kiểm tra media_items sau migrate\nSELECT id, filename, LEFT(thumbUrl, 80) as thumbUrl FROM media_items ORDER BY createdAt DESC LIMIT 3;\n\n-- Kiểm tra còn URL nào dùng CDN không\nSELECT COUNT(*) as cdn_media_count FROM media_items WHERE thumbUrl LIKE 'https://media.yukvix.com/%';\nSELECT COUNT(*) as cdn_photos_count FROM photos WHERE thumbUrl LIKE 'https://media.yukvix.com/%';\nSELECT COUNT(*) as direct_media_count FROM media_items WHERE thumbUrl LIKE 'https://s3.ap-southeast-1%';\n",
+  "rows": [
+    {
+      "id": "30008",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-08_result.webp",
+      "thumbUrl": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/177937512"
+    },
+    {
+      "id": "30007",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp",
+      "thumbUrl": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/177937511"
+    },
+    {
+      "id": "30006",
+      "filename": "Pudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp",
+      "thumbUrl": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/177937511"
+    }
+  ],
+  "messages": [
+    "cdn_media_count",
+    "0",
+    "cdn_photos_count",
+    "0",
+    "direct_media_count",
+    "8"
+  ],
+  "stdout": "id\tfilename\tthumbUrl\n30008\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-08_result.webp\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/177937512\n30007\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/177937511\n30006\tPudding-Dafa-Cosplay-Vol.10-Fantasy-Girl-Himecute.com-06_result.webp\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/177937511\ncdn_media_count\n0\ncdn_photos_count\n0\ndirect_media_count\n8\n",
+  "stderr": "",
+  "execution_time_ms": 2391
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `image_processing_jobs` MODIFY COLUMN `albumId` int;

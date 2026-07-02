@@ -1,0 +1,50 @@
+{
+  "query": "SHOW COLUMNS FROM import_sources LIKE 'contentSelector';\nSHOW COLUMNS FROM import_sources LIKE 'crawlStartDate';\nSHOW COLUMNS FROM import_sources LIKE 'crawlEndDate';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SHOW COLUMNS FROM import_sources LIKE 'contentSelector';\nSHOW COLUMNS FROM import_sources LIKE 'crawlStartDate';\nSHOW COLUMNS FROM import_sources LIKE 'crawlEndDate';",
+  "rows": [
+    {
+      "Field": "contentSelector",
+      "Type": "varchar(256)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "Field",
+      "Type": "Type",
+      "Null": "Null",
+      "Key": "Key",
+      "Default": "Default",
+      "Extra": "Extra"
+    },
+    {
+      "Field": "crawlStartDate",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "Field",
+      "Type": "Type",
+      "Null": "Null",
+      "Key": "Key",
+      "Default": "Default",
+      "Extra": "Extra"
+    },
+    {
+      "Field": "crawlEndDate",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\ncontentSelector\tvarchar(256)\tYES\t\tNULL\t\nField\tType\tNull\tKey\tDefault\tExtra\ncrawlStartDate\ttimestamp\tYES\t\tNULL\t\nField\tType\tNull\tKey\tDefault\tExtra\ncrawlEndDate\ttimestamp\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 2247
+}

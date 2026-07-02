@@ -1,0 +1,9 @@
+{
+  "query": "SELECT `key`, `value` FROM site_settings WHERE `key` IN ('wasabi_endpoint', 'wasabi_bucket', 'wasabi_region', 'cdn_base_url', 'cdn_enabled');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT `key`, `value` FROM site_settings WHERE `key` IN ('wasabi_endpoint', 'wasabi_bucket', 'wasabi_region', 'cdn_base_url', 'cdn_enabled');",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1736
+}

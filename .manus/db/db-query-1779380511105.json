@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, title, LEFT(coverUrl, 90) as coverUrl FROM albums WHERE coverUrl LIKE '%wasabi%' OR coverUrl LIKE '%media.yukvix%' ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, title, LEFT(coverUrl, 90) as coverUrl FROM albums WHERE coverUrl LIKE '%wasabi%' OR coverUrl LIKE '%media.yukvix%' ORDER BY id;",
+  "rows": [
+    {
+      "id": "90002",
+      "title": "Van 22",
+      "coverUrl": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/albums/90002/thumb/1778863830141_"
+    },
+    {
+      "id": "120001",
+      "title": "threhherh",
+      "coverUrl": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/1779375121933_Puddi"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcoverUrl\n90002\tVan 22\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/albums/90002/thumb/1778863830141_\n120001\tthrehherh\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/1779375121933_Puddi\n",
+  "stderr": "",
+  "execution_time_ms": 1757
+}

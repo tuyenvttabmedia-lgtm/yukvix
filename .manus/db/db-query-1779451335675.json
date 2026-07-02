@@ -1,0 +1,130 @@
+{
+  "query": "SELECT id, level, message, createdAt FROM import_logs WHERE jobId = 90007 ORDER BY id ASC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, level, message, createdAt FROM import_logs WHERE jobId = 90007 ORDER BY id ASC LIMIT 20;",
+  "rows": [
+    {
+      "id": "90234",
+      "level": "info",
+      "message": "Starting crawl: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/",
+      "createdAt": "2026-05-22 11:44:42"
+    },
+    {
+      "id": "90235",
+      "level": "info",
+      "message": "Crawled page 1: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/ (15 images)",
+      "createdAt": "2026-05-22 11:44:42"
+    },
+    {
+      "id": "90236",
+      "level": "info",
+      "message": "Crawled page 2: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/2/ (15 images)",
+      "createdAt": "2026-05-22 11:44:49"
+    },
+    {
+      "id": "90237",
+      "level": "info",
+      "message": "Crawled page 3: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/3/ (15 images)",
+      "createdAt": "2026-05-22 11:44:52"
+    },
+    {
+      "id": "90238",
+      "level": "info",
+      "message": "Crawled page 4: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/4/ (15 images)",
+      "createdAt": "2026-05-22 11:44:55"
+    },
+    {
+      "id": "90239",
+      "level": "info",
+      "message": "Crawled page 5: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/5/ (15 images)",
+      "createdAt": "2026-05-22 11:44:57"
+    },
+    {
+      "id": "90240",
+      "level": "info",
+      "message": "Crawl complete: 5 pages, 75 images",
+      "createdAt": "2026-05-22 11:45:01"
+    },
+    {
+      "id": "90241",
+      "level": "info",
+      "message": "Starting download: 75 images (concurrency: 10)",
+      "createdAt": "2026-05-22 11:45:01"
+    },
+    {
+      "id": "90242",
+      "level": "info",
+      "message": "Enqueued download job for 75 images (slug hint: bambi-djawa-nikke-privaty-unkind-maid-set02)",
+      "createdAt": "2026-05-22 11:45:01"
+    },
+    {
+      "id": "90243",
+      "level": "info",
+      "message": "Downloaded 10/75 (0 skipped, batch 1)",
+      "createdAt": "2026-05-22 11:45:03"
+    },
+    {
+      "id": "90244",
+      "level": "info",
+      "message": "Downloaded 20/75 (0 skipped, batch 2)",
+      "createdAt": "2026-05-22 11:45:04"
+    },
+    {
+      "id": "90245",
+      "level": "info",
+      "message": "Downloaded 30/75 (0 skipped, batch 3)",
+      "createdAt": "2026-05-22 11:45:06"
+    },
+    {
+      "id": "90246",
+      "level": "info",
+      "message": "Downloaded 40/75 (0 skipped, batch 4)",
+      "createdAt": "2026-05-22 11:45:07"
+    },
+    {
+      "id": "90247",
+      "level": "info",
+      "message": "Downloaded 50/75 (0 skipped, batch 5)",
+      "createdAt": "2026-05-22 11:45:08"
+    },
+    {
+      "id": "90248",
+      "level": "info",
+      "message": "Downloaded 60/75 (0 skipped, batch 6)",
+      "createdAt": "2026-05-22 11:45:09"
+    },
+    {
+      "id": "90249",
+      "level": "info",
+      "message": "Downloaded 70/75 (0 skipped, batch 7)",
+      "createdAt": "2026-05-22 11:45:26"
+    },
+    {
+      "id": "90250",
+      "level": "info",
+      "message": "Downloaded 75/75 (0 skipped, batch 8)",
+      "createdAt": "2026-05-22 11:45:27"
+    },
+    {
+      "id": "90251",
+      "level": "info",
+      "message": "Download complete: 75 downloaded, 0 skipped",
+      "createdAt": "2026-05-22 11:45:27"
+    },
+    {
+      "id": "90252",
+      "level": "info",
+      "message": "Enqueued process job for 75 images",
+      "createdAt": "2026-05-22 11:45:27"
+    },
+    {
+      "id": "90253",
+      "level": "info",
+      "message": "Starting image processing: 75 images (concurrency: 3)",
+      "createdAt": "2026-05-22 11:45:27"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlevel\tmessage\tcreatedAt\n90234\tinfo\tStarting crawl: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/\t2026-05-22 11:44:42\n90235\tinfo\tCrawled page 1: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/ (15 images)\t2026-05-22 11:44:42\n90236\tinfo\tCrawled page 2: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/2/ (15 images)\t2026-05-22 11:44:49\n90237\tinfo\tCrawled page 3: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/3/ (15 images)\t2026-05-22 11:44:52\n90238\tinfo\tCrawled page 4: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/4/ (15 images)\t2026-05-22 11:44:55\n90239\tinfo\tCrawled page 5: https://everia.club/2026/05/08/bambi-%eb%b0%a4%eb%b9%84-djawa-%e3%80%8cnikke-privaty-unkind-maid%e3%80%8d-set-02/5/ (15 images)\t2026-05-22 11:44:57\n90240\tinfo\tCrawl complete: 5 pages, 75 images\t2026-05-22 11:45:01\n90241\tinfo\tStarting download: 75 images (concurrency: 10)\t2026-05-22 11:45:01\n90242\tinfo\tEnqueued download job for 75 images (slug hint: bambi-djawa-nikke-privaty-unkind-maid-set02)\t2026-05-22 11:45:01\n90243\tinfo\tDownloaded 10/75 (0 skipped, batch 1)\t2026-05-22 11:45:03\n90244\tinfo\tDownloaded 20/75 (0 skipped, batch 2)\t2026-05-22 11:45:04\n90245\tinfo\tDownloaded 30/75 (0 skipped, batch 3)\t2026-05-22 11:45:06\n90246\tinfo\tDownloaded 40/75 (0 skipped, batch 4)\t2026-05-22 11:45:07\n90247\tinfo\tDownloaded 50/75 (0 skipped, batch 5)\t2026-05-22 11:45:08\n90248\tinfo\tDownloaded 60/75 (0 skipped, batch 6)\t2026-05-22 11:45:09\n90249\tinfo\tDownloaded 70/75 (0 skipped, batch 7)\t2026-05-22 11:45:26\n90250\tinfo\tDownloaded 75/75 (0 skipped, batch 8)\t2026-05-22 11:45:27\n90251\tinfo\tDownload complete: 75 downloaded, 0 skipped\t2026-05-22 11:45:27\n90252\tinfo\tEnqueued process job for 75 images\t2026-05-22 11:45:27\n90253\tinfo\tStarting image processing: 75 images (concurrency: 3)\t2026-05-22 11:45:27\n",
+  "stderr": "",
+  "execution_time_ms": 1876
+}

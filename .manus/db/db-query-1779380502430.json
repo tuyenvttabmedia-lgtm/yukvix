@@ -1,0 +1,85 @@
+{
+  "query": "SELECT id, title, LEFT(coverUrl, 80) as coverUrl FROM albums WHERE coverUrl IS NOT NULL ORDER BY id LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, title, LEFT(coverUrl, 80) as coverUrl FROM albums WHERE coverUrl IS NOT NULL ORDER BY id LIMIT 15;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "Asuna — Sword Art Online",
+      "coverUrl": "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&q=80"
+    },
+    {
+      "id": "2",
+      "title": "Nezuko — Demon Slayer",
+      "coverUrl": "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&q=80"
+    },
+    {
+      "id": "3",
+      "title": "Mikasa — Attack on Titan",
+      "coverUrl": "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&q=80"
+    },
+    {
+      "id": "4",
+      "title": "Hu Tao — Genshin Impact",
+      "coverUrl": "https://images.unsplash.com/photo-1535223289429-462dc9e7f5e1?w=800&q=80"
+    },
+    {
+      "id": "5",
+      "title": "Jinx — League of Legends",
+      "coverUrl": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80"
+    },
+    {
+      "id": "6",
+      "title": "Itadori Yuji — Jujutsu Kaisen",
+      "coverUrl": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80"
+    },
+    {
+      "id": "7",
+      "title": "Yor Forger — Spy x Family",
+      "coverUrl": "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=800&q=80"
+    },
+    {
+      "id": "8",
+      "title": "Malenia — Elden Ring",
+      "coverUrl": "https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=800&q=80"
+    },
+    {
+      "id": "10",
+      "title": "Nami — One Piece",
+      "coverUrl": "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&q=80"
+    },
+    {
+      "id": "11",
+      "title": "Asuna — Fairy Dance Arc [VIP]",
+      "coverUrl": "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=80"
+    },
+    {
+      "id": "12",
+      "title": "Raiden Shogun — Genshin [VIP]",
+      "coverUrl": "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80"
+    },
+    {
+      "id": "13",
+      "title": "Makima — Chainsaw Man [VIP]",
+      "coverUrl": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80"
+    },
+    {
+      "id": "14",
+      "title": "Jinx — Arcane Edition [VIP]",
+      "coverUrl": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80"
+    },
+    {
+      "id": "15",
+      "title": "Yor Forger — Wedding Dress [VIP]",
+      "coverUrl": "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80"
+    },
+    {
+      "id": "16",
+      "title": "Mikasa — Final Season [VIP]",
+      "coverUrl": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=80"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcoverUrl\n1\tAsuna — Sword Art Online\thttps://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&q=80\n2\tNezuko — Demon Slayer\thttps://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&q=80\n3\tMikasa — Attack on Titan\thttps://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&q=80\n4\tHu Tao — Genshin Impact\thttps://images.unsplash.com/photo-1535223289429-462dc9e7f5e1?w=800&q=80\n5\tJinx — League of Legends\thttps://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80\n6\tItadori Yuji — Jujutsu Kaisen\thttps://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80\n7\tYor Forger — Spy x Family\thttps://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=800&q=80\n8\tMalenia — Elden Ring\thttps://images.unsplash.com/photo-1547036967-23d11aacaee0?w=800&q=80\n10\tNami — One Piece\thttps://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&q=80\n11\tAsuna — Fairy Dance Arc [VIP]\thttps://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=80\n12\tRaiden Shogun — Genshin [VIP]\thttps://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80\n13\tMakima — Chainsaw Man [VIP]\thttps://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80\n14\tJinx — Arcane Edition [VIP]\thttps://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80\n15\tYor Forger — Wedding Dress [VIP]\thttps://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80\n16\tMikasa — Final Season [VIP]\thttps://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=80\n",
+  "stderr": "",
+  "execution_time_ms": 1742
+}

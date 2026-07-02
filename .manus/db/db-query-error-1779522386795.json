@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT a.id, a.title, a.is_vip, a.free_preview_count, \n       COUNT(p.id) as total_photos,\n       SUM(CASE WHEN p.is_free_preview = 1 THEN 1 ELSE 0 END) as free_preview_photos\nFROM albums a\nLEFT JOIN photos p ON p.album_id = a.id\nWHERE a.is_vip = 1\nGROUP BY a.id, a.title, a.is_vip, a.free_preview_count\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute \nSELECT a.id, a.title, a.is_vip, a.free_preview_count, \n       COUNT(p.id) as total_photos,\n       SUM(CASE WHEN p.is_free_preview = 1 THEN 1 ELSE 0 END) as free_preview_photos\nFROM albums a\nLEFT JOIN photos p ON p.album_id = a.id\nWHERE a.is_vip = 1\nGROUP BY a.id, a.title, a.is_vip, a.free_preview_count\nLIMIT 10;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'p.album_id' in 'on clause'"
+  ]
+}

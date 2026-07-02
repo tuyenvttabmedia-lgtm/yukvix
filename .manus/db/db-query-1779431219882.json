@@ -1,0 +1,9 @@
+{
+  "query": "\nINSERT INTO import_sources (\n  siteName,\n  baseUrl,\n  titleSelector,\n  imageSelector,\n  nextPageSelector,\n  tagSelector,\n  creatorSelector,\n  publishDateSelector,\n  paginationType,\n  pageUrlPattern,\n  contentAreaSelector,\n  requiresBrowser,\n  crawlDelayMs,\n  maxPages,\n  publishMode,\n  autoSchedule,\n  scheduleIntervalHours,\n  enabled,\n  categoryUrls\n) VALUES (\n  'EVERIA.CLUB',\n  'https://everia.club/',\n  '.entry-title',\n  '.wp-block-image img',\n  NULL,\n  '.post-tags a',\n  NULL,\n  NULL,\n  'numbered',\n  '[url]/[page]/',\n  '.entry-content',\n  0,\n  1500,\n  10,\n  'draft',\n  0,\n  6,\n  1,\n  'https://everia.club/category/korea/\\nhttps://everia.club/category/japan/\\nhttps://everia.club/category/chinese/'\n);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute \nINSERT INTO import_sources (\n  siteName,\n  baseUrl,\n  titleSelector,\n  imageSelector,\n  nextPageSelector,\n  tagSelector,\n  creatorSelector,\n  publishDateSelector,\n  paginationType,\n  pageUrlPattern,\n  contentAreaSelector,\n  requiresBrowser,\n  crawlDelayMs,\n  maxPages,\n  publishMode,\n  autoSchedule,\n  scheduleIntervalHours,\n  enabled,\n  categoryUrls\n) VALUES (\n  'EVERIA.CLUB',\n  'https://everia.club/',\n  '.entry-title',\n  '.wp-block-image img',\n  NULL,\n  '.post-tags a',\n  NULL,\n  NULL,\n  'numbered',\n  '[url]/[page]/',\n  '.entry-content',\n  0,\n  1500,\n  10,\n  'draft',\n  0,\n  6,\n  1,\n  'https://everia.club/category/korea/\\nhttps://everia.club/category/japan/\\nhttps://everia.club/category/chinese/'\n);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1840
+}

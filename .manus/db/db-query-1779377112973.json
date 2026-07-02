@@ -1,0 +1,66 @@
+{
+  "query": "SELECT `key`, LEFT(`value`, 80) as value_preview FROM site_settings ORDER BY `key`;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT `key`, LEFT(`value`, 80) as value_preview FROM site_settings ORDER BY `key`;",
+  "rows": [
+    {
+      "key": "favicon_url",
+      "value_preview": ""
+    },
+    {
+      "key": "footer_text",
+      "value_preview": ""
+    },
+    {
+      "key": "homepage_banners",
+      "value_preview": "[]"
+    },
+    {
+      "key": "logo_mobile_url",
+      "value_preview": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/cms/logos/EM6gqy3RQ6sU."
+    },
+    {
+      "key": "logo_url",
+      "value_preview": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/cms/logos/sUSUcITu4Xoa."
+    },
+    {
+      "key": "payment.nowpayments.currency",
+      "value_preview": "usdttrc20"
+    },
+    {
+      "key": "site_name",
+      "value_preview": "Yukvix"
+    },
+    {
+      "key": "site_tagline",
+      "value_preview": ""
+    },
+    {
+      "key": "social_links",
+      "value_preview": "[]"
+    },
+    {
+      "key": "wasabi.bucket",
+      "value_preview": "yukvix.manus.space"
+    },
+    {
+      "key": "wasabi.cdn_base_url",
+      "value_preview": "https://media.yukvix.com"
+    },
+    {
+      "key": "wasabi.cdn_enabled",
+      "value_preview": "false"
+    },
+    {
+      "key": "wasabi.endpoint",
+      "value_preview": "https://s3.ap-southeast-1.wasabisys.com"
+    },
+    {
+      "key": "wasabi.region",
+      "value_preview": "ap-southeast-1"
+    }
+  ],
+  "messages": [],
+  "stdout": "key\tvalue_preview\nfavicon_url\t\nfooter_text\t\nhomepage_banners\t[]\nlogo_mobile_url\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/cms/logos/EM6gqy3RQ6sU.\nlogo_url\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/cms/logos/sUSUcITu4Xoa.\npayment.nowpayments.currency\tusdttrc20\nsite_name\tYukvix\nsite_tagline\t\nsocial_links\t[]\nwasabi.bucket\tyukvix.manus.space\nwasabi.cdn_base_url\thttps://media.yukvix.com\nwasabi.cdn_enabled\tfalse\nwasabi.endpoint\thttps://s3.ap-southeast-1.wasabisys.com\nwasabi.region\tap-southeast-1\n",
+  "stderr": "",
+  "execution_time_ms": 1795
+}

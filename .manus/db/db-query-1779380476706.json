@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, title, coverUrl, photoCount FROM albums WHERE title IN ('Van 22', 'threhherh') ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute SELECT id, title, coverUrl, photoCount FROM albums WHERE title IN ('Van 22', 'threhherh') ORDER BY id;",
+  "rows": [
+    {
+      "id": "90002",
+      "title": "Van 22",
+      "coverUrl": "https://media.yukvix.com/albums/90002/thumb/1778863830141_3295056291691376368_6722183453_thumb.webp",
+      "photoCount": "11"
+    },
+    {
+      "id": "120001",
+      "title": "threhherh",
+      "coverUrl": "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/1779375121933_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result_thumb.webp",
+      "photoCount": "8"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcoverUrl\tphotoCount\n90002\tVan 22\thttps://media.yukvix.com/albums/90002/thumb/1778863830141_3295056291691376368_6722183453_thumb.webp\t11\n120001\tthrehherh\thttps://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/1779375121933_Pudding-Dafa-Cosplay-Vol_10-Fantasy-Girl-Himecute_com-08_result_thumb.webp\t8\n",
+  "stderr": "",
+  "execution_time_ms": 1726
+}

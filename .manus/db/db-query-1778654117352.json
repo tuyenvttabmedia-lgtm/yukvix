@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `password_reset_tokens` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`token` varchar(128) NOT NULL,\n\t`expiresAt` timestamp NOT NULL,\n\t`usedAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `password_reset_tokens_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `password_reset_tokens_token_unique` UNIQUE(`token`)\n);\nCREATE INDEX `idx_prt_token` ON `password_reset_tokens` (`token`);\nCREATE INDEX `idx_prt_userId` ON `password_reset_tokens` (`userId`);\nCREATE INDEX `idx_prt_expiresAt` ON `password_reset_tokens` (`expiresAt`);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 36TVxk1pStcAATK.07f148c4450d --database giA7FxHni3yvayrRDCTkdD --execute CREATE TABLE `password_reset_tokens` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`token` varchar(128) NOT NULL,\n\t`expiresAt` timestamp NOT NULL,\n\t`usedAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `password_reset_tokens_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `password_reset_tokens_token_unique` UNIQUE(`token`)\n);\nCREATE INDEX `idx_prt_token` ON `password_reset_tokens` (`token`);\nCREATE INDEX `idx_prt_userId` ON `password_reset_tokens` (`userId`);\nCREATE INDEX `idx_prt_expiresAt` ON `password_reset_tokens` (`expiresAt`);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 3088
+}

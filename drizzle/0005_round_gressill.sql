@@ -1,0 +1,1 @@
+ALTER TABLE `photos` ADD `altText` varchar(512);
