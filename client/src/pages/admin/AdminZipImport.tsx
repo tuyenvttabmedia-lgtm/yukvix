@@ -13,7 +13,7 @@
  *   - Legacy crawler import (/admin/import) — for URL-based crawling
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import AdminLayout from "./AdminLayout";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -584,9 +584,19 @@ function ProgressStep({
     }
   );
 
+  const triggerQueue = trpc.zipImport.triggerQueueNow.useMutation();
+  const triggeredRef = useRef(false);
+
   const cancelMutation = trpc.zipImport.cancel.useMutation({
     onSuccess: () => refetch(),
   });
+
+  useEffect(() => {
+    if (job?.status === "waiting" && !triggeredRef.current) {
+      triggeredRef.current = true;
+      triggerQueue.mutate();
+    }
+  }, [job?.status]);
 
   if (!job) {
     return (

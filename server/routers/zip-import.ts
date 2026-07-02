@@ -314,6 +314,14 @@ export const zipImportRouter = router({
         })
         .where(eq(zipImportJobs.id, input.jobId));
 
+      // Start processing immediately (don't wait for nightly cron)
+      try {
+        const { runSchedulerNow } = await import("../services/import-cron");
+        await runSchedulerNow();
+      } catch (err) {
+        console.error(`[ZipImport] Failed to start scheduler for job ${input.jobId}:`, err);
+      }
+
       return { jobId: input.jobId, albumId, albumSlug };
     }),
 
@@ -1105,7 +1113,6 @@ export const zipImportRouter = router({
     const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "CRON_SECRET not configured" });
     try {
-      const fetch = (await import("node-fetch")).default;
       const port = process.env.PORT || "3000";
       const response = await fetch(`http://localhost:${port}/api/scheduled/process-import-queue`, {
         method: "POST",
