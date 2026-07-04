@@ -48,6 +48,12 @@ const require = createRequire(import.meta.url);
 const archiverLib = require("archiver") as { ZipArchive: new (opts?: object) => import("archiver").Archiver };
 import { createWriteStream } from "fs";
 import os from "os";
+import {
+  startJobHeartbeat,
+  clearJobWorkerLock,
+  touchJobHeartbeat,
+  generateWorkerId,
+} from "../services/import-job-lock";
 
 const CONCURRENCY = parseInt(process.env.IMPORT_CONCURRENCY || "2");
 const BATCH_SIZE = parseInt(process.env.IMPORT_BATCH_SIZE || "5");
@@ -85,6 +91,7 @@ interface ImportJobData {
   sourceArchiveKey: string;
   sourceArchiveOriginalName: string;
   archivePasswordIndex: number; // kept for API compat, always 0
+  workerId?: string;
 }
 
 /**
@@ -103,6 +110,9 @@ export async function processImportJob(data: ImportJobData): Promise<void> {
 
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+
+  const workerId = data.workerId || generateWorkerId();
+  const stopHeartbeat = startJobHeartbeat(jobId);
 
   const tempBase = process.env.IMPORT_TEMP_PATH || path.join(os.tmpdir(), "zip-import");
   const tempDir = path.join(tempBase, `job-${jobId}-extract`);
@@ -165,8 +175,16 @@ export async function processImportJob(data: ImportJobData): Promise<void> {
     // Step 1: Download source archive from Wasabi staging
     await db
       .update(zipImportJobs)
-      .set({ status: "processing", startedAt: new Date(), updatedAt: new Date() })
+      .set({
+        status: "processing",
+        workerId,
+        lockedAt: new Date(),
+        heartbeatAt: new Date(),
+        startedAt: new Date(),
+        updatedAt: new Date(),
+      })
       .where(eq(zipImportJobs.id, jobId));
+    await touchJobHeartbeat(jobId);
 
     localArchivePath = path.join(tempDir, sourceArchiveOriginalName);
     await log(`Downloading archive from Wasabi: ${sourceArchiveKey}`);
@@ -457,6 +475,7 @@ export async function processImportJob(data: ImportJobData): Promise<void> {
       .where(eq(albums.id, albumId));
 
     await log(`Import completed: ${allProcessed.length} photos processed`);
+    await clearJobWorkerLock(jobId);
   } catch (err) {
     // Rollback uploads on error
     for (const key of uploadedKeys) {
@@ -484,6 +503,8 @@ export async function processImportJob(data: ImportJobData): Promise<void> {
       .set({ status: "failed", updatedAt: new Date() })
       .where(eq(zipImportJobs.id, jobId));
 
+    await clearJobWorkerLock(jobId);
+
     // Reset album status to draft on failure
     await db
       .update(albums)
@@ -492,6 +513,8 @@ export async function processImportJob(data: ImportJobData): Promise<void> {
 
     console.error(`[ImportWorker][Job ${jobId}] FAILED: ${(err as Error).message}`);
     throw err;
+  } finally {
+    stopHeartbeat();
   }
 }
 

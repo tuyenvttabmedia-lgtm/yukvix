@@ -962,6 +962,10 @@ export const zipImportJobs = mysqlTable(
     vipZipGeneratedAt: timestamp("vipZipGeneratedAt"),
 
     // Timestamps
+    workerId: varchar("workerId", { length: 64 }),
+    lockedAt: timestamp("lockedAt"),
+    heartbeatAt: timestamp("heartbeatAt"),
+
     scheduledAt: timestamp("scheduledAt"),
     startedAt: timestamp("startedAt"),
     completedAt: timestamp("completedAt"),

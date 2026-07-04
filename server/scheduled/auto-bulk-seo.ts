@@ -206,7 +206,7 @@ Return JSON: { "bio": "string (2-3 sentences, max 300 chars)", "metaDescription"
       .where(
         and(
           eq(albums.status, "published"),
-          sql`NOT EXISTS (SELECT 1 FROM album_tags WHERE album_tags.album_id = ${albums.id})`
+          sql`NOT EXISTS (SELECT 1 FROM album_tags WHERE album_tags.albumId = ${albums.id})`
         )
       )
       .limit(autoSeoConfig.maxTags);
