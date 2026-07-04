@@ -12,6 +12,7 @@
  *   GET /sitemap-images.xml     — image sitemap (free-preview photos)
  */
 import type { Express, Request, Response } from "express";
+import path from "path";
 import { getDb, getTagBySlug } from "./db";
 import { albums, creators, tags, photos } from "../drizzle/schema";
 import { eq, and, desc, max } from "drizzle-orm";
@@ -111,6 +112,40 @@ function urlEntry(loc: string, lastmod: string, changefreq: string, priority: st
 // ─── Register Routes ──────────────────────────────────────────────────────────
 
 export function registerSeoRoutes(app: Express): void {
+  // SEO Foundation Phase D — favicon (avoid 404)
+  app.get("/favicon.ico", async (_req: Request, res: Response) => {
+    try {
+      const { getDb } = await import("./db.js");
+      const { siteSettings } = await import("../drizzle/schema.js");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        const rows = await db.select().from(siteSettings).where(eq(siteSettings.key, "favicon_url")).limit(1);
+        const faviconUrl = rows[0]?.value;
+        if (faviconUrl && faviconUrl.startsWith("http")) {
+          res.redirect(302, faviconUrl);
+          return;
+        }
+      }
+    } catch {
+      /* static fallback */
+    }
+    res.redirect(302, "/favicon.svg");
+  });
+
+  app.get("/favicon.svg", (_req: Request, res: Response) => {
+    const publicDir = path.resolve(import.meta.dirname, "public");
+    res.sendFile(path.join(publicDir, "favicon.svg"), (err) => {
+      if (err) res.status(404).end();
+    });
+  });
+
+
+
+  // Sprint 1 P0: /browse has no SPA route — 301 to /gallery
+  app.get("/browse", (_req: Request, res: Response) => {
+    res.redirect(301, "/gallery");
+  });
 
   // ── Dynamic robots.txt ──────────────────────────────────────────────────────
   app.get("/robots.txt", (req: Request, res: Response) => {
@@ -146,7 +181,6 @@ Allow: /tag/
 Allow: /tags
 Allow: /creator/
 Allow: /creators
-Allow: /browse
 Allow: /vip
 Allow: /search
 
@@ -242,7 +276,6 @@ Sitemap: ${base}/sitemap-pages.xml
     const pages = [
       { url: "/",         priority: "1.0", changefreq: "daily",   lastmod: now },
       { url: "/gallery",  priority: "0.9", changefreq: "hourly",  lastmod: now },
-      { url: "/browse",   priority: "0.8", changefreq: "daily",   lastmod: now },
       { url: "/creators", priority: "0.8", changefreq: "daily",   lastmod: now },
       { url: "/tags",     priority: "0.7", changefreq: "weekly",  lastmod: now },
       // /search intentionally excluded — dynamic search results have no standalone SEO value
