@@ -374,9 +374,18 @@ Sitemap: ${base}/sitemap-pages.xml
     try {
       const db = await getDb();
       if (db) {
+        const { albumTags } = await import("../drizzle/schema");
+        const { sql, gte } = await import("drizzle-orm");
         const rows = await db
-          .select({ slug: tags.slug, createdAt: tags.createdAt })
+          .select({
+            slug: tags.slug,
+            createdAt: tags.createdAt,
+            albumCount: sql<number>`count(${albumTags.albumId})`.as("albumCount"),
+          })
           .from(tags)
+          .innerJoin(albumTags, eq(albumTags.tagId, tags.id))
+          .groupBy(tags.id, tags.slug, tags.createdAt)
+          .having(gte(sql`count(${albumTags.albumId})`, 2))
           .orderBy(desc(tags.createdAt));
 
         for (const row of rows) {

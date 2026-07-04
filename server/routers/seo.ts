@@ -4,6 +4,7 @@ import { buildStoredScheduleConfig, normalizeScheduleConfig } from "../services/
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { isAdmin } from "@shared/const";
 import { invalidateSeoSettingsCache } from "../_core/vite.js";
+import { isBlockedTagName, MAX_TAGS_PER_ALBUM } from "../services/tag-blocklist.js";
 import {
   auditTagSeoGaps,
   cancelTagSeoJob,
@@ -313,7 +314,7 @@ export const seoRouter = router({
       const userContent: Array<{ type: string; text?: string; image_url?: { url: string; detail: string } }> = [
         {
           type: "text",
-          text: `Analyze these cosplay photos and suggest 10-15 relevant tags.\n\nContext:\n${contextParts.join("\n")}\n\nInstructions:\n- Suggest tags for: character name, series/franchise, cosplayer style, costume elements, setting/background, mood/aesthetic\n- Prefer tags that already exist in our database when relevant\n- Do NOT include tags already in existing tags\n- Use lowercase, 1-3 words per tag\n- Return JSON only`,
+          text: `Analyze these cosplay photos and suggest 3-5 relevant tags ONLY.\n\nContext:\n${contextParts.join("\n")}\n\nInstructions:\n- ONLY suggest: character name, series/franchise, cosplayer name, costume/role name\n- Prefer tags that already exist in our database when relevant\n- Do NOT include tags already in existing tags\n- Use lowercase, 1-3 words per tag\n- Return JSON only`,
         },
         ...sampleImageUrls.map((url) => ({
           type: "image_url" as const,
@@ -344,7 +345,7 @@ export const seoRouter = router({
                   tags: {
                     type: "array",
                     items: { type: "string" },
-                    description: "Array of 10-15 suggested tag names (lowercase, 1-3 words each)",
+                    description: "Array of 3-5 suggested tag names (lowercase, 1-3 words each)",
                   },
                   reasoning: {
                     type: "string",
@@ -364,8 +365,8 @@ export const seoRouter = router({
         // Filter out existing tags and normalize
         const suggestions = parsed.tags
           .map((t: string) => t.toLowerCase().trim())
-          .filter((t: string) => t.length > 0 && !existingTagNames.includes(t))
-          .slice(0, 15);
+          .filter((t: string) => t.length > 0 && !existingTagNames.includes(t) && !isBlockedTagName(t))
+          .slice(0, MAX_TAGS_PER_ALBUM);
 
         // Mark which suggestions already exist in DB
         const dbTagSet = new Set(allDbTagNames.map((n) => n.toLowerCase()));
@@ -909,7 +910,7 @@ async function runBulkTagsJob(job: BulkJob) {
       const userContent: Array<{ type: string; text?: string; image_url?: { url: string; detail: string } }> = [
         {
           type: "text",
-          text: `Analyze these cosplay photos and suggest 8-12 relevant tags.\n\nContext:\n${contextParts.join("\n")}\n\nInstructions:\n- Prefer tags from our database when relevant\n- Do NOT include existing tags\n- Use lowercase, 1-3 words per tag\n- Return JSON only`,
+          text: `Analyze these cosplay photos and suggest 3-5 relevant tags ONLY.\n\nContext:\n${contextParts.join("\n")}\n\nInstructions:\n- ONLY: character, series, cosplayer, costume/role\n- NO generic tags (beautiful, model, boudoir, asian, photoshoot, lingerie, cosplay, etc.)\n- Prefer existing DB tags\n- lowercase, 1-3 words\n- Return JSON only`,
         },
         ...sampleImageUrls.map((url) => ({
           type: "image_url" as const,
@@ -945,8 +946,8 @@ async function runBulkTagsJob(job: BulkJob) {
       // Normalize and filter
       const newTags = parsed.tags
         .map((t: string) => t.toLowerCase().trim())
-        .filter((t: string) => t.length > 0 && !existingTagNames.includes(t))
-        .slice(0, 12);
+        .filter((t: string) => t.length > 0 && !existingTagNames.includes(t) && !isBlockedTagName(t))
+        .slice(0, MAX_TAGS_PER_ALBUM);
 
       if (newTags.length > 0) {
         // Upsert tags and link to album
