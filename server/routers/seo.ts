@@ -1,8 +1,18 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { buildStoredScheduleConfig, normalizeScheduleConfig } from "../services/schedule-config";
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { isAdmin } from "@shared/const";
 import { invalidateSeoSettingsCache } from "../_core/vite.js";
+import {
+  auditTagSeoGaps,
+  cancelTagSeoJob,
+  getActiveTagSeoJob,
+  getTagSeoJobSummary,
+  listTagsMissingSeo,
+  startTagSeoBulkJob,
+} from "../services/tag-seo-bulk.js";
+
 import { callAi } from "../services/ai-provider";
 // ─── In-memory Bulk Job Store ─────────────────────────────────────────────────
 // Tracks one active bulk job at a time (albums or creators).
@@ -663,17 +673,27 @@ export const seoRouter = router({
     const { adminSettings } = await import("../../drizzle/schema");
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
-    if (!db) return null;
+    const defaults = { enabled: false, cronHour: 2, maxAlbums: 20, maxCreators: 10, maxTags: 10, localHour: 9, cronHourUtc: 2, timezone: "Asia/Ho_Chi_Minh" };
+    if (!db) return defaults;
     const rows = await db.select().from(adminSettings).where(eq(adminSettings.key, "auto_seo_config")).limit(1);
-    if (!rows[0]) return { enabled: false, cronHour: 2, maxAlbums: 20, maxCreators: 10, maxTags: 10 };
-    try { return JSON.parse(rows[0].value); } catch { return { enabled: false, cronHour: 2, maxAlbums: 20, maxCreators: 10, maxTags: 10 }; }
+    if (!rows[0]) return defaults;
+    try {
+      const raw = JSON.parse(rows[0].value);
+      const view = await normalizeScheduleConfig(
+        { enabled: raw.enabled ?? false, cronHour: raw.cronHour, localHour: raw.localHour, timezone: raw.timezone, maxAlbums: raw.maxAlbums, maxCreators: raw.maxCreators, maxTags: raw.maxTags },
+        { localHour: 9 }
+      );
+      return { enabled: view.enabled, localHour: view.localHour, cronHour: view.cronHourUtc, cronHourUtc: view.cronHourUtc, timezone: view.timezone, maxAlbums: raw.maxAlbums ?? 20, maxCreators: raw.maxCreators ?? 10, maxTags: raw.maxTags ?? 10 };
+    } catch {
+      return defaults;
+    }
   }),
 
   // --- Admin: save auto-bulk-seo schedule config --------------------------------
   saveAutoSeoConfig: protectedProcedure
     .input(z.object({
       enabled: z.boolean(),
-      cronHour: z.number().int().min(0).max(23),
+      localHour: z.number().int().min(0).max(23),
       maxAlbums: z.number().int().min(1).max(100),
       maxCreators: z.number().int().min(1).max(100),
       maxTags: z.number().int().min(1).max(100),
@@ -685,7 +705,8 @@ export const seoRouter = router({
       const { eq } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const value = JSON.stringify(input);
+      const stored = await buildStoredScheduleConfig(input);
+      const value = JSON.stringify(stored);
       await db.insert(adminSettings).values({ key: "auto_seo_config", value })
         .onDuplicateKeyUpdate({ set: { value, updatedAt: new Date() } });
       return { success: true };
@@ -706,6 +727,52 @@ export const seoRouter = router({
     const data = await res.json() as any;
     return data;
   }),
+  // --- Tag entity SEO audit (Phase C — tool only) ------------------------------
+  getTagSeoAudit: protectedProcedure.query(async ({ ctx }) => {
+    if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+    return auditTagSeoGaps();
+  }),
+
+  startTagSeoBulk: protectedProcedure
+    .input(z.object({ forceAll: z.boolean().optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+      const active = getActiveTagSeoJob();
+      if (active && !getTagSeoJobSummary(active).finished) {
+        throw new TRPCError({ code: "CONFLICT", message: "A tag SEO bulk job is already running." });
+      }
+      const { getDb } = await import("../db.js");
+      const { tags } = await import("../../drizzle/schema.js");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      let rows;
+      if (input?.forceAll) {
+        rows = await db.select({ id: tags.id, name: tags.name, slug: tags.slug }).from(tags);
+      } else {
+        rows = await listTagsMissingSeo(500);
+      }
+      if (rows.length === 0) {
+        return { jobId: null, total: 0, message: "All tags already have SEO title and description." };
+      }
+      const job = startTagSeoBulkJob(rows);
+      if (!job) throw new TRPCError({ code: "CONFLICT", message: "Could not start job." });
+      return { jobId: job.id, total: job.items.length, message: `Started tag SEO bulk for ${job.items.length} tags.` };
+    }),
+
+  getTagSeoBulkStatus: protectedProcedure.query(async ({ ctx }) => {
+    if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+    const job = getActiveTagSeoJob();
+    if (!job) return null;
+    return { id: job.id, ...getTagSeoJobSummary(job), items: job.items.slice(0, 50) };
+  }),
+
+  cancelTagSeoBulk: protectedProcedure.mutation(async ({ ctx }) => {
+    if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+    cancelTagSeoJob();
+    return { success: true };
+  }),
+
+
 });
 
 // ─── Async job runner ─────────────────────────────────────────────────────────

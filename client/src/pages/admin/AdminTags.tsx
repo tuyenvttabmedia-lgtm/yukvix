@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Tag, Pencil, Trash2, Merge, Plus, Search, Loader2, AlertTriangle, X } from "lucide-react";
+import { Tag, Pencil, Trash2, Merge, Plus, Search, Loader2, AlertTriangle, X, Sparkles } from "lucide-react";
 
 type TagWithCount = {
   id: number;
@@ -45,6 +45,26 @@ export default function AdminTags() {
   const [form, setForm] = useState({ name: "", slug: "", seoTitle: "", seoDescription: "" });
 
   const { data: tags = [], isLoading } = trpc.tags.adminList.useQuery();
+  const { data: tagSeoAudit, refetch: refetchTagSeoAudit } = trpc.seo.getTagSeoAudit.useQuery();
+  const { data: tagSeoJob, refetch: refetchTagSeoJob } = trpc.seo.getTagSeoBulkStatus.useQuery(undefined, {
+    refetchInterval: (q) => (q.state.data && !q.state.data.finished ? 2000 : false),
+  });
+  const startTagSeoBulk = trpc.seo.startTagSeoBulk.useMutation({
+    onSuccess: (res) => {
+      refetchTagSeoAudit();
+      refetchTagSeoJob();
+      toast.success(res.message || "Started tag SEO bulk job");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const cancelTagSeoBulk = trpc.seo.cancelTagSeoBulk.useMutation({
+    onSuccess: () => {
+      refetchTagSeoJob();
+      toast.success("Cancelled tag SEO bulk job");
+    },
+  });
+
+
 
   const createMutation = trpc.tags.adminCreate.useMutation({
     onSuccess: () => {
@@ -101,6 +121,51 @@ export default function AdminTags() {
   return (
     <AdminLayout>
       <div className="p-6">
+
+        {/* Tag SEO bulk tool (Phase C — manual only) */}
+        <div className="mb-6 rounded-lg border border-border bg-card/40 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" /> Tag SEO (Bulk AI)
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {tagSeoAudit
+                  ? `${tagSeoAudit.missingAny} / ${tagSeoAudit.total} tags missing SEO title or description (intro).`
+                  : "Audit loading..."}
+              </p>
+              {tagSeoJob && !tagSeoJob.finished && (
+                <p className="text-xs text-amber-500 mt-1">
+                  Running: {tagSeoJob.done}/{tagSeoJob.total} done, {tagSeoJob.failed} failed
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={startTagSeoBulk.isPending || (tagSeoJob && !tagSeoJob.finished)}
+                onClick={() => startTagSeoBulk.mutate({ forceAll: false })}
+              >
+                Generate missing SEO
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={startTagSeoBulk.isPending || (tagSeoJob && !tagSeoJob.finished)}
+                onClick={() => startTagSeoBulk.mutate({ forceAll: true })}
+              >
+                Regenerate all
+              </Button>
+              {tagSeoJob && !tagSeoJob.finished && (
+                <Button variant="destructive" size="sm" onClick={() => cancelTagSeoBulk.mutate()}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
