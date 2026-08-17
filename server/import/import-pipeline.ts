@@ -37,6 +37,7 @@ import {
   recordStepFailure,
   type ResumeReason,
 } from "./pipeline-checkpoint";
+import { rebuildProcessedFromDisk, rebuildProcessedFromUploads } from "./import-image-utils";
 import { getStepMatrix } from "./pipeline-resume-matrix";
 import { runWithStepTimeout, StepTimeoutError } from "./step-timeout";
 import { validateImages } from "../services/image-validator";
@@ -200,17 +201,27 @@ function stepsFromResumeStart(start: PipelineStepName | null): PipelineStep[] {
 
 /** Restore in-memory step context skipped by checkpoint resume (e.g. validImages after validating). */
 async function hydrateResumeContext(ctx: StepContext): Promise<void> {
-  if (!isCheckpointStepDone(ctx.checkpoint, "validating") || ctx.validImages) {
-    return;
+  if (isCheckpointStepDone(ctx.checkpoint, "validating") && !ctx.validImages) {
+    const { validImages } = await validateImages(ctx.tempDir);
+    if (validImages.length === 0) {
+      throw new Error("Cannot resume: no valid images found in extracted temp dir.");
+    }
+    ctx.validImages = validImages;
+    await ctx.log(`[Resume] Restored ${validImages.length} validated image(s) from extract dir`);
   }
 
-  const { validImages } = await validateImages(ctx.tempDir);
-  if (validImages.length === 0) {
-    throw new Error("Cannot resume: no valid images found in extracted temp dir.");
+  if (!ctx.allProcessed?.length) {
+    const fromDisk = await rebuildProcessedFromDisk(ctx.processedDir, ctx.albumSlug);
+    const restored =
+      fromDisk.length > 0
+        ? fromDisk
+        : rebuildProcessedFromUploads(ctx.checkpoint.verifiedUploads || {}, ctx.albumSlug);
+    if (restored.length > 0) {
+      ctx.allProcessed = restored;
+      ctx.uploadedKeys = Object.keys(ctx.checkpoint.verifiedUploads || {});
+      await ctx.log(`[Resume] Restored ${restored.length} processed image(s)`);
+    }
   }
-
-  ctx.validImages = validImages;
-  await ctx.log(`[Resume] Restored ${validImages.length} validated image(s) from extract dir`);
 }
 
 async function tempExtractDirHasFiles(tempDir: string): Promise<boolean> {
@@ -239,6 +250,12 @@ async function ensureResumeArtifacts(ctx: StepContext, resumeReason: ResumeReaso
   if (await tempExtractDirHasFiles(ctx.tempDir)) {
     await hydrateResumeContext(ctx);
     return;
+  }
+
+  // Album/SEO/finalize can resume from Wasabi even if the extract dir is gone.
+  if (isCheckpointStepDone(ctx.checkpoint, "processing_images")) {
+    await hydrateResumeContext(ctx);
+    if (ctx.allProcessed?.length) return;
   }
 
   const downloadIdx = PIPELINE_STEP_ORDER.indexOf("downloading");

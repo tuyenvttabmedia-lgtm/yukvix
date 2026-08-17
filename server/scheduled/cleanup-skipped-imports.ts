@@ -9,15 +9,12 @@ import { zipImportJobs } from "../../drizzle/schema";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import { deleteFromStorage } from "../storage-wasabi";
 import { getPendingImportAnywayJobIds } from "../import/zip-dedup";
+import { requireCronAuth } from "../_core/cron-auth";
 
 const RETENTION_DAYS = parseInt(process.env.IMPORT_SKIPPED_RETENTION_DAYS || "30", 10);
 
 export async function cleanupSkippedImportsHandler(req: Request, res: Response): Promise<void> {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || req.headers["x-cron-secret"] !== cronSecret) {
-    res.status(403).json({ error: "Invalid cron secret" });
-    return;
-  }
+  if (!(await requireCronAuth(req, res))) return;
 
   const db = await getDb();
   if (!db) {

@@ -2,29 +2,25 @@
  * Scheduled handler: send VIP expiry reminder emails to users whose VIP
  * subscription expires within the next 3 days (72 hours).
  *
- * Triggered by Heartbeat cron daily via POST /api/scheduled/notify-vip-expiry.
- * Auth: sdk.authenticateRequest verifies isCron === true.
+ * Triggered by cron via POST /api/scheduled/notify-vip-expiry.
+ * Auth: X-Cron-Secret must match CRON_SECRET or admin_settings cron.secret.
  *
  * Deduplication: uses `vipExpiryNotifiedAt` column on subscriptions — if a
  * reminder was sent within the last 20 hours, the subscription is skipped.
  */
 import type { Request, Response } from "express";
-import { sdk } from "../_core/sdk";
 import { getDb } from "../db";
 import { subscriptions, users } from "../../drizzle/schema";
 import { and, eq, sql, isNotNull } from "drizzle-orm";
 import { sendVipExpiryReminderEmail } from "../email";
+import { requireCronAuth } from "../_core/cron-auth";
 
 const DAYS_BEFORE_EXPIRY = 3;
 const DEDUP_WINDOW_MS = 20 * 3600 * 1000; // 20 hours — prevents double-send on same day
 
 export async function notifyVipExpiryHandler(req: Request, res: Response) {
   try {
-    // Authenticate — only cron callbacks (or admin manual trigger) are allowed
-    const user = await sdk.authenticateRequest(req);
-    if (!user.isCron) {
-      return res.status(403).json({ error: "cron-only" });
-    }
+    if (!(await requireCronAuth(req, res))) return;
 
     const db = await getDb();
     if (!db) {
@@ -61,7 +57,7 @@ export async function notifyVipExpiryHandler(req: Request, res: Response) {
       .limit(200); // Safety cap — process at most 200 per run
 
     console.log(
-      `[notify-vip-expiry] Found ${expiringSubs.length} subscription(s) to notify (taskUid: ${user.taskUid})`
+      `[notify-vip-expiry] Found ${expiringSubs.length} subscription(s) to notify`
     );
 
     let notified = 0;

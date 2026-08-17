@@ -143,8 +143,9 @@ export class CryptoProvider implements PaymentProvider {
     // Store invoice.id as sessionId — this is the stable identifier for this payment
     // orderId is embedded in invoice for IPN processing
     return {
-      sessionId: invoice.id,
+      sessionId: String(invoice.id),
       url: invoice.invoice_url,
+      orderId,
     };
   }
 
@@ -247,8 +248,8 @@ export class CryptoProvider implements PaymentProvider {
 
     // Verify HMAC-SHA512 signature
     const receivedSig = headers["x-nowpayments-sig"] as string | undefined;
-    if (!receivedSig) {
-      console.warn("[NOWPayments] IPN missing x-nowpayments-sig header");
+    if (!receivedSig || !this.ipnSecret) {
+      console.warn("[NOWPayments] IPN missing x-nowpayments-sig header or IPN secret");
       return {
         status: "failed",
         eventId: `crypto_no_sig_${Date.now()}`,
@@ -276,7 +277,12 @@ export class CryptoProvider implements PaymentProvider {
       .update(sortedPayload)
       .digest("hex");
 
-    if (expectedSig !== receivedSig) {
+    const expectedBuf = Buffer.from(expectedSig, "utf8");
+    const receivedBuf = Buffer.from(receivedSig, "utf8");
+    if (
+      expectedBuf.length !== receivedBuf.length ||
+      !crypto.timingSafeEqual(expectedBuf, receivedBuf)
+    ) {
       console.warn(`[NOWPayments] IPN HMAC mismatch. Expected: ${expectedSig.slice(0, 16)}... Got: ${receivedSig.slice(0, 16)}...`);
       return {
         status: "failed",
@@ -289,8 +295,12 @@ export class CryptoProvider implements PaymentProvider {
     const paymentId = String(payload.payment_id || `crypto_${Date.now()}`);
     const paymentStatus = String(payload.payment_status || "unknown");
     const orderId = String(payload.order_id || "");
+    const invoiceId = payload.invoice_id != null ? String(payload.invoice_id) : "";
+    const sessionId = invoiceId || orderId;
 
-    console.log(`[NOWPayments] IPN verified: paymentId=${paymentId}, status=${paymentStatus}, orderId=${orderId}`);
+    console.log(
+      `[NOWPayments] IPN verified: paymentId=${paymentId}, status=${paymentStatus}, invoiceId=${invoiceId}, orderId=${orderId}`
+    );
 
     // Extract userId and planId from orderId: "vip_{userId}_{planId}_{ts}"
     let userId: number | undefined;
@@ -316,7 +326,7 @@ export class CryptoProvider implements PaymentProvider {
           status: "success",
           eventId: paymentId,
           eventType: `crypto.${paymentStatus}`,
-          sessionId: orderId,
+          sessionId,
           userId,
           intervalDays,
           activateWithExpiry: expiry,
@@ -330,7 +340,7 @@ export class CryptoProvider implements PaymentProvider {
           status: "failed",
           eventId: paymentId,
           eventType: `crypto.${paymentStatus}`,
-          sessionId: orderId,
+          sessionId,
           userId,
           errorMessage: `NOWPayments payment ${paymentStatus}`,
         };
@@ -342,7 +352,7 @@ export class CryptoProvider implements PaymentProvider {
           status: "skipped",
           eventId: paymentId,
           eventType: `crypto.${paymentStatus}`,
-          sessionId: orderId,
+          sessionId,
           userId,
         };
     }

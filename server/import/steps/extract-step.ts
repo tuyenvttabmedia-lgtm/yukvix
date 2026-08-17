@@ -23,7 +23,7 @@ export class ExtractStep extends BasePipelineStep {
     );
 
     await ctx.log("Extracting archive...");
-    await extractArchive(ctx.localArchivePath, ctx.tempDir, null);
+    await extractArchive(ctx.localArchivePath, ctx.tempDir, validation.passwordUsed);
     await ctx.log("Archive extracted");
 
     return { outcome: "continue" };

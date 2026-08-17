@@ -3,7 +3,7 @@ import path from "path";
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { zipImportJobs } from "../../../drizzle/schema";
-import { ensureProcessedDirs, processBatch } from "../import-image-utils";
+import { ensureProcessedDirs, processBatch, rebuildProcessedFromDisk, rebuildProcessedFromUploads } from "../import-image-utils";
 import { generateVipZip } from "../wasabi-import-utils";
 import { uploadBufferVerified, copyObjectWithVerify, headObject } from "../wasabi-verify";
 import { deleteFromStorage } from "../../storage-wasabi";
@@ -54,7 +54,7 @@ export class ImageProcessStep extends BasePipelineStep {
             .update(zipImportJobs)
             .set({
               vipZipStatus: "ready",
-              vipZipKey,
+              vipZipKey: vipKey,
               vipZipSize: verified.contentLength,
               vipZipGeneratedAt: new Date(),
               updatedAt: new Date(),
@@ -98,8 +98,14 @@ export class ImageProcessStep extends BasePipelineStep {
       return { outcome: "continue" };
     }
 
-    const allProcessed = [];
     let counter = ctx.checkpoint.currentImageIndex;
+    const fromUploads = rebuildProcessedFromUploads(
+      ctx.checkpoint.verifiedUploads || {},
+      albumSlug
+    );
+    const fromDisk = await rebuildProcessedFromDisk(ctx.processedDir, albumSlug);
+    const existing = fromDisk.length >= fromUploads.length ? fromDisk : fromUploads;
+    const allProcessed = existing.filter((p) => p.sortOrder < counter);
 
     for (let i = counter; i < ctx.validImages.length; i += BATCH_SIZE) {
       const batch = ctx.validImages.slice(i, i + BATCH_SIZE);
@@ -115,6 +121,7 @@ export class ImageProcessStep extends BasePipelineStep {
       for (const f of batchResults.failures) await ctx.logFailed(f.file, f.reason);
       counter += batch.length;
       ctx.checkpoint.currentImageIndex = i + batch.length;
+      await ctx.saveCheckpoint();
 
       const progress = Math.round(((i + batch.length) / ctx.validImages.length) * 100);
       await db
@@ -155,6 +162,7 @@ export class ImageProcessStep extends BasePipelineStep {
           ctx.uploadedKeys.push(s3Key);
         }
       }
+      await ctx.saveCheckpoint();
     }
 
     await ctx.saveCheckpoint();

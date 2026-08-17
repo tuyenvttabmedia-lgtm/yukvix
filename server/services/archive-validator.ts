@@ -150,9 +150,16 @@ export async function validateArchive(
     const filename = match[2].trim();
     if (filename.endsWith("/")) continue; // skip directories
 
-    // Path traversal check
+    // Path traversal / zip-slip check
     const normalized = path.normalize(filename);
-    if (normalized.startsWith("..") || normalized.includes("..")) {
+    if (
+      path.isAbsolute(normalized) ||
+      normalized.startsWith("..") ||
+      normalized.split(/[/\\]/).includes("..") ||
+      /^[a-zA-Z]:/.test(filename) ||
+      filename.startsWith("/") ||
+      filename.startsWith("\\")
+    ) {
       throw new Error(`Path traversal detected in archive: ${filename}`);
     }
 

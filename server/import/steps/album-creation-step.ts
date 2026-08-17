@@ -9,6 +9,7 @@ import {
   zipImportJobs,
 } from "../../../drizzle/schema";
 import { getPublicUrl } from "../../storage-wasabi";
+import { rebuildProcessedFromUploads } from "../import-image-utils";
 import {
   updateCreatorAvatarIfEmpty,
   updateCreatorBannerIfEmpty,
@@ -27,6 +28,12 @@ export class AlbumCreationStep extends BasePipelineStep {
       return { outcome: "continue" };
     }
 
+    if (!ctx.allProcessed?.length) {
+      ctx.allProcessed = rebuildProcessedFromUploads(
+        ctx.checkpoint.verifiedUploads || {},
+        ctx.albumSlug
+      );
+    }
     if (!ctx.allProcessed?.length) {
       throw new Error("Image processing must complete before album creation");
     }

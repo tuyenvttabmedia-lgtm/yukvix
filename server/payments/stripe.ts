@@ -66,15 +66,19 @@ export class StripeProvider implements PaymentProvider {
     let event: Stripe.Event;
 
     try {
-      if (webhookSecret && sig) {
-        event = this.stripe.webhooks.constructEvent(
-          input.rawBody,
-          sig as string,
-          webhookSecret
-        );
-      } else {
-        event = JSON.parse(input.rawBody.toString());
+      if (!webhookSecret || !sig) {
+        return {
+          eventId: `stripe_no_sig_${Date.now()}`,
+          eventType: "signature_error",
+          status: "failed",
+          errorMessage: "Stripe webhook signature required",
+        };
       }
+      event = this.stripe.webhooks.constructEvent(
+        input.rawBody,
+        sig as string,
+        webhookSecret
+      );
     } catch (err: any) {
       return {
         eventId: `stripe_parse_error_${Date.now()}`,

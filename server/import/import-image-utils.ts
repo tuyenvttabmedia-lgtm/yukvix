@@ -127,6 +127,52 @@ export async function processBatch(
   return { successes, failures };
 }
 
+export function rebuildProcessedFromUploads(
+  verifiedUploads: Record<string, { etag?: string | null; size?: number }>,
+  albumSlug: string
+): ProcessedImage[] {
+  const webpPrefix = `albums/${albumSlug}/webp/`;
+  const items: ProcessedImage[] = [];
+  for (const key of Object.keys(verifiedUploads)) {
+    if (!key.startsWith(webpPrefix) || !key.endsWith(".webp")) continue;
+    const filename = path.basename(key);
+    const match = filename.match(/-(\d+)\.webp$/);
+    items.push({
+      webpKey: key,
+      mediumKey: `albums/${albumSlug}/medium/${filename}`,
+      thumbKey: `albums/${albumSlug}/thumb/${filename}`,
+      filename,
+      sortOrder: match ? parseInt(match[1], 10) : items.length,
+    });
+  }
+  items.sort((a, b) => a.sortOrder - b.sortOrder);
+  return items;
+}
+
+export async function rebuildProcessedFromDisk(
+  processedDir: string,
+  albumSlug: string
+): Promise<ProcessedImage[]> {
+  try {
+    const webpDir = path.join(processedDir, "webp");
+    const files = (await fs.readdir(webpDir)).filter((f) => f.endsWith(".webp"));
+    const items: ProcessedImage[] = files.map((filename, idx) => {
+      const match = filename.match(/-(\d+)\.webp$/);
+      return {
+        webpKey: `albums/${albumSlug}/webp/${filename}`,
+        mediumKey: `albums/${albumSlug}/medium/${filename}`,
+        thumbKey: `albums/${albumSlug}/thumb/${filename}`,
+        filename,
+        sortOrder: match ? parseInt(match[1], 10) : idx,
+      };
+    });
+    items.sort((a, b) => a.sortOrder - b.sortOrder);
+    return items;
+  } catch {
+    return [];
+  }
+}
+
 export async function ensureProcessedDirs(processedDir: string): Promise<void> {
   for (const v of ["webp", "medium", "thumb"]) {
     await fs.mkdir(path.join(processedDir, v), { recursive: true });

@@ -24,8 +24,10 @@ async function handleWebhookResult(
   result: WebhookHandlerResult,
   provider: string
 ): Promise<void> {
-  if (result.status === "success" && result.sessionId && result.activateWithExpiry) {
-    await activateSubscription(result.sessionId, result.activateWithExpiry);
+  if (result.status === "success" && result.activateWithExpiry) {
+    await activateSubscription(result.sessionId || "", result.activateWithExpiry, {
+      userId: result.userId,
+    });
     console.log(
       `[${provider} Webhook] Subscription activated for session ${result.sessionId}`
     );

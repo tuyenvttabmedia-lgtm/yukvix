@@ -88,9 +88,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (user.role !== undefined) {
     values.role = user.role;
     updateSet.role = user.role;
-  } else if (user.openId === ENV.ownerOpenId) {
+  } else if (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) {
     values.role = "admin";
-    updateSet.role = "admin";
+    // Do not force admin on every login — a demoted owner stays demoted.
   }
 
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
@@ -480,6 +480,8 @@ export async function createSubscription(data: {
   planId: number;
   /** Provider-agnostic session/transaction ID — stored in stripeSessionId column for backward compat */
   sessionId: string;
+  /** NOWPayments order_id (vip_user_plan_ts) — IPN sends this, not invoice.id */
+  orderId?: string;
   provider?: string;
   paymentMethod?: string;
 }) {
@@ -489,45 +491,69 @@ export async function createSubscription(data: {
     userId: data.userId,
     planId: data.planId,
     stripeSessionId: data.sessionId,
+    cryptoOrderId: data.orderId || null,
     provider: data.provider || "ccbill",
     paymentMethod: data.paymentMethod || "card",
     status: "pending",
   });
+  const result = await getSubscriptionBySessionId(data.sessionId);
+  return result;
+}
+
+/** Look up by invoice id, NOWPayments order_id, or provider subscription id */
+export async function getSubscriptionBySessionId(sessionId: string) {
+  const db = await getDb();
+  if (!db || !sessionId) return undefined;
   const result = await db
     .select()
     .from(subscriptions)
-    .where(eq(subscriptions.stripeSessionId, data.sessionId))
+    .where(
+      or(
+        eq(subscriptions.stripeSessionId, sessionId),
+        eq(subscriptions.stripeSubscriptionId, sessionId),
+        eq(subscriptions.cryptoOrderId, sessionId)
+      )
+    )
+    .orderBy(desc(subscriptions.id))
     .limit(1);
   return result[0];
 }
 
-/** Look up a subscription by its sessionId (stored in stripeSessionId column) */
-export async function getSubscriptionBySessionId(sessionId: string) {
+async function findPendingSubscriptionForUser(userId: number) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db
     .select()
     .from(subscriptions)
-    .where(eq(subscriptions.stripeSessionId, sessionId))
+    .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "pending")))
+    .orderBy(desc(subscriptions.id))
     .limit(1);
   return result[0];
 }
 
-/** Provider-agnostic: sessionId is stored in stripeSessionId column for backward compat */
-export async function activateSubscription(sessionId: string, expiresAt: Date) {
+/** Activate VIP by invoice id, order_id, or latest pending row for userId */
+export async function activateSubscription(
+  sessionId: string,
+  expiresAt: Date,
+  extras?: { userId?: number }
+) {
   const db = await getDb();
   if (!db) return;
-  const sub = await db
-    .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.stripeSessionId, sessionId))
-    .limit(1);
-  if (!sub[0]) return;
+  let sub = sessionId ? await getSubscriptionBySessionId(sessionId) : undefined;
+  if (!sub && extras?.userId) {
+    sub = await findPendingSubscriptionForUser(extras.userId);
+  }
+  if (!sub) {
+    console.warn(
+      `[Activate] No subscription for sessionId=${sessionId} userId=${extras?.userId ?? ""}`
+    );
+    return;
+  }
   await db
     .update(subscriptions)
     .set({ status: "active", startedAt: new Date(), expiresAt })
-    .where(eq(subscriptions.stripeSessionId, sessionId));
-  await updateUserRole(sub[0].userId, "vip");
+    .where(eq(subscriptions.id, sub.id));
+  await updateUserRole(sub.userId, "vip");
 }
 
 export async function listSubscriptions(page = 1, limit = 20, search?: string, status?: string) {

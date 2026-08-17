@@ -164,35 +164,42 @@ export class PaddleProvider implements PaymentProvider {
      */
     const signatureHeader = input.headers["paddle-signature"] as string | undefined;
 
-    if (signatureHeader && this.webhookSecret) {
-      try {
-        const parts = Object.fromEntries(
-          signatureHeader.split(";").map((p) => p.split("=", 2) as [string, string])
-        );
-        const ts = parts["ts"];
-        const h1 = parts["h1"];
-        const signedPayload = `${ts}:${input.rawBody.toString()}`;
-        const expected = crypto
-          .createHmac("sha256", this.webhookSecret)
-          .update(signedPayload)
-          .digest("hex");
+    if (!signatureHeader || !this.webhookSecret) {
+      return {
+        eventId: `paddle_no_sig_${Date.now()}`,
+        eventType: "signature_error",
+        status: "failed",
+        errorMessage: "Paddle webhook signature required",
+      };
+    }
 
-        if (expected !== h1) {
-          return {
-            eventId: `paddle_sig_error_${Date.now()}`,
-            eventType: "signature_error",
-            status: "failed",
-            errorMessage: "Paddle webhook signature verification failed",
-          };
-        }
-      } catch (err: any) {
+    try {
+      const parts = Object.fromEntries(
+        signatureHeader.split(";").map((p) => p.split("=", 2) as [string, string])
+      );
+      const ts = parts["ts"];
+      const h1 = parts["h1"];
+      const signedPayload = `${ts}:${input.rawBody.toString()}`;
+      const expected = crypto
+        .createHmac("sha256", this.webhookSecret)
+        .update(signedPayload)
+        .digest("hex");
+
+      if (expected !== h1) {
         return {
-          eventId: `paddle_parse_error_${Date.now()}`,
-          eventType: "parse_error",
+          eventId: `paddle_sig_error_${Date.now()}`,
+          eventType: "signature_error",
           status: "failed",
-          errorMessage: err.message,
+          errorMessage: "Paddle webhook signature verification failed",
         };
       }
+    } catch (err: any) {
+      return {
+        eventId: `paddle_parse_error_${Date.now()}`,
+        eventType: "parse_error",
+        status: "failed",
+        errorMessage: err.message,
+      };
     }
 
     let payload: any;

@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { isAdmin } from "@shared/const";
 import SeoHead from "@/components/SeoHead";
 import { BarChart3, Crown, Download, FileText, FolderOpen, HardDrive, History, Home, ImageIcon, Layers, Library, Loader2, Mail, Menu, MessageSquare, Package, Palette, Shield, ShieldAlert, Sparkles, Tag, TrendingUp, Users, UserSquare2, Webhook, Zap, ClipboardList, MoreHorizontal, X, Search } from "lucide-react";
 import { useState } from "react";
@@ -83,7 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!isAuthenticated || user?.role !== "admin") {
+  if (!isAuthenticated || !isAdmin(user?.role)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

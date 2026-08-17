@@ -124,18 +124,17 @@ export class CCBillProvider implements PaymentProvider {
   async verifyPayment(input: VerifyPaymentInput): Promise<VerifyPaymentResult> {
     const { sessionId } = input;
 
-    // For CCBill, verification is primarily done via webhook (NewSaleSuccess).
-    // The redirect URL verification is a secondary check.
-    // If sessionId starts with "ccbill_pending_", the real activation happens via webhook.
     if (sessionId.startsWith("ccbill_pending_")) {
       return {
-        success: true,
-        message: "CCBill payment pending — activation will occur via webhook",
+        success: false,
+        message: "pending_webhook",
       };
     }
 
-    // If we have a real CCBill subscriptionId (from webhook), treat as verified
-    return { success: true, message: "CCBill subscription active" };
+    return {
+      success: false,
+      message: "CCBill activation is webhook-only",
+    };
   }
 
   /**
@@ -186,9 +185,21 @@ export class CCBillProvider implements PaymentProvider {
     const userId = payload["X-userId"] ? parseInt(payload["X-userId"]) : undefined;
     const intervalDays = payload["X-intervalDays"] ? parseInt(payload["X-intervalDays"]) : 30;
 
-    // Verify dynamicPricingValidationDigest if present
+    // Require digest on sale/renewal events — unsigned posts must not activate VIP.
     const validationDigest = payload.dynamicPricingValidationDigest;
-    if (validationDigest && payload.subscriptionId) {
+    const isSaleEvent =
+      eventType === "NewSaleSuccess" ||
+      eventType === "RenewalSuccess" ||
+      eventType === "UpSaleSuccess";
+    if (isSaleEvent) {
+      if (!validationDigest || !payload.subscriptionId) {
+        return {
+          status: "failed",
+          eventId: subscriptionId,
+          eventType,
+          errorMessage: "CCBill digest missing on sale event",
+        };
+      }
       const expectedApproved = crypto
         .createHash("md5")
         .update(`${payload.subscriptionId}1${this.salt}`)

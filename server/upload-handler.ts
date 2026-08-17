@@ -291,11 +291,26 @@ async function processZipUpload(
 
     zip.forEach((relativePath, file) => {
       if (file.dir) return;
+      const normalized = relativePath.replace(/\\/g, "/");
+      if (
+        normalized.includes("\0") ||
+        normalized.startsWith("/") ||
+        /^[a-zA-Z]:/.test(normalized) ||
+        normalized.split("/").some((part) => part === "..")
+      ) {
+        return;
+      }
       const ext = relativePath.split(".").pop()?.toLowerCase();
       if (["jpg", "jpeg", "png", "gif", "webp", "avif"].includes(ext || "")) {
         imageFiles.push({ name: relativePath, file });
       }
     });
+
+    const MAX_ZIP_FILES = parseInt(process.env.UPLOAD_ZIP_MAX_FILES || "500", 10);
+    const MAX_FILE_BYTES = parseInt(process.env.UPLOAD_ZIP_MAX_FILE_BYTES || String(50 * 1024 * 1024), 10);
+    if (imageFiles.length > MAX_ZIP_FILES) {
+      throw new Error(`ZIP contains too many images (${imageFiles.length}, max ${MAX_ZIP_FILES})`);
+    }
 
     await updateUploadJob(jobId, { totalFiles: imageFiles.length, status: "processing" });
 
@@ -305,6 +320,10 @@ async function processZipUpload(
     for (const { name, file } of imageFiles) {
       try {
         const buffer = Buffer.from(await file.async("arraybuffer"));
+        if (buffer.length > MAX_FILE_BYTES) {
+          console.warn(`[ZIP Upload] Skipping oversized file ${name} (${buffer.length} bytes)`);
+          continue;
+        }
         const fileName = name.split("/").pop() || name;
         const ext = fileName.split(".").pop()?.toLowerCase() || "jpg";
         const mimeMap: Record<string, string> = {

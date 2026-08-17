@@ -6,8 +6,10 @@
 import type { Request, Response } from "express";
 import { persistMetricsSnapshot } from "../import/import-metrics";
 import { syncNotificationsFromJobs } from "../import/notification-service";
+import { requireCronAuth } from "../_core/cron-auth";
 
-export async function importMetricsSnapshotHandler(_req: Request, res: Response) {
+export async function importMetricsSnapshotHandler(req: Request, res: Response) {
+  if (!(await requireCronAuth(req, res))) return;
   try {
     await persistMetricsSnapshot();
     let notificationsCreated = 0;

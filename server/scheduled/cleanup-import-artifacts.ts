@@ -5,8 +5,10 @@
 
 import type { Request, Response } from "express";
 import { runFullCleanup } from "../import/cleanup-service";
+import { requireCronAuth } from "../_core/cron-auth";
 
-export async function cleanupImportArtifactsHandler(_req: Request, res: Response) {
+export async function cleanupImportArtifactsHandler(req: Request, res: Response) {
+  if (!(await requireCronAuth(req, res))) return;
   try {
     const results = await runFullCleanup();
     res.json({ ok: true, results, ts: new Date().toISOString() });

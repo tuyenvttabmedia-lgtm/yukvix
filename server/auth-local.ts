@@ -11,7 +11,7 @@
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { nanoid } from "nanoid";
-import { COOKIE_NAME, ONE_YEAR_MS } from "../shared/const";
+import { COOKIE_NAME, SESSION_MAX_AGE_MS } from "../shared/const";
 import * as db from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import type { Request, Response } from "express";
@@ -33,7 +33,7 @@ export async function signLocalSession(payload: {
   name: string;
 }): Promise<string> {
   const secretKey = getJwtSecret();
-  const expiresAt = Math.floor((Date.now() + ONE_YEAR_MS) / 1000);
+  const expiresAt = Math.floor((Date.now() + SESSION_MAX_AGE_MS) / 1000);
   return new SignJWT({
     openId: payload.openId,
     email: payload.email,
@@ -189,7 +189,7 @@ export async function loginLocal(input: LoginInput): Promise<AuthResult> {
 
 export function setAuthCookie(res: Response, req: Request, token: string): void {
   const cookieOptions = getSessionCookieOptions(req);
-  res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+  res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: SESSION_MAX_AGE_MS });
 }
 
 export function clearAuthCookie(res: Response, req: Request): void {

@@ -24,6 +24,8 @@ import {
 
   parseAndValidateSeoResponse,
 
+  buildSeoKeywords,
+
   PROMPT_VERSION,
 
   type SeoOutput,
@@ -373,11 +375,6 @@ export async function applySeoToAlbum(albumId: number, seo: SeoOutput): Promise<
     .update(albums)
 
     .set({
-
-      title: seo.albumTitle,
-
-      slug: seo.slug,
-
       description: seo.shortDescription,
 
       creator: seo.creator || undefined,

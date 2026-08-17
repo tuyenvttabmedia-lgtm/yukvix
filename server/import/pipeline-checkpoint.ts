@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { zipImportJobs } from "../../drizzle/schema";
 import { getStepMatrix } from "./pipeline-resume-matrix";
+import type { PipelineStepName } from "./pipeline-step";
 
 /** Checkpoint schema version — backward compatibility in parseCheckpoint. */
 export const CHECKPOINT_VERSION = 2;
@@ -285,7 +286,7 @@ export async function recordStepFailure(
   await persistCheckpoint(jobId, checkpoint);
 
   const db = await getDb();
-  if (!db) return;
+  if (!db) return { requeue: false };
 
   await db
     .update(zipImportJobs)

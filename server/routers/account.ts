@@ -250,7 +250,7 @@ export const accountRouter = router({
 
       const provider = await getPaymentProvider();
 
-      const { sessionId, url } = await provider.createCheckout({
+      const { sessionId, url, orderId } = await provider.createCheckout({
         planId: plan.id,
         planName: `Renew ${plan.name}`,
         planDescription: plan.description,
@@ -268,6 +268,7 @@ export const accountRouter = router({
         userId: ctx.user.id,
         planId: plan.id,
         sessionId,
+        orderId,
         provider: provider.name,
       });
 

@@ -1,21 +1,17 @@
 /**
  * Scheduled handler: auto-expire pending payment sessions older than 24 hours.
- * Triggered by Heartbeat cron every hour via POST /api/scheduled/expire-pending-payments.
- * Auth: sdk.authenticateRequest verifies isCron === true.
+ * Triggered by cron via POST /api/scheduled/expire-pending-payments.
+ * Auth: X-Cron-Secret must match CRON_SECRET or admin_settings cron.secret.
  */
 import type { Request, Response } from "express";
-import { sdk } from "../_core/sdk";
 import { getDb } from "../db";
 import { subscriptions } from "../../drizzle/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { requireCronAuth } from "../_core/cron-auth";
 
 export async function expirePendingPaymentsHandler(req: Request, res: Response) {
   try {
-    // Authenticate — only cron callbacks are allowed
-    const user = await sdk.authenticateRequest(req);
-    if (!user.isCron) {
-      return res.status(403).json({ error: "cron-only" });
-    }
+    if (!(await requireCronAuth(req, res))) return;
 
     const db = await getDb();
     if (!db) {
@@ -38,7 +34,7 @@ export async function expirePendingPaymentsHandler(req: Request, res: Response) 
     const affected = (result as any)[0]?.affectedRows ?? (result as any).rowsAffected ?? 0;
 
     console.log(
-      `[expire-pending-payments] Expired ${affected} pending subscription(s) older than 24h (taskUid: ${user.taskUid})`
+      `[expire-pending-payments] Expired ${affected} pending subscription(s) older than 24h`
     );
 
     return res.json({

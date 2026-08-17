@@ -25,6 +25,8 @@ export interface CheckoutResult {
   sessionId: string;
   /** The hosted checkout URL to redirect the user to */
   url: string;
+  /** NOWPayments order_id (vip_user_plan_ts); IPN may send this instead of invoice.id */
+  orderId?: string;
 }
 
 export interface VerifyPaymentInput {

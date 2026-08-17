@@ -1,12 +1,10 @@
 import type { Request, Response } from "express";
-import { eq, and, lt, isNull } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 import { subscriptions, users } from "../../drizzle/schema.js";
+import { requireCronAuth } from "../_core/cron-auth";
 
 export async function paymentReconciliationHandler(req: Request, res: Response) {
-  const secret = req.headers["x-cron-secret"];
-  if (secret !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  if (!(await requireCronAuth(req, res))) return;
   try {
     const { getDb } = await import("../db.js");
     const db = await getDb();

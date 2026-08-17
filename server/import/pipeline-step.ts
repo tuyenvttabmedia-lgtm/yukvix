@@ -96,9 +96,6 @@ export abstract class BasePipelineStep implements PipelineStep {
       await ctx.log(`[Step:${this.name}] idempotent skip (checkpoint)`);
       return { outcome: "continue" };
     }
-    if (isStepCompleted(this.name, ctx.pipelineStep)) {
-      return { outcome: "continue" };
-    }
     return this.run(ctx);
   }
 }

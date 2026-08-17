@@ -110,7 +110,7 @@ export const subscriptionsRouter = router({
         provider = await getPaymentProvider();
       }
 
-      const { sessionId, url } = await provider.createCheckout({
+      const { sessionId, url, orderId } = await provider.createCheckout({
         planId: plan.id,
         planName: plan.name,
         planDescription: plan.description,
@@ -129,6 +129,7 @@ export const subscriptionsRouter = router({
         userId: ctx.user.id,
         planId: plan.id,
         sessionId,
+        orderId,
         provider: provider.name,
         paymentMethod: paymentMethodLabel,
       });
@@ -175,6 +176,11 @@ export const subscriptionsRouter = router({
 
       if (!result.success) {
         return { success: false, message: result.message };
+      }
+
+      // Never activate from a client-side verify of a pending CCBill session.
+      if (input.sessionId.startsWith("ccbill_pending_")) {
+        return { success: false, message: result.message || "pending_webhook" };
       }
 
       const intervalDays = result.intervalDays || 30;
