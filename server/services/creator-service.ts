@@ -19,7 +19,7 @@ import { generateSlug } from "./seo-generator";
 export const KNOWN_COLLECTIONS = new Set([
   "XIUREN", "XiuRen", "IMISS", "UOM", "YouMi", "FeiLin", "MFStar", "Ugirls", "TouTiao",
   "ArtGravia", "DJAWA", "PIA", "Pure Media", "CreamSoda", "SWEETBOX",
-  "MissKON", "MrCong", "Yukvix",
+  "MissKON", "MrCong", "Yukvix", "Photoset", "Photobook", "Espacia", "EHC",
 ]);
 
 /**
@@ -166,6 +166,37 @@ export async function updateCreatorAvatarIfEmpty(
 /**
  * Increment album count for a creator.
  */
+
+/**
+ * Set creator banner from first album hero image if banner empty (UAT ENHANCEMENT-002).
+ */
+export async function updateCreatorBannerIfEmpty(
+  creatorId: number,
+  mediumKey: string,
+  mediumUrl?: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const existing = await db
+    .select({ bannerKey: creators.bannerKey })
+    .from(creators)
+    .where(eq(creators.id, creatorId))
+    .limit(1);
+
+  if (existing.length > 0 && !existing[0].bannerKey) {
+    await db
+      .update(creators)
+      .set({
+        bannerKey: mediumKey,
+        bannerUrl: mediumUrl || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(creators.id, creatorId));
+    console.log(`[Creator] Updated banner for creator ${creatorId}: ${mediumKey}`);
+  }
+}
+
 export async function incrementCreatorAlbumCount(creatorId: number): Promise<void> {
   const db = await getDb();
   if (!db) return;

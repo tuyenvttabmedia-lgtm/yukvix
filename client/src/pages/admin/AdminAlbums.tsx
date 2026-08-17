@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { Hash, X as XIcon } from "lucide-react";
+import { EntityPage, EntityToolbar, DataTable, AdminStatusBadge, adminGlossary } from "@/admin";
+import { Hash, ImageIcon, X as XIcon } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
@@ -10,7 +11,6 @@ import {
   ImageIcon,
   Loader2,
   Plus,
-  Search,
   Trash2,
   X,
   Check,
@@ -94,263 +94,220 @@ export default function AdminAlbums() {
     onError: (e) => toast.error(e.message),
   });
 
+  const albums = data?.items ?? [];
+  const totalPages = data ? Math.ceil(data.total / 20) : 1;
+  const hasFilters = !!(search || statusFilter !== "all" || typeFilter !== "all" || tagFilter);
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setTagFilter("");
+    setPage(1);
+  };
+
   return (
     <AdminLayout>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1
-            className="text-2xl font-bold text-foreground"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Quản lý Album
-          </h1>
-          <Button
-            className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-            onClick={() => setShowCreateModal(true)}
-          >
-            <Plus className="w-4 h-4" />
-            New Album
-          </Button>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-card border border-border/50 rounded-xl p-4 mb-4 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tiêu đề, cosplayer, nhân vật..."
-              className="pl-9 pr-9"
-            />
-            {search && (
-              <button onClick={() => { setSearch(""); setDebouncedSearch(""); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2 items-center">
-            <div className="flex gap-1 p-1 bg-secondary/30 rounded-xl">
-              {(["all", "published", "draft", "archived"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => { setStatusFilter(s); setPage(1); }}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors capitalize ${
-                    statusFilter === s
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-1 p-1 bg-secondary/30 rounded-xl">
-              {(["all", "free", "vip"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { setTypeFilter(t); setPage(1); }}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors capitalize ${
-                    typeFilter === t
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {t === "vip" ? "VIP" : t === "free" ? "Free" : "All"}
-                </button>
-              ))}
-            </div>
-            {/* Tag filter dropdown */}
-            <div className="relative">
-              <select
-                value={tagFilter}
-                onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
-                className="pl-7 pr-3 py-1 rounded-xl text-xs bg-secondary/30 border-0 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
-              >
-                <option value=""># Tất cả tags</option>
-                {allTagsForFilter?.map((t) => (
-                  <option key={t.id} value={t.slug || t.name}>{t.name} ({(t as any).albumCount ?? 0})</option>
-                ))}
-              </select>
-              <Hash className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-            </div>
-            {(search || statusFilter !== "all" || typeFilter !== "all" || tagFilter) && (
-              <button onClick={() => { setSearch(""); setDebouncedSearch(""); setStatusFilter("all"); setTypeFilter("all"); setTagFilter(""); setPage(1); }} className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <X className="w-3.5 h-3.5" /> Xóa bộ lọc
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Albums Table */}
-        <div className="rounded-xl border border-border/50 overflow-hidden bg-card">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50 bg-secondary/30">
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">Album</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden md:table-cell">Trạng thái</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden sm:table-cell">Ảnh</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden lg:table-cell">Lượt xem</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden xl:table-cell">ZIP</th>
-                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={i} className="border-b border-border/30">
-                      <td className="px-4 py-3">
-                        <div className="h-4 skeleton rounded w-3/4" />
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <div className="h-4 skeleton rounded w-16" />
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
-                        <div className="h-4 skeleton rounded w-12" />
-                      </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        <div className="h-4 skeleton rounded w-16" />
-                      </td>
-                      <td className="px-4 py-3 hidden xl:table-cell">
-                        <div className="h-4 skeleton rounded w-12" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-4 skeleton rounded w-20 ml-auto" />
-                      </td>
-                    </tr>
-                  ))
-                ) : data?.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
-                      Chưa có album nào. Hãy tạo album đầu tiên.
-                    </td>
-                  </tr>
-                ) : (
-                  data?.items.map((album) => (
-                    <tr key={album.id} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted shrink-0">
-                            {album.coverUrl ? (
-                              <img src={album.coverUrl} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <ImageIcon className="w-4 h-4 text-muted-foreground/30" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-foreground" title={album.title}>{album.title}</p>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              {album.isVip && (
-                                <span className="vip-badge flex items-center gap-0.5">
-                                  <Crown className="w-2 h-2" />VIP
-                                </span>
-                              )}
-                              <span className="text-xs text-muted-foreground">{album.slug}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${
-                            album.status === "published"
-                              ? "bg-green-400/10 text-green-400"
-                              : album.status === "draft"
-                              ? "bg-yellow-400/10 text-yellow-400"
-                              : "bg-red-400/10 text-red-400"
-                          }`}
-                        >
-                          {album.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell text-muted-foreground">
-                        {album.photoCount}
-                      </td>
-                      <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
-                        {album.viewCount.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 hidden xl:table-cell">
-                        {album.zipUrl ? (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 font-medium">
-                            <FileArchive className="w-3 h-3" />
-                            ZIP
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/40">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          {album.status === "draft" && (
-                            <button
-                              onClick={() => setPublishConfirmAlbum({ id: album.id, title: album.title })}
-                              className="p-1.5 rounded-lg hover:bg-green-500/20 text-muted-foreground hover:text-green-400 transition-colors"
-                              title="Xuất bản"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => navigate(`/admin/albums/${album.id}`)}
-                            className="p-1.5 rounded-lg hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
-                            title="Sửa ảnh & SEO"
-                          >
-                            <ImageIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setEditingAlbum(album)}
-                            className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirmAlbum({ id: album.id, title: album.title })}
-                            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+      <EntityPage
+        shell="full"
+        header={{
+          icon: ImageIcon,
+          title: "Quản lý album",
+          subtitle: isLoading ? adminGlossary.loading.page : `${data?.total ?? 0} album`,
+          actions: (
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+              onClick={() => setShowCreateModal(true)}
+            >
+              <Plus className="w-4 h-4" />
+              {adminGlossary.action.createAlbum}
+            </Button>
+          ),
+        }}
+        toolbar={
+          <EntityToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder: "Tìm theo tiêu đề, cosplayer, nhân vật...",
+            }}
+            filters={
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex gap-1 p-1 bg-secondary/30 rounded-xl">
+                  {(["all", "published", "draft", "archived"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => { setStatusFilter(s); setPage(1); }}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors capitalize ${
+                        statusFilter === s
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {s === "all" ? "Tất cả" : s === "published" ? "Đã xuất bản" : s === "draft" ? "Nháp" : "Lưu trữ"}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-1 p-1 bg-secondary/30 rounded-xl">
+                  {(["all", "free", "vip"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => { setTypeFilter(t); setPage(1); }}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors capitalize ${
+                        typeFilter === t
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {t === "vip" ? "VIP" : t === "free" ? "Miễn phí" : "Tất cả"}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <select
+                    value={tagFilter}
+                    onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
+                    className="pl-7 pr-3 py-1 rounded-xl text-xs bg-secondary/30 border-0 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
+                  >
+                    <option value=""># Tất cả tags</option>
+                    {allTagsForFilter?.map((t) => (
+                      <option key={t.id} value={t.slug || t.name}>{t.name} ({(t as any).albumCount ?? 0})</option>
+                    ))}
+                  </select>
+                  <Hash className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                </div>
+                {hasFilters && (
+                  <button onClick={clearFilters} className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    <X className="w-3.5 h-3.5" /> Xóa bộ lọc
+                  </button>
                 )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {data && data.total > 20 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border/50">
-              <span className="text-sm text-muted-foreground">
-                Trang {page}/{Math.ceil(data.total / 20)} · {data.total} album
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Trước
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={page * 20 >= data.total}
-                >
-                  Tiếp
-                </Button>
               </div>
-            </div>
-          )}
+            }
+          />
+        }
+        pagination={
+          data && data.total > 20
+            ? { page, totalPages, total: data.total, onPageChange: setPage, itemLabel: "album" }
+            : undefined
+        }
+        isEmpty={!isLoading && albums.length === 0}
+        emptyState={{
+          icon: ImageIcon,
+          title: hasFilters ? adminGlossary.empty.search : "Chưa có album nào",
+          action: hasFilters
+            ? { label: "Xóa bộ lọc", onClick: clearFilters }
+            : { label: adminGlossary.action.createAlbum, onClick: () => setShowCreateModal(true) },
+        }}
+      >
+        <div className="rounded-xl border border-border/50 overflow-hidden bg-card">
+          <DataTable
+            columns={[
+              {
+                id: "album",
+                header: "Album",
+                cell: (album) => (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted shrink-0">
+                      {album.coverUrl ? (
+                        <img src={album.coverUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="w-4 h-4 text-muted-foreground/30" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground" title={album.title}>{album.title}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {album.isVip && (
+                          <span className="vip-badge flex items-center gap-0.5">
+                            <Crown className="w-2 h-2" />VIP
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground">{album.slug}</span>
+                      </div>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "status",
+                header: "Trạng thái",
+                hideBelow: "md",
+                cell: (album) => (
+                  <AdminStatusBadge
+                    status={album.status === "published" ? "published" : album.status === "draft" ? "draft" : "cancelled"}
+                    label={album.status === "published" ? "Đã xuất bản" : album.status === "draft" ? "Nháp" : "Lưu trữ"}
+                  />
+                ),
+              },
+              {
+                id: "photos",
+                header: "Ảnh",
+                hideBelow: "sm",
+                cell: (album) => <span className="text-muted-foreground">{album.photoCount}</span>,
+              },
+              {
+                id: "views",
+                header: "Lượt xem",
+                hideBelow: "lg",
+                cell: (album) => <span className="text-muted-foreground">{album.viewCount.toLocaleString()}</span>,
+              },
+              {
+                id: "zip",
+                header: "ZIP",
+                hideBelow: "lg",
+                cell: (album) =>
+                  album.zipUrl ? (
+                    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 font-medium">
+                      <FileArchive className="w-3 h-3" />
+                      ZIP
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground/40">—</span>
+                  ),
+              },
+            ]}
+            data={albums}
+            rowKey={(album) => album.id}
+            isLoading={isLoading}
+            actionsColumn={(album) => (
+              <div className="flex items-center justify-end gap-1">
+                {album.status === "draft" && (
+                  <button
+                    onClick={() => setPublishConfirmAlbum({ id: album.id, title: album.title })}
+                    className="p-1.5 rounded-lg hover:bg-green-500/20 text-muted-foreground hover:text-green-400 transition-colors"
+                    title="Xuất bản"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate(`/admin/albums/${album.id}`)}
+                  className="p-1.5 rounded-lg hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                  title="Sửa ảnh & SEO"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setEditingAlbum(album)}
+                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                  title="Chỉnh sửa"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setDeleteConfirmAlbum({ id: album.id, title: album.title })}
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Xóa"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          />
         </div>
-      </div>
+      </EntityPage>
 
       {/* Tạo album Modal */}
       <CreateAlbumModal

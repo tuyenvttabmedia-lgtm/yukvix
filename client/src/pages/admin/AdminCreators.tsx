@@ -1,4 +1,5 @@
 import AdminLayout from "./AdminLayout";
+import { EntityPage, EntityToolbar, EntityGrid, adminGlossary } from "@/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { trpc } from "@/lib/trpc";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
-import { Users, Pencil, Trash2, Plus, Search, Upload, User, AlertCircle, ChevronRight, Sparkles, Loader2, Wand2, ImageIcon, X } from "lucide-react";
+import { Users, Pencil, Trash2, Plus, Upload, User, ChevronRight, Sparkles, Loader2, Wand2, ImageIcon } from "lucide-react";
 
 function slugify(text: string) {
   return text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
@@ -186,60 +187,66 @@ export default function AdminCreators() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="w-6 h-6" /> Quản lý Cosplayer</h1>
-            <p className="text-muted-foreground text-sm mt-1">{creators.length} creators total</p>
-          </div>
-          <Button onClick={() => { setShowCreate(true); setForm(EMPTY_FORM); }}>
-            <Plus className="w-4 h-4 mr-2" /> New Creator
-          </Button>
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Tìm cosplayer..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
-
-        {/* Grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />)}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(creator => (
-              <div key={creator.id} className="border rounded-lg p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors">
-                <div className="w-12 h-12 rounded-full bg-muted overflow-hidden flex-shrink-0">
-                  {creator.avatarUrl ? (
-                    <img src={creator.avatarUrl} alt={creator.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center"><User className="w-6 h-6 text-muted-foreground" /></div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{creator.name}</p>
-                  <p className="text-xs text-muted-foreground">{creator.slug}</p>
-                  <Badge variant="secondary" className="text-xs mt-1">{creator.albumCount} album</Badge>
-                </div>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(creator)}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => { if (confirm(`Delete creator "${creator.name}"?`)) deleteMutation.mutate({ id: creator.id }); }}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
+      <EntityPage
+        shell="full"
+        header={{
+          icon: Users,
+          title: "Quản lý cosplayer",
+          subtitle: isLoading ? adminGlossary.loading.page : `${creators.length} cosplayer`,
+          actions: (
+            <Button onClick={() => { setShowCreate(true); setForm(EMPTY_FORM); }} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
+              <Plus className="w-4 h-4" /> {adminGlossary.action.createCreator}
+            </Button>
+          ),
+        }}
+        toolbar={
+          <EntityToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder: "Tìm cosplayer theo tên hoặc slug...",
+            }}
+          />
+        }
+        isEmpty={!isLoading && filtered.length === 0}
+        emptyState={{
+          icon: Users,
+          title: search ? adminGlossary.empty.search : "Chưa có cosplayer nào",
+          action: !search
+            ? { label: adminGlossary.action.createCreator, onClick: () => { setShowCreate(true); setForm(EMPTY_FORM); } }
+            : undefined,
+        }}
+      >
+        <EntityGrid
+          items={filtered}
+          isLoading={isLoading}
+          renderCard={(creator) => (
+            <div className="border rounded-lg p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors">
+              <div className="w-12 h-12 rounded-full bg-muted overflow-hidden flex-shrink-0">
+                {creator.avatarUrl ? (
+                  <img src={creator.avatarUrl} alt={creator.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><User className="w-6 h-6 text-muted-foreground" /></div>
+                )}
               </div>
-            ))}
-            {filtered.length === 0 && (
-              <div className="col-span-3 text-center py-12 text-muted-foreground">Không tìm thấy cosplayer</div>
-            )}
-          </div>
-        )}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{creator.name}</p>
+                <p className="text-xs text-muted-foreground">{creator.slug}</p>
+                <Badge variant="secondary" className="text-xs mt-1">{creator.albumCount} album</Badge>
+              </div>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(creator)}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                  onClick={() => { if (confirm(`Xóa cosplayer "${creator.name}"?`)) deleteMutation.mutate({ id: creator.id }); }}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        />
+      </EntityPage>
 
         {/* Create Dialog */}
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -402,6 +409,7 @@ export default function AdminCreators() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
       {/* Photo Picker Modal */}
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
         <DialogContent className="max-w-3xl">
@@ -460,7 +468,6 @@ export default function AdminCreators() {
           </div>
         </DialogContent>
       </Dialog>
-      </div>
     </AdminLayout>
   );
 }

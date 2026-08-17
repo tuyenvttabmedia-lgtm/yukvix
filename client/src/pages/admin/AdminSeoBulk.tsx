@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactElement } from "react";
+import { OperationsPage } from "@/admin";
 import { trpc } from "@/lib/trpc";
-import { toast } from "sonner";
 import AdminLayout from "./AdminLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -273,19 +273,15 @@ export default function AdminSeoBulk() {
 
   return (
     <AdminLayout>
-      <div className="max-w-4xl mx-auto space-y-6 py-6 px-4">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-primary" />
-            Bulk Generate SEO
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Tự động tạo SEO (focusKeyword, metaTitle, metaDescription) và thẻ tag bằng AI cho Album và Creator đang thiếu thông tin.
-          </p>
-        </div>
-
-        {/* Options row */}
+      <OperationsPage
+        shell="full"
+        header={{
+          icon: Sparkles,
+          title: "Bulk Generate SEO",
+          subtitle: "Tự động tạo SEO và thẻ tag bằng AI cho Album và Creator đang thiếu thông tin",
+        }}
+        primary={
+      <div className="space-y-6">
         <div className="flex flex-wrap gap-3">
           {/* Force Regenerate toggle */}
           <div className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/30 px-3 py-2 flex-1 min-w-[260px]">
@@ -963,6 +959,8 @@ export default function AdminSeoBulk() {
           </div>
         )}
       </div>
+        }
+      />
 
       {/* Confirmation dialog for forceAll */}
       <AlertDialog open={!!confirmForceAll} onOpenChange={(open) => !open && setConfirmForceAll(null)}>

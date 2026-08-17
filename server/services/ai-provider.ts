@@ -9,7 +9,7 @@
  * ENV fallbacks:
  *   AI_PROVIDER=openrouter|openai|gemini (default: openrouter)
  *   AI_API_KEY=<your key>
- *   AI_MODEL=google/gemini-2.0-flash-exp (default for openrouter)
+ *   AI_MODEL=google/gemini-2.5-flash (default for openrouter)
  */
 
 import { getDb } from "../db";
@@ -33,6 +33,8 @@ export interface AiCompletionOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: { type: "json_object" } | { type: "json_schema"; json_schema: Record<string, unknown> };
+  /** OpenRouter: append :online for built-in web search when Serper is unavailable. */
+  useWebSearch?: boolean;
 }
 
 export interface AiCompletionResult {
@@ -50,9 +52,9 @@ const PROVIDER_ENDPOINTS: Record<string, string> = {
 
 // Default models per provider
 const DEFAULT_MODELS: Record<string, string> = {
-  openrouter: "google/gemini-2.0-flash-exp:free",
+  openrouter: "google/gemini-2.5-flash",
   openai: "gpt-4o-mini",
-  gemini: "gemini-2.0-flash-exp",
+  gemini: "gemini-2.5-flash",
 };
 
 // Cache config for 5 minutes to avoid DB hit on every SEO call
@@ -81,7 +83,7 @@ export async function getAiProviderConfig(): Promise<AiProviderConfig> {
         _configCache = {
           provider: cfg.provider,
           apiKey: cfg.apiKey,
-          model: cfg.model || DEFAULT_MODELS[cfg.provider] || "google/gemini-2.0-flash-exp:free",
+          model: cfg.model || DEFAULT_MODELS[cfg.provider] || "google/gemini-2.5-flash",
           baseUrl: cfg.baseUrl,
         };
         _configCacheExpiry = now + 5 * 60 * 1000;
@@ -97,7 +99,7 @@ export async function getAiProviderConfig(): Promise<AiProviderConfig> {
   _configCache = {
     provider,
     apiKey: process.env.AI_API_KEY || "",
-    model: process.env.AI_MODEL || DEFAULT_MODELS[provider] || "google/gemini-2.0-flash-exp:free",
+    model: process.env.AI_MODEL || DEFAULT_MODELS[provider] || "google/gemini-2.5-flash",
   };
   _configCacheExpiry = now + 5 * 60 * 1000;
   return _configCache;
@@ -127,8 +129,13 @@ export async function callAi(options: AiCompletionOptions): Promise<AiCompletion
   const baseUrl = config.baseUrl || PROVIDER_ENDPOINTS[config.provider] || PROVIDER_ENDPOINTS.openrouter;
   const url = `${baseUrl}/chat/completions`;
 
+  let model = config.model;
+  if (options.useWebSearch && config.provider === "openrouter" && !model.includes(":online")) {
+    model = `${model}:online`;
+  }
+
   const body: Record<string, unknown> = {
-    model: config.model,
+    model,
     messages: options.messages,
     temperature: options.temperature ?? 0.7,
     max_tokens: options.maxTokens ?? 2048,

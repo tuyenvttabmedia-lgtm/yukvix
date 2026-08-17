@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import AdminLayout from "./AdminLayout";
 import { useState, useEffect, useRef } from "react";
 import { Crown, Search, X, ExternalLink, Info } from "lucide-react";
@@ -76,73 +77,8 @@ export default function AdminSubscriptions() {
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-start gap-3 mb-4">
-          <Crown className="w-6 h-6 text-primary mt-0.5" />
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Lịch sử đăng ký
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Lịch sử giao dịch và trạng thái đăng ký — chỉ xem, không chỉnh sửa.
-            </p>
-          </div>
-          {data && (
-            <span className="text-sm text-muted-foreground self-center">{data.total} bản ghi</span>
-          )}
-        </div>
-
-        {/* Info banner */}
-        <div className="flex items-start gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3 mb-4 text-sm text-blue-400">
-          <Info className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>
-            Trang này chỉ dùng để tra cứu. Để gia hạn, hủy hoặc gửi thông báo VIP, hãy vào{" "}
-            <Link href="/admin/payments/vip" className="underline underline-offset-2 font-medium hover:text-blue-300 transition-colors">
-              Thanh toán → Thành viên VIP
-            </Link>
-            .
-          </span>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-card border border-border/50 rounded-xl p-4 mb-4 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tên hoặc email..."
-              className="pl-9 pr-9"
-            />
-            {search && (
-              <button onClick={() => { setSearch(""); setDebouncedSearch(""); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-1 items-center">
-            <span className="text-xs text-muted-foreground mr-1">Trạng thái:</span>
-            {STATUS_TABS.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setStatusFilter(t.value)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                  statusFilter === t.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-            {hasFilters && (
-              <button onClick={() => { setSearch(""); setDebouncedSearch(""); setStatusFilter("all"); setPage(1); }} className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <X className="w-3.5 h-3.5" /> Xóa bộ lọc
-              </button>
-            )}
-          </div>
-        </div>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={Crown} title="Lịch sử đăng ký" />
 
         {/* Table */}
         <div className="rounded-xl border border-border/50 overflow-hidden bg-card">
@@ -246,7 +182,7 @@ export default function AdminSubscriptions() {
             </div>
           )}
         </div>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

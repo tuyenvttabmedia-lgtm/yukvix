@@ -219,7 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Content */}
-      <main className="flex-1 overflow-auto pb-16 md:pb-0">
+      <main data-admin className="flex-1 overflow-auto pb-16 md:pb-0">
         {children}
       </main>
     </div>

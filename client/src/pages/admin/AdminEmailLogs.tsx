@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { trpc } from "@/lib/trpc";
-import AdminLayout from "./AdminLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { RefreshCw, RotateCcw, Mail, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import AdminLayout from "./AdminLayout";
 
 const EMAIL_TYPES = [
   { value: "all", label: "All Types" },
@@ -253,15 +254,12 @@ function EmailQueueTab() {
 export default function AdminEmailLogs() {
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Mail className="w-6 h-6 text-orange-500" />
-          <div>
-            <h1 className="text-2xl font-bold">Nhật ký Email</h1>
-            <p className="text-sm text-muted-foreground">View email history and manage the send queue</p>
-          </div>
-        </div>
-
+      <AdminPageShell mode="full">
+        <AdminPageHeader
+          icon={Mail}
+          title="Nhật ký Email"
+          subtitle="Lịch sử gửi email và quản lý hàng đợi"
+        />
         <Tabs defaultValue="logs">
           <TabsList>
             <TabsTrigger value="logs" className="flex items-center gap-1.5">
@@ -278,7 +276,7 @@ export default function AdminEmailLogs() {
             <EmailQueueTab />
           </TabsContent>
         </Tabs>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

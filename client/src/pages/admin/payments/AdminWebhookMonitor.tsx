@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "../AdminLayout";
 import { Button } from "@/components/ui/button";
 import {
+  Activity,
   Webhook,
   CheckCircle,
   XCircle,
@@ -87,21 +89,9 @@ export default function AdminWebhookMonitor() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Webhook className="w-6 h-6 text-primary" />
-            <div>
-              <h1
-                className="text-2xl font-bold text-foreground"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                Giám sát Webhook
-              </h1>
-              <p className="text-sm text-muted-foreground">Theo dõi sự kiện thanh toán từ cổng thanh toán</p>
-            </div>
-          </div>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={Activity} title="Webhook" />
+        <div className="flex justify-end mb-4">
           <Button
             variant="outline"
             size="sm"
@@ -318,7 +308,7 @@ export default function AdminWebhookMonitor() {
             </table>
           </div>
         </div>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

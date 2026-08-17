@@ -20,6 +20,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { buildStoredScheduleConfig, normalizeScheduleConfig } from "../services/schedule-config";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -35,6 +36,7 @@ import { eq, and, inArray, ne, desc, sql } from "drizzle-orm";
 import path from "path";
 import { generateSeoData } from "../services/seo-generator";
 import { findOrCreateCreator, KNOWN_COLLECTIONS } from "../services/creator-service";
+import { resolveCreatorFromFilename } from "../services/creator-detect";
 import { getPresignedPutUrl, getSignedMediaUrl } from "../storage-wasabi";
 
 // ─── Admin guard ─────────────────────────────────────────────────────────────
@@ -265,12 +267,18 @@ export const zipImportRouter = router({
         });
       }
 
-      // Find or create creator (skip if collection name)
+      // 3-layer creator detect when admin did not supply creator
+      let creatorName = input.creator || null;
       let creatorId: number | null = null;
-      if (input.creator && !KNOWN_COLLECTIONS.has(input.creator)) {
+      if (!creatorName && input.originalFileName) {
+        const resolved = await resolveCreatorFromFilename(input.originalFileName, input.category);
+        creatorName = resolved.name;
+        creatorId = resolved.creatorId;
+      }
+      if (!creatorId && creatorName && !KNOWN_COLLECTIONS.has(creatorName)) {
         try {
           const result = await findOrCreateCreator({
-            name: input.creator,
+            name: creatorName,
             category: input.category,
           });
           creatorId = result.creatorId;
@@ -279,7 +287,57 @@ export const zipImportRouter = router({
         }
       }
 
-      // Create album
+
+      const useZipImportV2 = process.env.ZIP_IMPORT_V2 === "true";
+
+      if (useZipImportV2) {
+        const { buildImportProfileSnapshot } = await import("../import/import-profile");
+        const { serializePendingAlbumData } = await import("../import/pending-album");
+
+        const importProfile = buildImportProfileSnapshot({ publishMode: "draft" });
+        const pendingAlbumData = serializePendingAlbumData({
+          slug: albumSlug,
+          title: input.title,
+          creator: creatorName,
+          creatorId,
+          collectionName: input.collectionName,
+          description: input.description,
+          shortDescription: input.shortDescription,
+          category: input.category,
+          tags: input.tags,
+          metaTitle: input.metaTitle,
+          metaDescription: input.metaDescription,
+          focusKeyword: input.focusKeyword,
+          relatedKeywords: input.relatedKeywords,
+          altTextTemplate: input.altTextTemplate,
+          originalFileName: input.originalFileName,
+          isVip: importProfile.vip,
+          freePreviewCount: importProfile.preview,
+          publishMode: importProfile.publish,
+        });
+
+        await db
+          .update(zipImportJobs)
+          .set({
+            status: "waiting",
+            importProfile: JSON.stringify(importProfile),
+            pendingAlbumData,
+            archivePasswordIndex: input.archivePasswordIndex ?? existingJob[0].archivePasswordIndex,
+            updatedAt: new Date(),
+          })
+          .where(eq(zipImportJobs.id, input.jobId));
+
+        try {
+          const { runSchedulerNow } = await import("../services/import-cron");
+          await runSchedulerNow();
+        } catch (err) {
+          console.error(`[ZipImport] Failed to start scheduler for job ${input.jobId}:`, err);
+        }
+
+        return { jobId: input.jobId, albumId: null, albumSlug };
+      }
+
+      // V1: Create album at submit time
       const [albumResult] = await db.insert(albums).values({
         slug: albumSlug,
         title: input.title,
@@ -364,7 +422,7 @@ export const zipImportRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
       const job = await db
-        .select({ status: zipImportJobs.status })
+        .select({ status: zipImportJobs.status, importLogs: zipImportJobs.importLogs })
         .from(zipImportJobs)
         .where(eq(zipImportJobs.id, input.jobId))
         .limit(1);
@@ -373,20 +431,38 @@ export const zipImportRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
       }
 
-      const cancellableStatuses = ["uploaded", "waiting", "scheduled", "processing"];
-      if (!cancellableStatuses.includes(job[0].status)) {
+      const { status } = job[0];
+
+      if (status === "processing" || status === "waiting_disk_space") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Cannot cancel job in status: ${job[0].status}`,
+          message: "Không thể hủy job đang xử lý. Vui lòng đợi hoàn thành hoặc thất bại.",
         });
       }
 
+      const cancellable = ["uploaded", "waiting", "scheduled", "failed", "skipped", "expired"];
+      if (!cancellable.includes(status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot cancel job in status: ${status}`,
+        });
+      }
+
+      const logs: string[] = job[0].importLogs ? JSON.parse(job[0].importLogs) : [];
+      logs.push(`[${new Date().toISOString()}] [Cancel] Job cancelled by admin`);
+
       await db
         .update(zipImportJobs)
-        .set({ cancelRequested: true, updatedAt: new Date() })
+        .set({
+          status: "cancelled",
+          cancelRequested: true,
+          completedAt: new Date(),
+          importLogs: JSON.stringify(logs),
+          updatedAt: new Date(),
+        })
         .where(eq(zipImportJobs.id, input.jobId));
 
-      return { success: true };
+      return { success: true, status: "cancelled" as const };
     }),
 
   /**
@@ -404,7 +480,7 @@ export const zipImportRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
-      type JobStatus = "uploaded" | "waiting" | "scheduled" | "processing" | "waiting_disk_space" | "completed" | "failed" | "cancelled" | "expired";
+      type JobStatus = "uploaded" | "waiting" | "scheduled" | "processing" | "waiting_disk_space" | "completed" | "failed" | "cancelled" | "expired" | "skipped";
       const conditions = [];
       if (input.status) {
         conditions.push(eq(zipImportJobs.status, input.status as JobStatus));
@@ -429,6 +505,10 @@ export const zipImportRouter = router({
           completedAt: zipImportJobs.completedAt,
           createdAt: zipImportJobs.createdAt,
           updatedAt: zipImportJobs.updatedAt,
+          duplicateInfo: zipImportJobs.duplicateInfo,
+          pipelineStep: zipImportJobs.pipelineStep,
+          duplicateOverride: zipImportJobs.duplicateOverride,
+          duplicateOverrideAudit: zipImportJobs.duplicateOverrideAudit,
           albumTitle: albums.title,
           albumSlug: albums.slug,
         })
@@ -443,7 +523,15 @@ export const zipImportRouter = router({
         .from(zipImportJobs);
 
       return {
-        jobs,
+        jobs: jobs.map((j) => ({
+          ...j,
+          parsedDuplicateInfo: j.duplicateInfo
+            ? (JSON.parse(j.duplicateInfo) as Record<string, unknown>)
+            : null,
+          parsedOverrideAudit: j.duplicateOverrideAudit
+            ? (JSON.parse(j.duplicateOverrideAudit) as Record<string, unknown>)
+            : null,
+        })),
         total: totalResult[0]?.count ?? 0,
       };
     }),
@@ -846,7 +934,7 @@ export const zipImportRouter = router({
             filename: z.string().min(1).max(500),
             size: z.number().positive(),
           })
-        ).min(1).max(20),
+        ).min(1).max(100),
       })
     )
     .mutation(async ({ input }) => {
@@ -920,7 +1008,7 @@ export const zipImportRouter = router({
             jobId: z.number().int().positive(),
             filename: z.string().min(1),
           })
-        ).min(1).max(20),
+        ).min(1).max(100),
         publishMode: z.enum(["draft", "published"]).default("draft"),
         defaultVip: z.boolean().default(false),
         freePreviewCount: z.number().int().min(0).max(50).nullable().default(null),
@@ -969,12 +1057,14 @@ export const zipImportRouter = router({
             albumSlug = `${albumSlug}-${item.jobId}`;
           }
 
-          // Find or create creator
-          let creatorId: number | null = null;
-          if (seo.creator && !KNOWN_COLLECTIONS.has(seo.creator)) {
+          // 3-layer creator detect (regex → DB → AI fallback)
+          const resolvedCreator = await resolveCreatorFromFilename(item.filename, seo.category);
+          const creatorName = resolvedCreator.name || seo.creator || null;
+          let creatorId: number | null = resolvedCreator.creatorId;
+          if (!creatorId && creatorName && !KNOWN_COLLECTIONS.has(creatorName)) {
             try {
               const creatorResult = await findOrCreateCreator({
-                name: seo.creator,
+                name: creatorName,
                 category: seo.category,
               });
               creatorId = creatorResult.creatorId;
@@ -983,11 +1073,18 @@ export const zipImportRouter = router({
             }
           }
 
-          // Create album
+          const { buildImportProfileSnapshot } = await import("../import/import-profile");
+          const importProfile = buildImportProfileSnapshot({
+            publishMode: input.publishMode,
+            defaultVip: input.defaultVip,
+            freePreviewCount: input.freePreviewCount ?? undefined,
+          });
+
+          // Album stays draft until pipeline completes; publish intent stored on job profile.
           const [albumResult] = await db.insert(albums).values({
             slug: albumSlug,
             title: seo.albumTitle,
-            creator: seo.creator,
+            creator: creatorName,
             creatorId,
             collectionName: seo.collectionName,
             description: seo.shortDescription,
@@ -1001,8 +1098,8 @@ export const zipImportRouter = router({
             altTextTemplate: seo.altTextTemplate,
             originalFileName: item.filename,
             aiGenerated: true,
-            publishStatus: input.publishMode === "published" ? "ready_for_review" : "processing",
-            status: input.publishMode === "published" ? "published" : "draft",
+            publishStatus: "processing",
+            status: "draft",
             isVip: input.defaultVip,
             freePreviewCount: input.freePreviewCount,
           });
@@ -1015,6 +1112,7 @@ export const zipImportRouter = router({
             .set({
               albumId,
               status: "waiting",
+              importProfile: JSON.stringify(importProfile),
               archivePasswordIndex: 0,
               updatedAt: new Date(),
             })
@@ -1047,18 +1145,31 @@ export const zipImportRouter = router({
    */
   getImportScheduleConfig: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return { enabled: false, cronHour: 3, batchSize: 10 };
+    if (!db) {
+      const view = await normalizeScheduleConfig({ enabled: false }, { localHour: 17, batchSize: 10 });
+      return { enabled: view.enabled, localHour: view.localHour, cronHourUtc: view.cronHourUtc, timezone: view.timezone, batchSize: view.batchSize ?? 10 };
+    }
     const row = await db
       .select({ value: adminSettings.value })
       .from(adminSettings)
       .where(eq(adminSettings.key, "import_schedule_config"))
       .limit(1);
-    if (!row[0]?.value) return { enabled: false, cronHour: 3, batchSize: 10 };
+    if (!row[0]?.value) {
+      const view = await normalizeScheduleConfig({ enabled: false }, { localHour: 17, batchSize: 10 });
+      return { enabled: view.enabled, localHour: view.localHour, cronHourUtc: view.cronHourUtc, timezone: view.timezone, batchSize: view.batchSize ?? 10 };
+    }
     const cfg = JSON.parse(row[0].value);
+    const view = await normalizeScheduleConfig(
+      { enabled: cfg.enabled ?? false, cronHour: cfg.cronHour, localHour: cfg.localHour, batchSize: cfg.batchSize, timezone: cfg.timezone },
+      { localHour: 17, batchSize: 10 }
+    );
     return {
-      enabled: cfg.enabled ?? false,
-      cronHour: cfg.cronHour ?? 3,
-      batchSize: cfg.batchSize ?? 10,
+      enabled: view.enabled,
+      localHour: view.localHour,
+      cronHourUtc: view.cronHourUtc,
+      cronHour: view.cronHourUtc,
+      timezone: view.timezone,
+      batchSize: view.batchSize ?? 10,
     };
   }),
 
@@ -1069,14 +1180,15 @@ export const zipImportRouter = router({
     .input(
       z.object({
         enabled: z.boolean(),
-        cronHour: z.number().int().min(0).max(23),
+        localHour: z.number().int().min(0).max(23),
         batchSize: z.number().int().min(1).max(50),
       })
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-      const value = JSON.stringify(input);
+      const stored = await buildStoredScheduleConfig(input);
+      const value = JSON.stringify(stored);
       const existing = await db
         .select({ id: adminSettings.id })
         .from(adminSettings)
@@ -1214,6 +1326,333 @@ export const zipImportRouter = router({
       apiKeyConfigured: !!cfg.apiKey,
     };
   }),
+  /**
+   * Phase 3: Import job statistics for dashboard (data only).
+   */
+
+  /** Phase 8 — Operational Layer overview (Import + Worker dashboards). */
+  getOperationalOverview: adminProcedure.query(async () => {
+    const { getOperationalOverview } = await import("../import/import-metrics");
+    return getOperationalOverview();
+  }),
+
+  getHealthCenter: adminProcedure.query(async () => {
+    const { getHealthCenter } = await import("../import/import-health");
+    return getHealthCenter();
+  }),
+
+  getMetricsHistory: adminProcedure
+    .input(z.object({ period: z.enum(["24h", "7d", "30d"]) }))
+    .query(async ({ input }) => {
+      const { getMetricsHistory } = await import("../import/import-metrics");
+      return getMetricsHistory(input.period);
+    }),
+
+  listImportNotifications: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional(), unreadOnly: z.boolean().optional() }).optional())
+    .query(async ({ input }) => {
+      const { listNotifications } = await import("../import/notification-service");
+      return listNotifications(input?.limit ?? 50, input?.unreadOnly ?? false);
+    }),
+
+  markImportNotificationRead: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const { markNotificationRead } = await import("../import/notification-service");
+      await markNotificationRead(input.id);
+      return { ok: true };
+    }),
+
+  markAllImportNotificationsRead: adminProcedure.mutation(async () => {
+    const { markAllNotificationsRead } = await import("../import/notification-service");
+    await markAllNotificationsRead();
+    return { ok: true };
+  }),
+
+  getCleanupStats: adminProcedure.query(async () => {
+    const { getCleanupStats } = await import("../import/cleanup-service");
+    return getCleanupStats();
+  }),
+
+  runImportCleanup: adminProcedure
+    .input(
+      z.object({
+        categories: z
+          .array(z.enum(["temp", "skipped", "checkpoint", "logs", "notification"]))
+          .optional(),
+        all: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { runCleanup, runFullCleanup } = await import("../import/cleanup-service");
+      const results = input.all
+        ? await runFullCleanup()
+        : await runCleanup(input.categories ?? ["temp", "logs"]);
+      return { ok: true, results };
+    }),
+
+  getJobTimeline: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const { getJobTimeline } = await import("../import/import-timeline");
+      return getJobTimeline(input.jobId);
+    }),
+
+  getProductionReadiness: adminProcedure.query(async () => {
+    const { computeProductionReadiness } = await import("../import/production-readiness");
+    return computeProductionReadiness();
+  }),
+
+  getBenchmarkResults: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { adminSettings } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return { results: [] };
+    const row = await db
+      .select({ value: adminSettings.value })
+      .from(adminSettings)
+      .where(eq(adminSettings.key, "import_benchmark_results"))
+      .limit(1);
+    if (!row[0]?.value) return { results: [] };
+    try {
+      return { results: JSON.parse(row[0].value) };
+    } catch {
+      return { results: [] };
+    }
+  }),
+
+  getImportJobStats: adminProcedure.query(async () => {
+    const { getImportJobStats } = await import("../import/zip-dedup");
+    return getImportJobStats();
+  }),
+
+  /**
+   * Phase 3: Import duplicate anyway — audit trail, never updates matched album.
+   */
+
+
+  /**
+   * Phase 7 — SEO-only retry for a completed/failed import job.
+   * Re-runs AI enrichment on the linked album; does not restart the pipeline.
+   */
+  retrySeo: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+
+      const jobRow = await db
+        .select({
+          id: zipImportJobs.id,
+          albumId: zipImportJobs.albumId,
+          sourceArchiveOriginalName: zipImportJobs.sourceArchiveOriginalName,
+          totalImages: zipImportJobs.totalImages,
+          processedImages: zipImportJobs.processedImages,
+        })
+        .from(zipImportJobs)
+        .where(eq(zipImportJobs.id, input.jobId))
+        .limit(1);
+
+      const job = jobRow[0];
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Import job not found" });
+      if (!job.albumId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Job has no album — cannot retry SEO" });
+      }
+
+      const albumRow = await db
+        .select({
+          title: albums.title,
+          creator: albums.creator,
+          category: albums.category,
+          originalFileName: albums.originalFileName,
+        })
+        .from(albums)
+        .where(eq(albums.id, job.albumId))
+        .limit(1);
+
+      const album = albumRow[0];
+      if (!album) throw new TRPCError({ code: "NOT_FOUND", message: "Album not found" });
+
+      const { enrichAlbumSeoForJob } = await import("../import/seo-import");
+
+      const filename =
+        job.sourceArchiveOriginalName || album.originalFileName || album.title || "album";
+
+      const result = await enrichAlbumSeoForJob(job.id, job.albumId, {
+        originalFileName: filename,
+        adminTitle: album.title,
+        creator: album.creator || undefined,
+        category: album.category || undefined,
+        imageCount: job.processedImages || job.totalImages || undefined,
+        skipCache: true,
+      });
+
+      return {
+        ok: true,
+        jobId: job.id,
+        albumId: job.albumId,
+        metadata: result.metadata,
+        metrics: result.metrics,
+        seo: result.seo,
+      };
+    }),
+
+  resumeImportJob: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const { prepareJobResume } = await import("../import/resume-import");
+      const result = await prepareJobResume(input.jobId, "manual");
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.error || "Cannot resume job",
+        });
+      }
+      const { runSchedulerNow } = await import("../services/import-cron");
+      runSchedulerNow({ source: "manual-resume" }).catch(console.error);
+      return { ok: true, jobId: input.jobId, fromStep: result.fromStep };
+    }),
+
+  importDuplicateAnyway: adminProcedure
+    .input(
+      z.object({
+        jobId: z.number().int().positive(),
+        reason: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+
+      const rows = await db
+        .select()
+        .from(zipImportJobs)
+        .where(eq(zipImportJobs.id, input.jobId))
+        .limit(1);
+
+      const job = rows[0];
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+      if (job.status !== "skipped") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Job is not in skipped status" });
+      }
+
+      const { restoreSkippedToStaging } = await import("../import/zip-dedup");
+      const stagingKey = await restoreSkippedToStaging(
+        job.id,
+        job.sourceArchiveKey || "",
+        job.sourceArchiveOriginalName || "archive.zip"
+      );
+
+      const audit = {
+        overrideBy: ctx.user!.id,
+        overrideAt: new Date().toISOString(),
+        reason: input.reason || undefined,
+      };
+
+      const logs: string[] = job.importLogs ? JSON.parse(job.importLogs) : [];
+      logs.push(
+        `[${audit.overrideAt}] [ImportAnyway] admin=${audit.overrideBy}${input.reason ? ` reason=${input.reason}` : ""}`
+      );
+
+      await db
+        .update(zipImportJobs)
+        .set({
+          status: "waiting",
+          duplicateOverride: true,
+          duplicateOverrideAudit: JSON.stringify(audit),
+          sourceArchiveKey: stagingKey,
+          importLogs: JSON.stringify(logs),
+          updatedAt: new Date(),
+        })
+        .where(eq(zipImportJobs.id, input.jobId));
+
+      const { runSchedulerNow } = await import("../services/import-cron");
+      runSchedulerNow({ source: "import-anyway" }).catch(console.error);
+
+      return { ok: true, jobId: input.jobId, stagingKey };
+    }),
+
+  /**
+   * Re-presign upload for stuck jobs: status=uploaded, albumId=null (orphan after failed PUT).
+   * If archive already exists on Wasabi, returns archiveExists=true so client can queue directly.
+   */
+  retryUploadPresign: adminProcedure
+    .input(
+      z.object({
+        jobId: z.number().int().positive(),
+        size: z.number().positive().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+
+      const rows = await db
+        .select()
+        .from(zipImportJobs)
+        .where(eq(zipImportJobs.id, input.jobId))
+        .limit(1);
+
+      const job = rows[0];
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+      if (job.status !== "uploaded") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Job status is ${job.status}, expected uploaded`,
+        });
+      }
+      if (job.albumId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Job already has an album — use resume instead",
+        });
+      }
+      if (!job.sourceArchiveKey || !job.sourceArchiveOriginalName) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Job missing archive metadata" });
+      }
+
+      const size = input.size ?? job.sourceArchiveSize;
+      if (!size) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Archive size unknown — pass size from selected file" });
+      }
+
+      let archiveExists = false;
+      try {
+        const { verifyObjectExists } = await import("../import/wasabi-verify");
+        await verifyObjectExists(job.sourceArchiveKey, job.sourceArchiveSize ?? size);
+        archiveExists = true;
+      } catch {
+        archiveExists = false;
+      }
+
+      if (archiveExists) {
+        return {
+          jobId: input.jobId,
+          filename: job.sourceArchiveOriginalName,
+          presignedUrl: "",
+          archiveExists: true as const,
+          size: job.sourceArchiveSize ?? size,
+        };
+      }
+
+      if (input.size && input.size !== job.sourceArchiveSize) {
+        await db
+          .update(zipImportJobs)
+          .set({ sourceArchiveSize: input.size, updatedAt: new Date() })
+          .where(eq(zipImportJobs.id, input.jobId));
+      }
+
+      const presignedUrl = await getPresignedPutUrl(job.sourceArchiveKey, size);
+      return {
+        jobId: input.jobId,
+        filename: job.sourceArchiveOriginalName,
+        presignedUrl,
+        archiveExists: false as const,
+        size,
+      };
+    }),
+
 });
 
 export type ZipImportRouter = typeof zipImportRouter;

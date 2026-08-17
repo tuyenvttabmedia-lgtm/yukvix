@@ -20,6 +20,7 @@ import { authEmailRouter } from "./routers/auth-email";
 import { emailLogsRouter } from "./routers/email-logs";
 import { seoRouter } from "./routers/seo";
 import { zipImportRouter } from "./routers/zip-import";
+import { schedulerRouter } from "./routers/scheduler";
 
 export const appRouter = router({
   system: systemRouter,
@@ -62,6 +63,7 @@ export const appRouter = router({
   emailLogs: emailLogsRouter,
   seo: seoRouter,
   zipImport: zipImportRouter,
+  scheduler: schedulerRouter,
 });
 
 export type AppRouter = typeof appRouter;

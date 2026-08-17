@@ -4,13 +4,14 @@
  * All media uploaded directly to Wasabi S3 via presigned PUT URLs.
  */
 import { trpc } from "@/lib/trpc";
+import { SettingsPage } from "@/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
-import { Image, Link2, Loader2, Plus, Save, Trash2, Upload } from "lucide-react";
+import { Image, Link2, Loader2, Palette, Plus, Save, Trash2, Upload } from "lucide-react";
 import AdminLayout from "../AdminLayout";
 
 // -- Types ---------------------------------------------------------------------
@@ -183,19 +184,12 @@ export default function AdminAppearance() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-3xl">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Appearance</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Logo, favicon, banners, footer and social links</p>
-          </div>
-          <Button onClick={handleSave} disabled={updateSettings.isPending}>
-            {updateSettings.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Lưu thay đổi
-          </Button>
-        </div>
-
-        {/* -- Branding ------------------------------------------------------- */}
+      <SettingsPage
+        header={{ icon: Palette, title: "Giao diện", subtitle: "Logo, favicon, banners, footer và social links" }}
+        onSave={handleSave}
+        isSaving={updateSettings.isPending}
+        sections={[{ id: "main", title: "Giao diện trang", content: (
+      <div className="space-y-6">
         <section className="bg-card border border-border rounded-xl p-5 mb-5">
           <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <Image className="w-4 h-4 text-primary" /> Branding
@@ -348,6 +342,8 @@ export default function AdminAppearance() {
           </div>
         </section>
       </div>
+        )}]}
+      />
     </AdminLayout>
   );
 }

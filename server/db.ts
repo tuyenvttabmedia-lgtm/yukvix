@@ -1229,10 +1229,15 @@ export async function mergeTag(sourceId: number, targetId: number) {
   await db.delete(tags).where(eq(tags.id, sourceId));
 }
 
-export async function listTagsWithCount(opts: { search?: string; sortBy?: string; minAlbums?: number } = {}) {
+export async function listTagsWithCount(
+  opts: { search?: string; sortBy?: string; minAlbums?: number; page?: number; limit?: number } = {}
+) {
   const db = await getDb();
-  if (!db) return [];
-  const { search, sortBy = "popular", minAlbums } = opts;
+  const paginate = opts.page != null;
+  if (!db) return paginate ? { items: [], total: 0 } : [];
+
+  const { search, sortBy = "popular", minAlbums, page = 1, limit = 30 } = opts;
+
   let query = db
     .select({
       id: tags.id,
@@ -1242,7 +1247,6 @@ export async function listTagsWithCount(opts: { search?: string; sortBy?: string
       seoDescription: tags.seoDescription,
       createdAt: tags.createdAt,
       albumCount: sql<number>`count(distinct ${albumTags.albumId})`,
-      // Pick the cover of the first (most-viewed) album in this tag as thumbnail
       coverUrl: sql<string | null>`(
         SELECT a.coverUrl FROM album_tags at2
         JOIN albums a ON a.id = at2.albumId
@@ -1253,18 +1257,43 @@ export async function listTagsWithCount(opts: { search?: string; sortBy?: string
     .from(tags)
     .leftJoin(albumTags, eq(albumTags.tagId, tags.id))
     .groupBy(tags.id);
+
   if (search) {
-    query = query.where(like(tags.name, `%${search}%`)) as typeof query;
+    query = query.where(
+      or(like(tags.name, `%${search}%`), like(tags.slug, `%${search}%`))
+    ) as typeof query;
   }
   if (minAlbums && minAlbums > 0) {
     query = query.having(sql`count(distinct ${albumTags.albumId}) >= ${minAlbums}`) as typeof query;
   }
+
   let orderByExpr;
   if (sortBy === "name") orderByExpr = tags.name;
   else if (sortBy === "newest") orderByExpr = desc(tags.createdAt);
   else orderByExpr = desc(sql`count(distinct ${albumTags.albumId})`);
-  const rows = await query.orderBy(orderByExpr);
-  return rows;
+
+  if (!paginate) {
+    return await query.orderBy(orderByExpr);
+  }
+
+  const offset = (page - 1) * limit;
+  const items = await query.orderBy(orderByExpr).limit(limit).offset(offset);
+
+  let countQuery = db
+    .select({ id: tags.id })
+    .from(tags)
+    .leftJoin(albumTags, eq(albumTags.tagId, tags.id))
+    .groupBy(tags.id);
+  if (search) {
+    countQuery = countQuery.where(
+      or(like(tags.name, `%${search}%`), like(tags.slug, `%${search}%`))
+    ) as typeof countQuery;
+  }
+  if (minAlbums && minAlbums > 0) {
+    countQuery = countQuery.having(sql`count(distinct ${albumTags.albumId}) >= ${minAlbums}`) as typeof countQuery;
+  }
+  const countRows = await countQuery;
+  return { items, total: countRows.length };
 }
 
 // --- Downloads ---------------------------------------------------------------------

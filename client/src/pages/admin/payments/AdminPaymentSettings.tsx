@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { SettingsPage } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "../AdminLayout";
 import {
@@ -197,29 +198,10 @@ export default function AdminPaymentSettings() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-3xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CreditCard className="w-6 h-6 text-primary" />
-            <div>
-              <h1
-                className="text-2xl font-bold text-foreground"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                Cài đặt thanh toán
-              </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Trạng thái nhà cung cấp thanh toán — khóa bí mật không bao giờ hiển thị đầy đủ
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()}>
-            <RefreshCw className="w-3.5 h-3.5" />
-            Làm mới
-          </Button>
-        </div>
-
+      <SettingsPage
+        header={{ icon: CreditCard, title: "Thanh toán", subtitle: "Trạng thái nhà cung cấp thanh toán" }}
+        sections={[{ id: "main", title: "Nhà cung cấp", content: (
+      <div className="space-y-6">
         {isLoading ? (
           <div className="space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -516,6 +498,8 @@ export default function AdminPaymentSettings() {
           </>
         )}
       </div>
+        )}]}
+      />
     </AdminLayout>
   );
 }

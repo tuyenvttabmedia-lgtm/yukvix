@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { DashboardPage } from "@/admin";
 import AdminLayout from "./AdminLayout";
 import {
   BarChart3,
@@ -97,14 +98,18 @@ export default function AdminOverview() {
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Tổng quan
-          </h1>
-        </div>
-
+      <DashboardPage
+        header={{ icon: BarChart3, title: "Tổng quan", subtitle: "Thống kê hệ thống" }}
+        metrics={
+          isLoading
+            ? []
+            : statCards.slice(0, 4).map((s) => ({
+                label: s.label,
+                value: s.value,
+                href: s.href,
+              }))
+        }
+      >
         {/* Quick Actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {quickActions.map(({ label, icon, href, color }) => (
@@ -117,7 +122,7 @@ export default function AdminOverview() {
           ))}
         </div>
 
-        {/* Stat Cards */}
+        {/* Stat Cards (extended) */}
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -228,7 +233,7 @@ export default function AdminOverview() {
             </div>
           )}
         </div>
-      </div>
+      </DashboardPage>
     </AdminLayout>
   );
 }

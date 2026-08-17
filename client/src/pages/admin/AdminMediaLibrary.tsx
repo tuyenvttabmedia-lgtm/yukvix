@@ -4,6 +4,7 @@
  * and a production-grade bulk upload zone (drag & drop, queue, concurrency 3, retry).
  */
 import { useState, useCallback, useRef, useEffect } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "./AdminLayout";
 import { Button } from "@/components/ui/button";

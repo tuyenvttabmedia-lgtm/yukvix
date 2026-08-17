@@ -56,9 +56,17 @@ export const tagsRouter = router({
 
   // --- Admin: list tags with count --------------------------------------------
   adminList: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(
+      z.object({
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(200).default(30),
+        search: z.string().optional(),
+        sortBy: z.enum(["popular", "name", "newest"]).default("popular"),
+      }).optional()
+    )
+    .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
-      return listTagsWithCount();
+      return listTagsWithCount({ ...input, page: input?.page ?? 1 });
     }),
 
   // --- Admin: create tag ------------------------------------------------------

@@ -2,6 +2,7 @@
  * Admin page: Tin nhắn liên hệ — list, view, and update status.
  */
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import AdminLayout from "./AdminLayout";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -76,21 +77,8 @@ export default function AdminContactSubmissions() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Mail className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Tin nhắn liên hệ</h1>
-              <p className="text-sm text-muted-foreground">
-                {submissions.length} total{newCount > 0 && `, ${newCount} new`}
-              </p>
-            </div>
-          </div>
-        </div>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={Mail} title="Liên hệ" />
 
         {/* Table */}
         {isLoading ? (
@@ -231,7 +219,7 @@ export default function AdminContactSubmissions() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

@@ -3,6 +3,7 @@
  * Full CRUD for categories: name, slug, description, SEO title/description, cover image.
  */
 import { trpc } from "@/lib/trpc";
+import { EntityPage, DataTable, adminGlossary } from "@/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -230,104 +231,112 @@ export default function AdminCategories() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <AdminLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
-      </AdminLayout>
-    );
-  }
+  const cats = categories ?? [];
+
+  const editBanner = editingForm ? (
+    <div className="mb-5">
+      <CategoryFormPanel
+        initialForm={editingForm}
+        onSave={handleSave}
+        onCancel={() => setEditingForm(null)}
+        isSaving={saveCategory.isPending}
+      />
+    </div>
+  ) : undefined;
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-3xl">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Categories</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Manage album categories with SEO metadata</p>
-          </div>
-          {!editingForm && (
+      <EntityPage
+        shell="full"
+        header={{
+          icon: FolderOpen,
+          title: "Danh mục",
+          subtitle: isLoading ? adminGlossary.loading.page : `${cats.length} danh mục`,
+          actions: !editingForm ? (
             <Button onClick={() => setEditingForm(emptyForm())}>
-              <Plus className="w-4 h-4 mr-2" /> New Category
+              <Plus className="w-4 h-4 mr-2" /> Tạo danh mục
             </Button>
-          )}
-        </div>
-
-        {editingForm && (
-          <div className="mb-5">
-            <CategoryFormPanel
-              initialForm={editingForm}
-              onSave={handleSave}
-              onCancel={() => setEditingForm(null)}
-              isSaving={saveCategory.isPending}
-            />
-          </div>
-        )}
-
-        {/* Category list */}
-        {(!categories || categories.length === 0) && !editingForm ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <FolderOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p>No categories yet. Create your first one.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {(categories ?? []).map((cat) => (
-              <div
-                key={cat.id}
-                className="flex items-center gap-3 bg-card border border-border rounded-xl p-3"
-              >
-                {cat.coverUrl ? (
-                  <img src={cat.coverUrl} alt={cat.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+          ) : undefined,
+        }}
+        banner={editBanner}
+        isEmpty={!isLoading && cats.length === 0 && !editingForm}
+        emptyState={{
+          icon: FolderOpen,
+          title: "Chưa có danh mục nào",
+          action: { label: "Tạo danh mục", onClick: () => setEditingForm(emptyForm()) },
+        }}
+      >
+        <DataTable
+          columns={[
+            {
+              id: "cover",
+              header: "Ảnh bìa",
+              cell: (cat) =>
+                cat.coverUrl ? (
+                  <img src={cat.coverUrl} alt={cat.name} className="w-12 h-12 rounded-lg object-cover" />
                 ) : (
-                  <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                  <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center">
                     <FolderOpen className="w-5 h-5 text-muted-foreground/40" />
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
+                ),
+            },
+            {
+              id: "name",
+              header: "Tên",
+              cell: (cat) => (
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">{cat.name}</p>
                   <p className="text-xs text-muted-foreground">/{cat.slug}</p>
                   {cat.description && (
                     <p className="text-xs text-muted-foreground/70 truncate mt-0.5">{cat.description}</p>
                   )}
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setEditingForm({
-                        id: cat.id,
-                        name: cat.name,
-                        slug: cat.slug,
-                        description: cat.description ?? "",
-                        coverUrl: cat.coverUrl ?? "",
-                        coverKey: cat.coverKey ?? "",
-                        seoTitle: cat.seoTitle ?? "",
-                        seoDescription: cat.seoDescription ?? "",
-                        sortOrder: cat.sortOrder,
-                      })
-                    }
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (confirm(`Delete "${cat.name}"?`)) deleteCategory.mutate({ id: cat.id });
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ),
+            },
+            {
+              id: "sort",
+              header: "Thứ tự",
+              hideBelow: "sm",
+              cell: (cat) => <span className="text-muted-foreground tabular-nums">{cat.sortOrder}</span>,
+            },
+          ]}
+          data={cats}
+          rowKey={(cat) => cat.id}
+          isLoading={isLoading}
+          actionsColumn={(cat) => (
+            <div className="flex gap-1 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setEditingForm({
+                    id: cat.id,
+                    name: cat.name,
+                    slug: cat.slug,
+                    description: cat.description ?? "",
+                    coverUrl: cat.coverUrl ?? "",
+                    coverKey: cat.coverKey ?? "",
+                    seoTitle: cat.seoTitle ?? "",
+                    seoDescription: cat.seoDescription ?? "",
+                    sortOrder: cat.sortOrder,
+                  })
+                }
+              >
+                <Edit2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (confirm(`Xóa "${cat.name}"?`)) deleteCategory.mutate({ id: cat.id });
+                }}
+              >
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </div>
+          )}
+        />
+      </EntityPage>
     </AdminLayout>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Link } from "wouter";
+import { OperationsPage } from "@/admin";
 import AdminLayout from "./AdminLayout";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -451,38 +452,29 @@ function AdminImportContent() {
   const liveLogsJob = liveLogsJobId ? jobs.find(j => j.id === liveLogsJobId) : null;
 
   return (
+    <OperationsPage
+      shell="full"
+      header={{
+        icon: Globe,
+        title: "Import Manager",
+        subtitle: "Import cosplay galleries from external sources",
+        actions: (
+          <div className="flex gap-2">
+            <Link href="/admin/import/sources">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Settings className="w-4 h-4" /> Sources
+              </Button>
+            </Link>
+            <Link href="/admin/import/history">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <History className="w-4 h-4" /> History
+              </Button>
+            </Link>
+          </div>
+        ),
+      }}
+      primary={
     <div className="space-y-6">
-      {/* Live Logs Panel */}
-      {liveLogsJobId && (
-        <LiveLogsPanel
-          jobId={liveLogsJobId}
-          jobTitle={liveLogsJob?.extractedTitle || liveLogsJob?.sourceUrl || `Job #${liveLogsJobId}`}
-          jobStatus={liveLogsJob?.status || "done"}
-          onClose={() => setLiveLogsJobId(null)}
-        />
-      )}
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Import Manager</h1>
-          <p className="text-slate-400 text-sm mt-1">Import cosplay galleries from external sources</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/admin/import/sources">
-            <Button variant="outline" size="sm" className="gap-1.5 border-slate-600 text-slate-300">
-              <Settings className="w-4 h-4" /> Sources
-            </Button>
-          </Link>
-          <Link href="/admin/import/history">
-            <Button variant="outline" size="sm" className="gap-1.5 border-slate-600 text-slate-300">
-              <History className="w-4 h-4" /> History
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
@@ -718,6 +710,8 @@ function AdminImportContent() {
         </CardContent>
       </Card>
     </div>
+      }
+    />
   );
 }
 

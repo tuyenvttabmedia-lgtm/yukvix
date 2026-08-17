@@ -192,16 +192,16 @@ pnpm approve-builds
 ## 5. Run the Development Server
 
 ```bash
-# Start the full-stack dev server (frontend + backend on port 3000)
+# Start the full-stack dev server (frontend + backend on port 3010)
 pnpm dev
 ```
 
-The server starts at **http://localhost:3000**
+The server starts at **http://localhost:3010**
 
-- Frontend: `http://localhost:3000`
-- API (tRPC): `http://localhost:3000/api/trpc`
-- Upload API: `http://localhost:3000/api/upload`
-- Stripe Webhook: `http://localhost:3000/api/stripe/webhook`
+- Frontend: `http://localhost:3010`
+- API (tRPC): `http://localhost:3010/api/trpc`
+- Upload API: `http://localhost:3010/api/upload`
+- Stripe Webhook: `http://localhost:3010/api/stripe/webhook`
 
 > **Hot reload:** Both frontend (Vite HMR) and backend (tsx watch) reload automatically on file changes.
 
@@ -276,7 +276,7 @@ UPDATE users SET role = 'vip' WHERE openId = 'your-manus-open-id';
 
 ### Access
 
-Navigate to **http://localhost:3000/admin**
+Navigate to **http://localhost:3010/admin**
 
 > Requires `role = 'admin'` in the database. See [Section 7](#7-demo-accounts--credentials) to promote your account.
 
@@ -365,7 +365,7 @@ Add this CORS policy to your Wasabi bucket (Settings → CORS):
 <?xml version="1.0" encoding="UTF-8"?>
 <CORSConfiguration>
   <CORSRule>
-    <AllowedOrigin>http://localhost:3000</AllowedOrigin>
+    <AllowedOrigin>http://localhost:3010</AllowedOrigin>
     <AllowedOrigin>https://your-production-domain.com</AllowedOrigin>
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
@@ -407,7 +407,7 @@ VIP album photos are served via **signed URLs** that expire in 1 hour. To test:
 
 ### Test a VIP Purchase
 
-1. Go to **http://localhost:3000/vip**
+1. Go to **http://localhost:3010/vip**
 2. Click **"Get VIP Monthly"** or **"Get VIP Yearly"**
 3. A new tab opens with Stripe Checkout
 4. Use test card: **`4242 4242 4242 4242`**
@@ -429,7 +429,7 @@ brew install stripe/stripe-cli/stripe
 stripe login
 
 # Forward webhooks to local server
-stripe listen --forward-to localhost:3000/api/stripe/webhook
+stripe listen --forward-to localhost:3010/api/stripe/webhook
 
 # In another terminal, trigger a test event
 stripe trigger checkout.session.completed
@@ -488,7 +488,7 @@ stripe trigger checkout.session.completed
 
 **Single Photo** (`/api/upload/photo`):
 ```bash
-curl -X POST http://localhost:3000/api/upload/photo \
+curl -X POST http://localhost:3010/api/upload/photo \
   -H "Cookie: session=your_session_cookie" \
   -F "file=@photo.jpg" \
   -F "albumId=1"
@@ -496,7 +496,7 @@ curl -X POST http://localhost:3000/api/upload/photo \
 
 **ZIP Upload** (`/api/upload/zip`):
 ```bash
-curl -X POST http://localhost:3000/api/upload/zip \
+curl -X POST http://localhost:3010/api/upload/zip \
   -H "Cookie: session=your_session_cookie" \
   -F "file=@photos.zip" \
   -F "albumId=1"
@@ -509,10 +509,10 @@ curl -X POST http://localhost:3000/api/upload/zip \
 ### Server won't start
 
 ```bash
-# Check if port 3000 is in use
-lsof -i :3000
+# Check if port 3010 is in use
+lsof -i :3010
 # Kill existing process
-kill -9 $(lsof -t -i:3000)
+kill -9 $(lsof -t -i:3010)
 
 # Restart
 pnpm dev
@@ -587,7 +587,7 @@ pnpm test
 [ ] Manus OAuth credentials added (VITE_APP_ID, OWNER_OPEN_ID, etc.)
 [ ] pnpm install completed
 [ ] pnpm drizzle-kit migrate completed
-[ ] pnpm dev running on http://localhost:3000
+[ ] pnpm dev running on http://localhost:3010
 [ ] node scripts/seed.mjs completed (20 albums, 297 photos seeded)
 [ ] Logged in via Manus OAuth
 [ ] Role promoted to admin via SQL or OWNER_OPEN_ID

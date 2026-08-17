@@ -1,0 +1,16 @@
+export { AdminPageShell, type AdminShellMode, type AdminPageShellProps } from "./components/shell/AdminPageShell";
+export { AdminPageHeader, type AdminPageHeaderProps, type AdminPageHeaderMetric } from "./components/shell/AdminPageHeader";
+export { EntityPage, type EntityPageProps } from "./components/entity/EntityPage";
+export { EntityToolbar, type EntityToolbarProps } from "./components/entity/EntityToolbar";
+export { DataTable, type DataTableProps, type DataTableColumn } from "./components/entity/DataTable";
+export { EntityGrid, type EntityGridProps } from "./components/entity/EntityGrid";
+export { AdminPagination, type AdminPaginationProps } from "./components/entity/AdminPagination";
+export { AdminStatusBadge, type AdminStatus, type AdminStatusBadgeProps } from "./components/feedback/AdminStatusBadge";
+export { AdminEmptyState, type AdminEmptyStateProps } from "./components/feedback/AdminEmptyState";
+export { AdminLoadingSkeleton, type AdminLoadingSkeletonProps } from "./components/feedback/AdminLoadingSkeleton";
+export { SettingsPage, type SettingsPageProps, type SettingsSection } from "./components/settings/SettingsPage";
+export { OperationsPage, type OperationsPageProps } from "./components/operations/OperationsPage";
+export { DashboardPage, MetricCard, type DashboardPageProps, type MetricCardProps } from "./components/dashboard/DashboardPage";
+export { useDebouncedSearch } from "./hooks/useDebouncedSearch";
+export { useAdminPagination } from "./hooks/useAdminPagination";
+export { adminGlossary } from "./glossary";

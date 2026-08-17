@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
+import { SettingsPage } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, CheckCircle2, Loader2, Mail, Send, TestTube2 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 
@@ -80,26 +80,17 @@ export default function AdminSmtp() {
 
   return (
     <AdminLayout>
-    <div className="p-6 max-w-2xl">
-      <div className="flex items-center gap-3 mb-6">
-        <Mail className="w-6 h-6 text-primary" />
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Email (SMTP) Settings</h1>
-          <p className="text-sm text-muted-foreground">
-            Configure SMTP for sending verification emails, password resets, and notifications.
-          </p>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">SMTP Configuration</CardTitle>
-          <CardDescription>
-            For Gmail: use smtp.gmail.com, port 587, and an App Password (not your regular password).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Host & Port */}
+      <SettingsPage
+        header={{ icon: Mail, title: "Cấu hình SMTP", subtitle: "Gửi email xác thực và thông báo" }}
+        onSave={handleSave}
+        isSaving={saveMutation.isPending}
+        sections={[
+          {
+            id: "smtp",
+            title: "Cấu hình SMTP",
+            description: "Gmail: smtp.gmail.com, port 587, App Password (không dùng mật khẩu thường).",
+            content: (
+              <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="col-span-2">
               <Label htmlFor="host">SMTP Host</Label>
@@ -236,30 +227,18 @@ export default function AdminSmtp() {
               )}
               Kiểm tra kết nối
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saveMutation.isPending || !form.host || !form.user || !form.fromEmail}
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4 mr-2" />
-              )}
-              Save Settings
-            </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Help section */}
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="text-base">Gmail Setup Guide</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>1. Go to your Google Account → Security → 2-Step Verification (enable it).</p>
-          <p>2. Go to Security → App Passwords → Generate a new app password for "Mail".</p>
-          <p>3. Use these settings:</p>
+              </div>
+            ),
+          },
+          {
+            id: "help",
+            title: "Hướng dẫn Gmail",
+            content: (
+              <div className="text-sm text-muted-foreground space-y-2">
+          <p>1. Vào Google Account → Security → Bật 2-Step Verification.</p>
+          <p>2. Security → App Passwords → Tạo mật khẩu ứng dụng cho "Mail".</p>
+          <p>3. Dùng cấu hình:</p>
           <div className="bg-secondary/50 rounded-lg p-3 font-mono text-xs space-y-1">
             <p>Host: smtp.gmail.com</p>
             <p>Port: 587</p>
@@ -267,9 +246,11 @@ export default function AdminSmtp() {
             <p>Username: your.email@gmail.com</p>
             <p>Password: (16-char app password)</p>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+              </div>
+            ),
+          },
+        ]}
+      />
     </AdminLayout>
   );
 }

@@ -14,6 +14,7 @@ import {
   recoverDeadWorkersOnStartup,
   runSchedulerNow,
 } from "./import-scheduler";
+import { ensureDuplicatePolicySeeded } from "../import/duplicate-policy";
 
 const SCHEDULER_INTERVAL_MS =
   parseInt(process.env.IMPORT_PROCESS_INTERVAL_MINUTES || "1", 10) * 60 * 1000;
@@ -63,6 +64,7 @@ export function startImportScheduler(): void {
   if (_schedulerTimer) return;
 
   recoverDeadWorkersOnStartup().catch(console.error);
+  ensureDuplicatePolicySeeded().catch(console.error);
 
   if (SCHEDULED_ONLY) {
     console.log(

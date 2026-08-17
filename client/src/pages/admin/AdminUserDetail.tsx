@@ -26,6 +26,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useLocation, useParams } from "wouter";
 import AdminLayout from "./AdminLayout";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 
 export default function AdminUserDetail() {
   const { user: currentUser } = useAuth();
@@ -152,20 +153,13 @@ export default function AdminUserDetail() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-4xl">
-        {/* Back button + header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/admin/users")}>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={User} title="Chi tiết người dùng" subtitle={`ID #${userDetail.id}`} />
+        <div className="space-y-6">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/admin/users")} className="-mt-2">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại danh sách
           </Button>
-          <div className="flex-1" />
-          <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-md">
-            ID #{userDetail.id}
-          </span>
-        </div>
-
-        <div className="space-y-6">
           {/* Profile Card */}
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
@@ -449,7 +443,7 @@ export default function AdminUserDetail() {
             </Card>
           )}
         </div>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

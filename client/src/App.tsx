@@ -75,6 +75,7 @@ const AdminSeoBulk = lazy(() => import("./pages/admin/AdminSeoBulk"));
 const AdminZipImport = lazy(() => import("./pages/admin/AdminZipImport"));
 const AdminAlbumSeoReview = lazy(() => import("./pages/admin/AdminAlbumSeoReview"));
 const AdminAiSettings = lazy(() => import("./pages/admin/AdminAiSettings"));
+const AdminDesignPreview = lazy(() => import("./pages/admin/AdminDesignPreview"));
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
 function PageLoader() {
@@ -155,7 +156,8 @@ function Router() {
         <Route path="/verify-email" component={VerifyEmail} />
 
         {/* Admin pages (no public footer) */}
-        <Route path="/admin" component={AdminOverview} />
+        <Route path="/admin/_design-preview" component={AdminDesignPreview} />
+                <Route path="/admin" component={AdminOverview} />
         <Route path="/admin/albums" component={AdminAlbums} />
         <Route path="/admin/users" component={AdminUsers} />
         <Route path="/admin/subscriptions" component={AdminSubscriptions} />

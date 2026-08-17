@@ -13,6 +13,8 @@ import { albums, creators, adminSettings } from "../../drizzle/schema";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { callAi } from "../services/ai-provider";
 import { notifyOwner } from "../_core/notification";
+import { appendSchedulerRun } from "../services/scheduler-log";
+import { normalizeScheduleConfig } from "../services/schedule-config";
 
 async function verifyCronSecret(req: Request): Promise<boolean> {
   const provided = (req.headers["x-cron-secret"] as string | undefined)?.trim();
@@ -35,6 +37,8 @@ async function verifyCronSecret(req: Request): Promise<boolean> {
 }
 
 export async function autoBulkSeoHandler(req: Request, res: Response) {
+  const _runStarted = Date.now();
+  const SCHEDULER_NAME = "auto-seo";
   try {
     // Authenticate — verify cron secret
     const valid = await verifyCronSecret(req);
@@ -60,7 +64,51 @@ export async function autoBulkSeoHandler(req: Request, res: Response) {
     // If schedule is disabled and this is a cron call (not manual), skip
     const isManualRun = req.headers["x-manual-run"] === "1";
     if (!autoSeoConfig.enabled && !isManualRun) {
+      await appendSchedulerRun({
+        schedulerName: SCHEDULER_NAME,
+        configuredHourUtc: autoSeoConfig.cronHour,
+        configuredHourLocal: (autoSeoConfig as any).localHour ?? 9,
+        shouldRun: false,
+        reason: "Auto Schedule is disabled",
+        waitingJobs: 0,
+        pickedJobs: [],
+        durationMs: Date.now() - _runStarted,
+        result: "skipped",
+        manual: false,
+      });
       return res.json({ ok: true, skipped: true, message: "Auto Schedule is disabled. Enable it in Admin → Bulk SEO → Auto Schedule.", timestamp: new Date().toISOString() });
+    }
+
+    const seoView = await normalizeScheduleConfig(
+      { enabled: autoSeoConfig.enabled, cronHour: autoSeoConfig.cronHour, localHour: (autoSeoConfig as any).localHour, timezone: (autoSeoConfig as any).timezone, maxAlbums: autoSeoConfig.maxAlbums, maxCreators: autoSeoConfig.maxCreators, maxTags: autoSeoConfig.maxTags },
+      { localHour: 9 }
+    );
+    autoSeoConfig.cronHour = seoView.cronHourUtc;
+
+    const currentHour = new Date().getUTCHours();
+    if (!isManualRun && currentHour !== seoView.cronHourUtc) {
+      await appendSchedulerRun({
+        schedulerName: SCHEDULER_NAME,
+        configuredHourUtc: seoView.cronHourUtc,
+        configuredHourLocal: seoView.localHour,
+        shouldRun: false,
+        reason: `Not scheduled hour (UTC ${currentHour}, local ${seoView.localHour}:00 ${seoView.timezone})`,
+        waitingJobs: 0,
+        pickedJobs: [],
+        durationMs: Date.now() - _runStarted,
+        result: "skipped",
+        manual: false,
+        timezone: seoView.timezone,
+      });
+      return res.json({
+        ok: true,
+        skipped: true,
+        message: `Not scheduled hour (UTC ${currentHour}, configured local ${seoView.localHour}:00)`,
+        cronHour: seoView.cronHourUtc,
+        localHour: seoView.localHour,
+        currentHour,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     const results = {
@@ -267,11 +315,28 @@ Return JSON: { "tags": ["tag1", "tag2", ...] }`,
     // ── Notify owner if anything was processed ────────────────────────────────
     const totalProcessed = results.albumsProcessed + results.creatorsProcessed + results.tagsProcessed;
     if (totalProcessed > 0) {
-      await notifyOwner({
-        title: "Auto Bulk SEO hoàn thành",
-        content: `Đã tự động tạo SEO:\n- Albums: ${results.albumsProcessed} (${results.albumsFailed} lỗi)\n- Creators: ${results.creatorsProcessed} (${results.creatorsFailed} lỗi)\n- Tags cho albums: ${results.tagsProcessed} (${results.tagsFailed} lỗi)`,
-      });
+      try {
+        await notifyOwner({
+          title: "Auto Bulk SEO hoàn thành",
+          content: `Đã tự động tạo SEO:\n- Albums: ${results.albumsProcessed} (${results.albumsFailed} lỗi)\n- Creators: ${results.creatorsProcessed} (${results.creatorsFailed} lỗi)\n- Tags cho albums: ${results.tagsProcessed} (${results.tagsFailed} lỗi)`,
+        });
+      } catch (notifyErr: any) {
+        console.warn("[AutoBulkSEO] notifyOwner failed:", notifyErr?.message || notifyErr);
+      }
     }
+
+    await appendSchedulerRun({
+      schedulerName: SCHEDULER_NAME,
+      configuredHourUtc: autoSeoConfig.cronHour,
+      configuredHourLocal: (autoSeoConfig as any).localHour ?? 9,
+      shouldRun: true,
+      reason: totalProcessed > 0 ? `Processed ${totalProcessed} items` : "Nothing to process",
+      waitingJobs: 0,
+      pickedJobs: [],
+      durationMs: Date.now() - _runStarted,
+      result: totalProcessed > 0 ? `albums=${results.albumsProcessed} creators=${results.creatorsProcessed} tags=${results.tagsProcessed}` : "nothing",
+      manual: isManualRun,
+    });
 
     return res.json({
       ok: true,

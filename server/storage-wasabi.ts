@@ -237,6 +237,12 @@ export async function deleteFromStorage(key: string): Promise<void> {
  * Copy an object within the same Wasabi bucket (server-side copy, no data transfer).
  * Used to move pre-optimized WebP files from tmp/original path to final webp/ path.
  */
+
+/** URL-encode CopySource for keys with spaces/parentheses/non-ASCII (UAT BUG-001). */
+function buildCopySource(bucket: string, key: string): string {
+  return encodeURIComponent(`${bucket}/${key}`);
+}
+
 export async function copyObject(sourceKey: string, destKey: string): Promise<void> {
   if (!hasWasabi) return;
   const client = getS3Client();
@@ -244,7 +250,7 @@ export async function copyObject(sourceKey: string, destKey: string): Promise<vo
   await client.send(
     new CopyObjectCommand({
       Bucket: WASABI_BUCKET,
-      CopySource: `${WASABI_BUCKET}/${sourceKey}`,
+      CopySource: buildCopySource(WASABI_BUCKET, sourceKey),
       Key: destKey,
     })
   );

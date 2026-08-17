@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "../AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -154,72 +155,8 @@ export default function AdminVipManagement() {
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <Crown className="w-6 h-6 text-primary" />
-            <div>
-              <h1
-                className="text-2xl font-bold text-foreground"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                Thành viên VIP
-              </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Quản lý gia hạn, hủy bỏ và thông báo cho thành viên VIP.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setNotifyOpen(true)}
-              className="text-amber-400 border-amber-500/30 hover:border-amber-500/60 hover:text-amber-300"
-            >
-              <Bell className="w-3.5 h-3.5 mr-1.5" />
-              Gửi thông báo hết hạn
-            </Button>
-            <button
-              onClick={() => { setShowExpired((v) => !v); setPage(1); }}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                showExpired
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "border-border/50 text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Clock className="w-3 h-3 inline mr-1" />
-              {showExpired ? "Đang xem: Hết hạn" : "Xem hết hạn"}
-            </button>
-          </div>
-        </div>
-
-        {/* Search bar */}
-        <div className="bg-card border border-border/50 rounded-xl p-3 mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tên hoặc email..."
-              className="pl-9 pr-9"
-            />
-            {search && (
-              <button
-                onClick={() => { setSearch(""); setDebouncedSearch(""); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          {hasSearch && data && (
-            <p className="text-xs text-muted-foreground mt-2 pl-1">
-              Tìm thấy {data.total} kết quả cho "{debouncedSearch}"
-            </p>
-          )}
-        </div>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={Crown} title="Quản lý VIP" />
 
         {/* Table */}
         <div className="rounded-xl border border-border/50 overflow-hidden bg-card">
@@ -458,7 +395,7 @@ export default function AdminVipManagement() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

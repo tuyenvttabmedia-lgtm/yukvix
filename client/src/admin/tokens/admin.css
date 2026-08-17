@@ -1,0 +1,80 @@
+/**
+ * YUKVIX Admin Design System — utility tokens
+ * Scope: [data-admin] only (see AdminLayout)
+ */
+
+[data-admin] {
+  font-family: Inter, system-ui, sans-serif;
+}
+
+[data-admin] .admin-page-shell-wide {
+  @apply p-6 max-w-7xl mx-auto w-full;
+}
+
+[data-admin] .admin-page-shell-default {
+  @apply p-6 max-w-6xl mx-auto w-full;
+}
+
+[data-admin] .admin-page-shell-narrow {
+  @apply p-6 max-w-3xl mx-auto w-full;
+}
+
+[data-admin] .admin-page-shell-full {
+  @apply p-6 w-full;
+}
+
+[data-admin] .admin-page-title {
+  @apply text-2xl font-semibold tracking-tight text-foreground;
+}
+
+[data-admin] .admin-section-title {
+  @apply text-lg font-semibold text-foreground;
+}
+
+[data-admin] .admin-caption {
+  @apply text-xs text-muted-foreground;
+}
+
+[data-admin] .admin-card {
+  @apply rounded-xl border border-border/50 bg-card/50;
+}
+
+[data-admin] .admin-card-header {
+  @apply px-4 py-3 border-b border-border/50;
+}
+
+[data-admin] .admin-card-body {
+  @apply p-4;
+}
+
+[data-admin] .admin-table-wrap {
+  @apply rounded-xl border border-border/50 overflow-hidden bg-card;
+}
+
+[data-admin] .admin-table {
+  @apply w-full text-sm;
+}
+
+[data-admin] .admin-thead {
+  @apply border-b border-border/50 bg-secondary/30;
+}
+
+[data-admin] .admin-th {
+  @apply text-left px-4 py-3 text-muted-foreground font-medium;
+}
+
+[data-admin] .admin-td {
+  @apply px-4 py-3;
+}
+
+[data-admin] .admin-tr-hover {
+  @apply hover:bg-secondary/20 transition-colors;
+}
+
+[data-admin] .admin-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
+}
+
+[data-admin] .admin-grid-dense {
+  @apply grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3;
+}

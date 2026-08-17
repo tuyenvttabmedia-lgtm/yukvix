@@ -1,13 +1,14 @@
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Search, RefreshCw, ExternalLink, FileText, Ban, CheckCircle, XCircle, Trash2, CheckSquare, Square } from "lucide-react";
+import { ArrowLeft, Search, RefreshCw, ExternalLink, FileText, Ban, CheckCircle, XCircle, Trash2, CheckSquare, Square, History } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { trpc } from "@/lib/trpc";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,15 +91,12 @@ function AdminImportHistoryContent() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/admin/import">
-          <Button variant="ghost" size="sm" className="text-slate-400 gap-1">
+          <Button variant="ghost" size="sm" className="gap-1">
           <ArrowLeft className="w-4 h-4" /> Quay lại
         </Button>
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Lịch sử Import</h1>
-          <p className="text-slate-400 text-sm">Tất cả công việc import, hiện tại và trong quá khứ</p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-slate-400">
+        <div className="flex-1" />
+        <Button variant="ghost" size="sm" onClick={() => refetch()}>
           <RefreshCw className="w-4 h-4" />
         </Button>
       </div>
@@ -305,7 +303,10 @@ function AdminImportHistoryContent() {
 export default function AdminImportHistory() {
   return (
     <AdminLayout>
-      <AdminImportHistoryContent />
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={History} title="Lịch sử import" subtitle="Tất cả công việc import, hiện tại và trong quá khứ" />
+        <AdminImportHistoryContent />
+      </AdminPageShell>
     </AdminLayout>
   );
 }

@@ -4,12 +4,13 @@
  * Items can be added, reordered (drag-and-drop via @dnd-kit), and deleted.
  */
 import { trpc } from "@/lib/trpc";
+import { SettingsPage } from "@/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
-import { ExternalLink, GripVertical, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { ExternalLink, GripVertical, Loader2, Menu, Plus, Save, Trash2 } from "lucide-react";
 import AdminLayout from "../AdminLayout";
 import {
   DndContext,
@@ -205,18 +206,16 @@ export default function AdminMenus() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-3xl">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground">Menu Management</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Configure navigation menus for your site</p>
-        </div>
-
-        <div className="space-y-5">
+      <SettingsPage
+        header={{ icon: Menu, title: "Menu", subtitle: "Cấu hình menu điều hướng" }}
+        sections={[{ id: "main", title: "Menu điều hướng", content: (
+      <div className="space-y-5">
           <MenuPanel location="main" label="Main Navigation" initialItems={getItems("main")} />
           <MenuPanel location="footer" label="Footer Navigation" initialItems={getItems("footer")} />
           <MenuPanel location="mobile" label="Mobile Navigation" initialItems={getItems("mobile")} />
-        </div>
       </div>
+        )}]}
+      />
     </AdminLayout>
   );
 }

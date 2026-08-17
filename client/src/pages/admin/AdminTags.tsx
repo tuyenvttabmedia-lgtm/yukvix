@@ -1,4 +1,11 @@
 import AdminLayout from "./AdminLayout";
+import {
+  EntityPage,
+  EntityToolbar,
+  DataTable,
+  AdminStatusBadge,
+  adminGlossary,
+} from "@/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,9 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Tag, Pencil, Trash2, Merge, Plus, Search, Loader2, AlertTriangle, X, Sparkles } from "lucide-react";
+import { Tag, Pencil, Trash2, Merge, Plus, Loader2, AlertTriangle, Sparkles } from "lucide-react";
 
 type TagWithCount = {
   id: number;
@@ -32,9 +39,13 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
 }
 
+const PAGE_SIZE = 30;
+
 export default function AdminTags() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [editTag, setEditTag] = useState<TagWithCount | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showMerge, setShowMerge] = useState(false);
@@ -44,7 +55,29 @@ export default function AdminTags() {
 
   const [form, setForm] = useState({ name: "", slug: "", seoTitle: "", seoDescription: "" });
 
-  const { data: tags = [], isLoading } = trpc.tags.adminList.useQuery();
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data, isLoading } = trpc.tags.adminList.useQuery({
+    page,
+    limit: PAGE_SIZE,
+    search: debouncedSearch || undefined,
+    sortBy: "popular",
+  });
+  const tags: TagWithCount[] = data?.items ?? [];
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+
+  const { data: mergeTargetsData } = trpc.tags.adminList.useQuery(
+    { page: 1, limit: 100, sortBy: "name" },
+    { enabled: showMerge }
+  );
+  const mergeTargets = mergeTargetsData?.items ?? [];
   const { data: tagSeoAudit, refetch: refetchTagSeoAudit } = trpc.seo.getTagSeoAudit.useQuery();
   const { data: tagSeoJob, refetch: refetchTagSeoJob } = trpc.seo.getTagSeoBulkStatus.useQuery(undefined, {
     refetchInterval: (q) => (q.state.data && !q.state.data.finished ? 2000 : false),
@@ -105,24 +138,14 @@ export default function AdminTags() {
     onError: (e) => toast.error(e.message),
   });
 
-  const filtered = tags.filter(
-    (t) =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.slug.toLowerCase().includes(search.toLowerCase())
-  );
-
   function openEdit(tag: TagWithCount) {
     setEditTag(tag);
     setForm({ name: tag.name, slug: tag.slug, seoTitle: tag.seoTitle || "", seoDescription: tag.seoDescription || "" });
   }
 
-  const deleteTarget = tags.find((t) => t.id === deleteConfirmId);
+  const deleteTarget = tags.find((t) => t.id === deleteConfirmId) ?? null;
 
-  return (
-    <AdminLayout>
-      <div className="p-6">
-
-        {/* Tag SEO bulk tool (Phase C — manual only) */}
+  const tagSeoBanner = (
         <div className="mb-6 rounded-lg border border-border bg-card/40 p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -165,125 +188,126 @@ export default function AdminTags() {
             </div>
           </div>
         </div>
+  );
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2" style={{ fontFamily: "'Playfair Display', serif" }}>
-              <Tag className="w-6 h-6 text-primary" /> Quản lý thẻ tag
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {isLoading ? "Đang tải..." : `${tags.length} thẻ tag`}
-            </p>
-          </div>
-          <Button
-            onClick={() => { setShowCreate(true); setForm({ name: "", slug: "", seoTitle: "", seoDescription: "" }); }}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-          >
-            <Plus className="w-4 h-4" /> Tạo thẻ tag
-          </Button>
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Tìm thẻ tag theo tên hoặc slug..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-9"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+  return (
+    <AdminLayout>
+      <EntityPage
+        shell="full"
+        header={{
+          icon: Tag,
+          title: "Quản lý thẻ tag",
+          subtitle: isLoading ? adminGlossary.loading.page : `${data?.total ?? 0} thẻ tag`,
+          actions: (
+            <Button
+              onClick={() => { setShowCreate(true); setForm({ name: "", slug: "", seoTitle: "", seoDescription: "" }); }}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
             >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Table */}
+              <Plus className="w-4 h-4" /> {adminGlossary.action.createTag}
+            </Button>
+          ),
+        }}
+        banner={tagSeoBanner}
+        toolbar={
+          <EntityToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder: "Tìm thẻ tag theo tên hoặc slug...",
+            }}
+          />
+        }
+        pagination={
+          data && data.total > PAGE_SIZE
+            ? { page, totalPages, total: data.total, onPageChange: setPage, itemLabel: "thẻ tag" }
+            : undefined
+        }
+        isEmpty={!isLoading && tags.length === 0}
+        emptyState={{
+          icon: Tag,
+          title: debouncedSearch ? adminGlossary.empty.search : "Chưa có thẻ tag nào",
+          action: !debouncedSearch
+            ? {
+                label: adminGlossary.action.createTag,
+                onClick: () => {
+                  setShowCreate(true);
+                  setForm({ name: "", slug: "", seoTitle: "", seoDescription: "" });
+                },
+              }
+            : undefined,
+        }}
+      >
         <div className="rounded-xl border border-border/50 overflow-hidden bg-card">
-          {isLoading ? (
-            <div className="p-6 space-y-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-10 skeleton rounded" />
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50 bg-secondary/30">
-                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">Tên</th>
-                    <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden sm:table-cell">Slug</th>
-                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">Albums</th>
-                    <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden md:table-cell">SEO</th>
-                    <th className="text-right px-4 py-3 text-muted-foreground font-medium">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((tag) => (
-                    <tr key={tag.id} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
-                      <td className="px-4 py-3 font-medium text-foreground">
-                        <span className="text-primary">#</span>{tag.name}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell font-mono text-xs">
-                        {tag.slug}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary" className="tabular-nums">{tag.albumCount}</Badge>
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        {tag.seoTitle ? (
-                          <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-400/30">SEO</Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEdit(tag)}
-                            className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => { setMergeSource(tag); setShowMerge(true); }}
-                            className="p-1.5 rounded-lg hover:bg-blue-400/10 text-muted-foreground hover:text-blue-400 transition-colors"
-                            title="Gộp thẻ tag"
-                          >
-                            <Merge className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirmId(tag.id)}
-                            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center">
-                        <Tag className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                        <p className="text-muted-foreground text-sm">
-                          {search ? "Không tìm thấy thẻ tag phù hợp" : "Chưa có thẻ tag nào"}
-                        </p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            columns={[
+              {
+                id: "name",
+                header: "Tên",
+                cell: (tag) => (
+                  <span className="font-medium text-foreground">
+                    <span className="text-primary">#</span>
+                    {tag.name}
+                  </span>
+                ),
+              },
+              {
+                id: "slug",
+                header: "Slug",
+                hideBelow: "sm",
+                cell: (tag) => (
+                  <span className="text-muted-foreground font-mono text-xs">{tag.slug}</span>
+                ),
+              },
+              {
+                id: "albums",
+                header: "Albums",
+                cell: (tag) => (
+                  <Badge variant="secondary" className="tabular-nums">{tag.albumCount}</Badge>
+                ),
+              },
+              {
+                id: "seo",
+                header: "SEO",
+                hideBelow: "md",
+                cell: (tag) =>
+                  tag.seoTitle ? (
+                    <AdminStatusBadge status="completed" label="SEO" size="sm" />
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  ),
+              },
+            ]}
+            data={tags}
+            rowKey={(tag) => tag.id}
+            isLoading={isLoading}
+            actionsColumn={(tag) => (
+              <div className="flex items-center justify-end gap-1">
+                <button
+                  onClick={() => openEdit(tag)}
+                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                  title="Chỉnh sửa"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => { setMergeSource(tag); setShowMerge(true); }}
+                  className="p-1.5 rounded-lg hover:bg-blue-400/10 text-muted-foreground hover:text-blue-400 transition-colors"
+                  title="Gộp thẻ tag"
+                >
+                  <Merge className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setDeleteConfirmId(tag.id)}
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Xóa"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          />
         </div>
+      </EntityPage>
 
         {/* Create Dialog */}
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -430,7 +454,7 @@ export default function AdminTags() {
                   <SelectValue placeholder="Chọn thẻ tag đích..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {tags
+                  {mergeTargets
                     .filter((t) => t.id !== mergeSource?.id)
                     .map((t) => (
                       <SelectItem key={t.id} value={String(t.id)}>
@@ -485,7 +509,6 @@ export default function AdminTags() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
     </AdminLayout>
   );
 }

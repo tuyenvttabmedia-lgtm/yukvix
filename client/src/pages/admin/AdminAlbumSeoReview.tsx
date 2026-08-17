@@ -11,8 +11,8 @@
  */
 
 import { useState, useEffect } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import AdminLayout from "./AdminLayout";
-import { useRoute, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

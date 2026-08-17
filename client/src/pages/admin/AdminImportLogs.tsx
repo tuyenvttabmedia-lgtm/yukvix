@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { Link, useParams } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, RefreshCw, ExternalLink, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { trpc } from "@/lib/trpc";
 
 const LEVEL_COLORS: Record<string, string> = {
   info: "text-blue-400",

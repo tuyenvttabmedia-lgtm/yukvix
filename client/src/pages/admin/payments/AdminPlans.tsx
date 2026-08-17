@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "../AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Package, Plus, Pencil, Trash2, Tag, X } from "lucide-react";
+import { CreditCard, Package, Pencil, Plus, Tag, Trash2, X } from "lucide-react";
 
 type PlanForm = {
   id?: number;
@@ -126,23 +127,12 @@ export default function AdminPlans() {
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Package className="w-6 h-6 text-primary" />
-            <h1
-              className="text-2xl font-bold text-foreground"
-              style={{ fontFamily: "'Playfair Display', serif" }}
-            >
-              Subscription Plans
-            </h1>
-          </div>
-          <Button size="sm" onClick={openCreate}>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={CreditCard} title="Gói dịch vụ" />
+        <div className="flex justify-end mb-4"><Button size="sm" onClick={openCreate}>
             <Plus className="w-4 h-4 mr-1.5" />
             New Plan
-          </Button>
-        </div>
+          </Button></div>
 
         {/* Plans Grid */}
         {isLoading ? (
@@ -396,7 +386,7 @@ export default function AdminPlans() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

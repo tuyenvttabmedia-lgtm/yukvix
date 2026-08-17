@@ -1,20 +1,10 @@
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "../AdminLayout";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import {
-  History,
-  ChevronLeft,
-  ChevronRight,
-  TrendingUp,
-  Users,
-  Clock,
-  XCircle,
-  Trash2,
-  AlertTriangle,
-  Loader2,
-} from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, History,  Loader2, Receipt, Trash2, TrendingUp, Users, XCircle } from "lucide-react";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "Tất cả" },
@@ -114,67 +104,8 @@ export default function AdminPaymentHistory() {
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <History className="w-6 h-6 text-primary" />
-          <h1
-            className="text-2xl font-bold text-foreground"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Lịch sử thanh toán
-          </h1>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard
-            icon={TrendingUp}
-            label="Tổng doanh thu"
-            value={`$${stats?.revenue ?? "0.00"}`}
-            sub="từ các gói đã thanh toán"
-          />
-          <StatCard
-            icon={Users}
-            label="Đăng ký đang hoạt động"
-            value={stats?.active ?? 0}
-          />
-          <StatCard
-            icon={Clock}
-            label="Chờ xử lý"
-            value={stats?.pending ?? 0}
-          />
-          <StatCard
-            icon={XCircle}
-            label="Đã hủy"
-            value={stats?.cancelled ?? 0}
-          />
-        </div>
-
-        {/* Filter Tabs */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {STATUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => {
-                setStatusFilter(opt.value);
-                setPage(1);
-              }}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                statusFilter === opt.value
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
-              }`}
-            >
-              {opt.label}
-              {opt.value !== "all" && stats && (
-                <span className="ml-1 opacity-70">
-                  ({stats[opt.value as keyof typeof stats] ?? 0})
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={Receipt} title="Lịch sử thanh toán" />
 
         {/* Table */}
         <div className="rounded-xl border border-border/50 overflow-hidden bg-card">
@@ -301,7 +232,7 @@ export default function AdminPaymentHistory() {
             </div>
           )}
         </div>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

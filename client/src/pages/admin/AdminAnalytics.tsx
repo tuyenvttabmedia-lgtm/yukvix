@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DashboardPage } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "./AdminLayout";
 import {
@@ -109,50 +110,45 @@ export default function AdminAnalytics() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-8 max-w-7xl">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Thống kê
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">Doanh thu, tăng trưởng người dùng và hiệu suất nội dung</p>
-          </div>
-          <PeriodSelector value={days} onChange={setDays} />
-        </div>
-
-        {/* ── GROUP 1: REVENUE ────────────────────────────────────────────── */}
+      <DashboardPage
+        header={{
+          icon: BarChart3,
+          title: "Thống kê",
+          subtitle: "Doanh thu, tăng trưởng người dùng và hiệu suất nội dung",
+          actions: <PeriodSelector value={days} onChange={setDays} />,
+        }}
+        metrics={[
+          {
+            label: "Tổng doanh thu",
+            value: metricsLoading ? "—" : fmt$(metrics?.total ?? 0),
+            icon: DollarSign,
+            variant: "default",
+          },
+          {
+            label: "Doanh thu tháng",
+            value: metricsLoading ? "—" : fmt$(metrics?.mrr ?? 0),
+            icon: TrendingUp,
+            variant: "success",
+          },
+          {
+            label: "Giao dịch",
+            value: metricsLoading ? "—" : (metrics?.totalTransactions ?? 0).toLocaleString(),
+            icon: BarChart3,
+            variant: "default",
+          },
+          {
+            label: "Giao dịch TB",
+            value: metricsLoading ? "—" : fmt$(metrics?.avgTransaction ?? 0),
+            icon: ArrowUpRight,
+            variant: "default",
+          },
+        ]}
+      >
+        <div className="space-y-8">
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-primary" /> Doanh thu
           </h2>
-
-          {/* Metric Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <MetricCard
-              label="Tổng doanh thu" icon={<DollarSign className="w-4 h-4" />}
-              value={metricsLoading ? "—" : fmt$(metrics?.total ?? 0)}
-              sub={`${days} ngày qua`} color="bg-primary/10 text-primary"
-              growth={metrics?.growthPercent}
-            />
-            <MetricCard
-              label="Doanh thu tháng" icon={<TrendingUp className="w-4 h-4" />}
-              value={metricsLoading ? "—" : fmt$(metrics?.mrr ?? 0)}
-              sub="Doanh thu hàng tháng" color="bg-emerald-400/10 text-emerald-400"
-            />
-            <MetricCard
-              label="Giao dịch" icon={<BarChart3 className="w-4 h-4" />}
-              value={metricsLoading ? "—" : (metrics?.totalTransactions ?? 0).toLocaleString()}
-              sub={`${days} ngày qua`} color="bg-blue-400/10 text-blue-400"
-            />
-            <MetricCard
-              label="Giao dịch TB" icon={<ArrowUpRight className="w-4 h-4" />}
-              value={metricsLoading ? "—" : fmt$(metrics?.avgTransaction ?? 0)}
-              sub="Mỗi đăng ký" color="bg-purple-400/10 text-purple-400"
-            />
-          </div>
-
-          {/* Doanh thu Chart + Plan Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Area Chart */}
             <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5">
@@ -416,7 +412,8 @@ export default function AdminAnalytics() {
             </ResponsiveContainer>
           </div>
         </section>
-      </div>
+        </div>
+      </DashboardPage>
     </AdminLayout>
   );
 }

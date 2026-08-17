@@ -13,6 +13,7 @@
  */
 
 import crypto from "crypto";
+import { parseCreatorFromFilename } from "./creator-detect";
 import { getDb } from "../db";
 import { seoCache } from "../../drizzle/schema";
 import { and, eq, gt } from "drizzle-orm";
@@ -28,6 +29,7 @@ export interface SeoOutput {
   seoTitle: string;          // max 60 chars
   metaDescription: string;   // max 155 chars
   focusKeyword: string;      // creator > collection > filename
+  seoKeywords?: string;      // comma-separated keywords for meta
   relatedKeywords: string[]; // exactly 5, match category
   tags: string[];            // 5-8 tags
   category: YukvixCategory;  // one of the 6 fixed categories
@@ -115,7 +117,7 @@ export async function generateSeoData(input: SeoInput): Promise<SeoOutput> {
   try {
     const aiConfig = await getAiProviderConfig();
     const detectedCategory = detectCategory(cleaned);
-    const systemPrompt = buildSystemPrompt(siteName, detectedCategory);
+    const systemPrompt = buildImportSeoSystemPrompt(siteName, detectedCategory);
 
     const result = await callAi({
       messages: [
@@ -138,9 +140,10 @@ export async function generateSeoData(input: SeoInput): Promise<SeoOutput> {
 
     const data = JSON.parse(jsonStr) as SeoOutput;
     // Override albumTitle with filename to ensure consistency with original file name
-    data.albumTitle = cleaned;
-    data.publishStatus = "draft"; // AI always creates draft
-    validateSeo(data);
+    if (!data.albumTitle || data.albumTitle === "string" || data.albumTitle.length < 3) {
+      data.albumTitle = cleaned;
+    }
+    finalizeSeoOutput(data);
 
     // Persist to DB cache
     memCache.set(hash, data);
@@ -216,7 +219,7 @@ export function detectCategory(filename: string): YukvixCategory {
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(siteName: string, detectedCategory: YukvixCategory): string {
+export function buildImportSeoSystemPrompt(siteName: string, detectedCategory: YukvixCategory): string {
   // Only use "cosplay album" if category is actually Cosplay
   const albumTypeLabel =
     detectedCategory === "Cosplay" ? "cosplay album" : "premium photo gallery album";
@@ -258,7 +261,7 @@ FIELD RULES
                     Gravure: use gravure, idol, photoshoot terms
 - tags:             5–8 specific, searchable tags
 - shortDescription: 2–3 sentences, human editorial style
-- slug:             lowercase, hyphens only, max 50 chars
+- slug:             IGNORED — computed server-side from albumTitle
                     Do NOT separate CJK pinyin: prefer "baixiaodie" not "bai-xiao-die"
 - altTextTemplate:  Format: "[Creator] [AlbumName] photo #number"
                     Example: "白小蝶 XIUREN No.11299 photo #number"
@@ -302,6 +305,19 @@ OUTPUT — return ONLY valid JSON, no markdown
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
+
+
+/** Phase 7 — parse AI JSON response for import SEO step. */
+export function parseAndValidateSeoResponse(content: string, cleaned: string): SeoOutput {
+  let jsonStr = content.trim();
+  if (jsonStr.startsWith("```")) {
+    jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+  }
+  const data = JSON.parse(jsonStr) as SeoOutput;
+  if (!data.albumTitle || data.albumTitle === "string" || data.albumTitle.length < 3) data.albumTitle = cleaned;
+  return finalizeSeoOutput(data);
+}
+
 function validateSeo(data: SeoOutput): void {
   const errors: string[] = [];
   if (!data.albumTitle || data.albumTitle.length < 3) errors.push("albumTitle too short");
@@ -329,30 +345,92 @@ function validateSeo(data: SeoOutput): void {
  * Detect creator from filename using known model set patterns.
  */
 export function detectCreatorFromFilename(filename: string): string | null {
-  // Chinese sets: extract model name after set name + number
-  // e.g. "XIUREN No.11299 白小蝶" → "白小蝶"
-  const chineseMatch = filename.match(
-    /(?:XIUREN|XiuRen|IMISS|UOM|YouMi|FeiLin|MFStar|Ugirls|TouTiao)[\s\-_.]*(?:No\.?|Vol\.?)?[\d]+[\s\-_.]*(.*)/i
-  );
-  if (chineseMatch?.[1]?.trim()) return chineseMatch[1].trim();
+  return parseCreatorFromFilename(filename);
+}
 
-  // Korean sets: extract model name after set name
-  // e.g. "ArtGravia Vol.123 Kim Nari" → "Kim Nari"
-  const koreanMatch = filename.match(
-    /(?:ArtGravia|DJAWA|PIA|Pure Media|CreamSoda|SWEETBOX)[\s\-_.]*(?:Vol\.?|No\.?)?[\d]*[\s\-_.]*(.*)/i
-  );
-  if (koreanMatch?.[1]?.trim()) return koreanMatch[1].trim();
 
-  // Japanese sets
-  const japaneseMatch = filename.match(
-    /(?:Gravure|Comiket)[\s\-_.]*(?:Vol\.?|No\.?)?[\d]*[\s\-_.]*(.*)/i
-  );
-  if (japaneseMatch?.[1]?.trim()) return japaneseMatch[1].trim();
+// ─── Slug + SEO Keywords (UAT Round 4) ───────────────────────────────────────
 
-  // Fallback: last meaningful segment
-  const parts = filename.split(/[\s\-_]+/);
-  const last = parts[parts.length - 1];
-  return last && last.length > 1 ? last : null;
+/** Standard slugify from final album title — not AI-generated. */
+export function slugifyTitle(title: string, maxLen = 80): string {
+  let s = title.trim();
+  s = s.replace(/\([^)]*\)/g, " ");
+  s = s.replace(/\.(zip|rar|7z)$/i, "");
+  s = s.toLowerCase();
+  s = s.replace(/\bvol\.?\s*(\d+)/gi, " vol $1 ");
+  s = s.replace(/\bno\.?\s*(\d+)/gi, " no $1 ");
+  s = s.replace(/[\u0080-\uFFFF]/g, " ");
+  s = s.replace(/([a-z0-9])\.([a-z0-9])/gi, "$1 $2");
+  s = s.replace(/\./g, " ");
+  s = s.replace(/[^a-z0-9\s-]/g, " ");
+  s = s.replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+  s = s.replace(/-(?:photoset|photobook|photo-set|set|collection)$/i, "");
+  return s.slice(0, maxLen) || "album";
+}
+
+/** Rule-engine SEO keywords: Creator + Series + Volume + Genre. */
+export function buildSeoKeywords(
+  seo: Pick<
+    SeoOutput,
+    "albumTitle" | "creator" | "collectionName" | "category" | "focusKeyword" | "relatedKeywords"
+  >
+): string {
+  const keywords: string[] = [];
+  if (seo.creator && seo.creator !== "Unknown") keywords.push(seo.creator);
+  const collection =
+    seo.collectionName ||
+    (seo.albumTitle.match(/Espacia\s+Korea\s+EHC/i) ? "Espacia Korea EHC" : null) ||
+    detectCollectionName(seo.albumTitle);
+  if (collection) keywords.push(collection);
+  const vol = seo.albumTitle.match(/\bVol\.?\s*(\d+)/i);
+  if (vol) keywords.push(`Vol ${vol[1]}`);
+  if (seo.category) {
+    keywords.push(seo.category);
+    keywords.push(`${seo.category} photos`);
+    keywords.push(`${seo.category} gallery`);
+  }
+  if (seo.focusKeyword) keywords.push(seo.focusKeyword);
+  if (seo.relatedKeywords?.length) keywords.push(...seo.relatedKeywords);
+
+  const MAX_SEO_KEYWORDS = 8;
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  function isRedundant(candidate: string, existing: string[]): boolean {
+    const c = candidate.toLowerCase();
+    for (const e of existing) {
+      const el = e.toLowerCase();
+      if (c === el) return true;
+      // Skip near-duplicates: "Espacia Korea" when "Espacia Korea EHC" exists
+      if (el.includes(c) || c.includes(el)) {
+        if (Math.min(c.length, el.length) >= 6) return true;
+      }
+    }
+    return false;
+  }
+
+  for (const k of keywords) {
+    const t = k.trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    if (isRedundant(t, unique)) continue;
+    seen.add(key);
+    unique.push(t);
+    if (unique.length >= MAX_SEO_KEYWORDS) break;
+  }
+  return unique.join(", ");
+}
+
+/** Post-process SEO output: slug from title, keywords from rules. */
+export function finalizeSeoOutput(data: SeoOutput): SeoOutput {
+  data.slug = slugifyTitle(data.albumTitle);
+  if (!data.seoKeywords?.trim()) {
+    data.seoKeywords = buildSeoKeywords(data);
+  }
+  data.publishStatus = data.publishStatus ?? "draft";
+  validateSeo(data);
+  return data;
 }
 
 // ─── Slug Generation ──────────────────────────────────────────────────────────
@@ -364,18 +442,7 @@ export function detectCreatorFromFilename(filename: string): string | null {
  * - Max 50 chars
  */
 export function generateSlug(filename: string): string {
-  return (
-    filename
-      .toLowerCase()
-      .replace(/\.(zip|rar|7z)$/i, "")
-      // Remove CJK and all non-latin characters
-      .replace(/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g, "")
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 50) || "album"
-  );
+  return slugifyTitle(filename);
 }
 
 // ─── Rule-Based Fallback ──────────────────────────────────────────────────────
@@ -389,7 +456,6 @@ function fallbackSeo(filename: string, input: SeoInput & { siteName: string }): 
   const creator =
     input.creator ||
     detectCreatorFromFilename(filename) ||
-    filename.split(/[\s\-_]+/).pop() ||
     "Unknown";
   const collectionName = detectCollectionName(filename);
 
@@ -433,7 +499,7 @@ function fallbackSeo(filename: string, input: SeoInput & { siteName: string }): 
   const shortDescription = `A ${albumTypeLabel} featuring ${creator}. High-quality photography with professional styling. Exclusive to ${input.siteName}.`;
   const altTextTemplate = `${creator} ${filename.slice(0, 30)} photo #number`;
 
-  return {
+  const output: SeoOutput = {
     albumTitle,
     seoTitle,
     metaDescription,
@@ -448,6 +514,7 @@ function fallbackSeo(filename: string, input: SeoInput & { siteName: string }): 
     altTextTemplate,
     publishStatus: "draft",
   };
+  return finalizeSeoOutput(output);
 }
 
 /** Detect collection name (e.g. XIUREN, ArtGravia) from filename */
@@ -455,7 +522,7 @@ function detectCollectionName(filename: string): string | null {
   const collections = [
     "XIUREN", "XiuRen", "IMISS", "UOM", "YouMi", "FeiLin", "MFStar", "Ugirls", "TouTiao",
     "ArtGravia", "DJAWA", "PIA", "Pure Media", "CreamSoda", "SWEETBOX",
-    "MissKON", "MrCong",
+    "MissKON", "MrCong", "Espacia",
   ];
   for (const c of collections) {
     if (filename.toLowerCase().includes(c.toLowerCase())) return c;

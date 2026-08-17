@@ -2,6 +2,7 @@
  * Admin page: Yêu cầu DMCA — list, view, and update status.
  */
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import AdminLayout from "./AdminLayout";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -19,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldAlert, Eye, Clock, CheckCircle2, XCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, ExternalLink, Eye, Shield, ShieldAlert, XCircle } from "lucide-react";
 
 type DmcaStatus = "pending" | "reviewing" | "resolved" | "rejected";
 
@@ -77,27 +78,8 @@ export default function AdminDmcaSubmissions() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-400/10 border border-red-400/20 flex items-center justify-center">
-              <ShieldAlert className="w-5 h-5 text-red-400" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Yêu cầu DMCA</h1>
-              <p className="text-sm text-muted-foreground">
-                {submissions.length} total{pendingCount > 0 && `, ${pendingCount} pending`}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Info banner */}
-        <div className="mb-5 p-3 rounded-lg bg-yellow-400/5 border border-yellow-400/20 text-sm text-yellow-400/90 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>DMCA takedown requests must be reviewed and actioned within 24–48 hours to comply with the DMCA safe harbor provisions.</span>
-        </div>
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={Shield} title="DMCA" />
 
         {/* Table */}
         {isLoading ? (
@@ -294,7 +276,7 @@ export default function AdminDmcaSubmissions() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

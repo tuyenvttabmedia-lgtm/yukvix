@@ -4,6 +4,7 @@
  * Credentials saved here override environment variables at runtime.
  */
 import { useState } from "react";
+import { SettingsPage } from "@/admin";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "./AdminLayout";
 import {
@@ -26,7 +27,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 
 function StatusIcon({ ok }: { ok: boolean | null }) {
-  if (ok === true) return <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />;
   if (ok === false) return <XCircle className="w-4 h-4 text-red-400 shrink-0" />;
   return <AlertCircle className="w-4 h-4 text-yellow-400 shrink-0" />;
 }
@@ -134,25 +134,12 @@ export default function AdminStorageSettings() {
 
   return (
     <AdminLayout>
-      <div className="max-w-2xl mx-auto space-y-6 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <HardDrive className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold">Storage Configuration</h1>
-              <p className="text-sm text-muted-foreground">Wasabi S3 credentials for media storage</p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-        </div>
-
-        {/* Status card */}
+      <SettingsPage
+        header={{ icon: HardDrive, title: "Lưu trữ", subtitle: "Cấu hình Wasabi S3 và watermark" }}
+        onSave={handleSave}
+        isSaving={saveMutation.isPending}
+        sections={[{ id: "main", title: "Cấu hình lưu trữ", content: (
+      <div className="space-y-6">
         {data && (
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -371,6 +358,8 @@ export default function AdminStorageSettings() {
           </Button>
         </div>
       </div>
+        )}]}
+      />
     </AdminLayout>
   );
 }

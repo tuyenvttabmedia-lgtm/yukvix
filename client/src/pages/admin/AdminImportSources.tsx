@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { AdminPageShell, AdminPageHeader } from "@/admin";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Edit, Trash2, Globe, Loader2, FlaskConical } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Globe, Loader2, FlaskConical, Layers } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { trpc } from "@/lib/trpc";
 
 interface CategoryMapping {
   url: string;
@@ -553,15 +554,12 @@ function AdminImportSourcesContent() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/admin/import">
-          <Button variant="ghost" size="sm" className="text-slate-400 gap-1">
-            <ArrowLeft className="w-4 h-4" /> Back
+          <Button variant="ghost" size="sm" className="gap-1">
+            <ArrowLeft className="w-4 h-4" /> Quay lại
           </Button>
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Nguồn dữ liệu</h1>
-          <p className="text-slate-400 text-sm">Configure crawler templates for known sites</p>
-        </div>
-        <Button onClick={() => { setEditId(null); setForm(DEFAULT_FORM); setShowForm(true); }} className="gap-2 bg-violet-600 hover:bg-violet-700">
+        <div className="flex-1" />
+        <Button onClick={() => { setEditId(null); setForm(DEFAULT_FORM); setShowForm(true); }} className="gap-2">
           <Plus className="w-4 h-4" /> Thêm nguồn
         </Button>
       </div>
@@ -737,7 +735,10 @@ function AdminImportSourcesContent() {
 export default function AdminImportSources() {
   return (
     <AdminLayout>
-      <AdminImportSourcesContent />
+      <AdminPageShell mode="full">
+        <AdminPageHeader icon={Layers} title="Nguồn import" subtitle="Cấu hình template crawler cho các site" />
+        <AdminImportSourcesContent />
+      </AdminPageShell>
     </AdminLayout>
   );
 }

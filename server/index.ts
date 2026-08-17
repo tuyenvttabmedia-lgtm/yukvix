@@ -22,6 +22,8 @@ import { startImportScheduler as startZipImportScheduler } from "../services/imp
 import { expirePendingPaymentsHandler } from "../scheduled/expire-pending-payments";
 import { notifyVipExpiryHandler } from "../scheduled/notify-vip-expiry";
 import { autoBulkSeoHandler } from "../scheduled/auto-bulk-seo";
+import { importMetricsSnapshotHandler } from "../scheduled/import-metrics-snapshot";
+import { cleanupImportArtifactsHandler } from "../scheduled/cleanup-import-artifacts";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -124,6 +126,8 @@ async function startServer() {
   app.post("/api/scheduled/expire-pending-payments", expirePendingPaymentsHandler);
   app.post("/api/scheduled/notify-vip-expiry", notifyVipExpiryHandler);
   app.post("/api/scheduled/auto-bulk-seo", autoBulkSeoHandler);
+  app.post("/api/scheduled/import-metrics-snapshot", importMetricsSnapshotHandler);
+  app.post("/api/scheduled/cleanup-import-artifacts", cleanupImportArtifactsHandler);
 
   // --- Auth rate limiting (applied before tRPC) -------------------------
   // Target specific auth mutation paths to prevent brute force

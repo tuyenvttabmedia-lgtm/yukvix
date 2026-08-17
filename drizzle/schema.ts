@@ -962,6 +962,23 @@ export const zipImportJobs = mysqlTable(
     vipZipGeneratedAt: timestamp("vipZipGeneratedAt"),
 
     // Timestamps
+
+    // Phase 3: Duplicate detection
+    sourceArchiveSha256: varchar("sourceArchiveSha256", { length: 64 }),
+    duplicateInfo: text("duplicateInfo"),
+    duplicateOverride: boolean("duplicateOverride").default(false).notNull(),
+    duplicateOverrideAudit: text("duplicateOverrideAudit"),
+    pipelineStep: varchar("pipelineStep", { length: 32 }),
+    stepMetrics: text("stepMetrics"),
+    lastError: text("lastError"),
+    resumeHistory: mediumtext("resumeHistory"),
+    checkpoint: mediumtext("checkpoint"),
+    pendingAlbumData: text("pendingAlbumData"),
+    importProfile: text("importProfile"),
+    aiSeoMetrics: text("aiSeoMetrics"),
+    aiSeoMetadata: text("aiSeoMetadata"),
+
+
     workerId: varchar("workerId", { length: 64 }),
     lockedAt: timestamp("lockedAt"),
     heartbeatAt: timestamp("heartbeatAt"),
@@ -978,6 +995,55 @@ export const zipImportJobs = mysqlTable(
     index("idx_zip_import_jobs_createdAt").on(t.createdAt),
   ]
 );
+
+
+// ─── Phase 8: Operational Layer ───────────────────────────────────────────────
+export const adminNotifications = mysqlTable(
+  "admin_notifications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    level: mysqlEnum("level", ["info", "success", "warning", "error"]).default("info").notNull(),
+    type: varchar("type", { length: 64 }).notNull(),
+    jobId: int("jobId"),
+    title: varchar("title", { length: 255 }).notNull(),
+    message: text("message"),
+    readAt: timestamp("readAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_admin_notifications_read").on(t.readAt),
+    index("idx_admin_notifications_created").on(t.createdAt),
+  ]
+);
+export type AdminNotification = typeof adminNotifications.$inferSelect;
+
+export const zipImportJobEvents = mysqlTable(
+  "zip_import_job_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    jobId: int("jobId").notNull(),
+    event: varchar("event", { length: 64 }).notNull(),
+    step: varchar("step", { length: 32 }),
+    payload: text("payload"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_zip_import_job_events_job").on(t.jobId),
+    index("idx_zip_import_job_events_created").on(t.createdAt),
+  ]
+);
+export type ZipImportJobEvent = typeof zipImportJobEvents.$inferSelect;
+
+export const zipImportMetricsSnapshots = mysqlTable(
+  "zip_import_metrics_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    snapshotAt: timestamp("snapshotAt").notNull(),
+    payload: mediumtext("payload").notNull(),
+  },
+  (t) => [index("idx_zip_import_metrics_snapshot_at").on(t.snapshotAt)]
+);
+export type ZipImportMetricsSnapshot = typeof zipImportMetricsSnapshots.$inferSelect;
 
 export type ZipImportJob = typeof zipImportJobs.$inferSelect;
 export type InsertZipImportJob = typeof zipImportJobs.$inferInsert;

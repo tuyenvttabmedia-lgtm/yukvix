@@ -14,6 +14,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { EntityPage, OperationsPage } from "@/admin";
 import AdminLayout from "./AdminLayout";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -153,7 +154,15 @@ function formatBytes(bytes: number | null | undefined): string {
 
 function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
-  return new Date(d).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+  return new Date(d).toLocaleString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 // ─── Step 1: Upload ───────────────────────────────────────────────────────────
@@ -423,8 +432,8 @@ function SeoFormStep({
             <><Zap className="w-4 h-4 mr-2" />{aiGenerated ? "Tạo lại" : "Tạo SEO"}</>
           )}
         </Button>
-      </div>
 
+ </div>
       {/* Basic Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -1268,18 +1277,23 @@ function BatchUpload() {
 
 function ImportSchedulePanel() {
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
-  const [cronHour, setCronHour] = useState(3);
+  const [localHour, setLocalHour] = useState(17);
+  const [cronHourUtc, setCronHourUtc] = useState(10);
+  const { data: tzData } = trpc.scheduler.getTimezone.useQuery();
+  const timezone = tzData?.timezone ?? "Asia/Ho_Chi_Minh";
   const [batchSize, setBatchSize] = useState(10);
   const [showConfig, setShowConfig] = useState(false);
   const [runNowResult, setRunNowResult] = useState<{ processed: number; skipped: number; message: string } | null>(null);
 
-  const { data: scheduleConfig } = trpc.zipImport.getImportScheduleConfig.useQuery(undefined, {
-    onSuccess: (data: { enabled: boolean; cronHour: number; batchSize: number }) => {
-      setScheduleEnabled(data.enabled ?? false);
-      setCronHour(data.cronHour ?? 3);
-      setBatchSize(data.batchSize ?? 10);
-    },
-  });
+  const { data: scheduleConfig } = trpc.zipImport.getImportScheduleConfig.useQuery(undefined);
+
+  useEffect(() => {
+    if (!scheduleConfig) return;
+    setScheduleEnabled(scheduleConfig.enabled ?? false);
+    setLocalHour(scheduleConfig.localHour ?? scheduleConfig.cronHourUtc ?? 17);
+    setCronHourUtc(scheduleConfig.cronHourUtc ?? scheduleConfig.cronHour ?? 10);
+    setBatchSize(scheduleConfig.batchSize ?? 10);
+  }, [scheduleConfig]);
 
   const { data: waitingData, refetch: refetchWaiting } = trpc.zipImport.countWaitingJobs.useQuery(undefined, {
     refetchInterval: 30000,
@@ -1304,21 +1318,11 @@ function ImportSchedulePanel() {
     onError: (err) => toast.error("Lỗi kích hoạt", { description: err.message }),
   });
 
-  // Sync local state when config loads
-  const [synced, setSynced] = useState(false);
-  if (scheduleConfig && !synced) {
-    setScheduleEnabled(scheduleConfig.enabled);
-    setCronHour(scheduleConfig.cronHour);
-    setBatchSize(scheduleConfig.batchSize);
-    setSynced(true);
-  }
-
-  const vnHour = cronHour + 7 > 23 ? cronHour + 7 - 24 : cronHour + 7;
   const waitingCount = waitingData?.count ?? 0;
+  const displayUtc = ((localHour - 7 + 24) % 24);
 
   return (
     <div className="space-y-4">
-      {/* Waiting jobs banner */}
       {waitingCount > 0 && (
         <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1327,7 +1331,7 @@ function ImportSchedulePanel() {
               <p className="text-sm font-semibold text-yellow-300">{waitingCount} job đang chờ xử lý theo lịch</p>
               <p className="text-xs text-yellow-400/70 mt-0.5">
                 {scheduleEnabled
-                  ? `Sẽ được xử lý tự động lúc ${cronHour}:00 UTC (${vnHour}:00 VN)`
+                  ? `Sẽ được xử lý tự động lúc ${String(localHour).padStart(2, "0")}:00 Việt Nam (${String(cronHourUtc).padStart(2, "0")}:00 UTC)`
                   : "Lịch tự động đang tắt — nhấn \"Chạy ngay\" để xử lý thủ công"}
               </p>
             </div>
@@ -1345,9 +1349,7 @@ function ImportSchedulePanel() {
         </div>
       )}
 
-      {/* Schedule config card */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        {/* Header */}
         <button
           type="button"
           onClick={() => setShowConfig((v) => !v)}
@@ -1361,7 +1363,7 @@ function ImportSchedulePanel() {
               <p className="text-sm font-semibold">Lịch xử lý tự động</p>
               <p className="text-xs text-muted-foreground">
                 {scheduleEnabled
-                  ? `Bật — chạy hàng ngày lúc ${cronHour}:00 UTC (${vnHour}:00 giờ VN), tối đa ${batchSize} album/lần`
+                  ? `Bật — chạy hàng ngày lúc ${String(localHour).padStart(2, "0")}:00 Việt Nam (${String(cronHourUtc).padStart(2, "0")}:00 UTC), tối đa ${batchSize} album/lần`
                   : "Tắt — chỉ xử lý khi nhấn Chạy ngay"}
               </p>
             </div>
@@ -1383,34 +1385,37 @@ function ImportSchedulePanel() {
           </div>
         </button>
 
-        {/* Expandable config */}
         {showConfig && (
           <div className="border-t border-border px-5 py-4 space-y-5">
-            {/* Enable toggle */}
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-sm font-medium">Bật lịch tự động xử lý</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Cron job Linux sẽ gọi endpoint xử lý theo lịch đã cấu hình</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Cron gọi endpoint mỗi giờ; backend chỉ dispatch đúng giờ đã cấu hình</p>
               </div>
               <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} />
             </div>
 
-            {/* Hour + batch size */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Giờ chạy (UTC 0–23)</Label>
+                <Label className="text-xs text-muted-foreground">Giờ chạy (Việt Nam 0–23)</Label>
                 <Input
-                  type="number" min={0} max={23}
+                  type="number"
+                  min={0}
+                  max={23}
                   className="h-8 text-sm"
-                  value={cronHour}
-                  onChange={(e) => setCronHour(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
+                  value={localHour}
+                  onChange={(e) => setLocalHour(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
                 />
-                <p className="text-xs text-muted-foreground">{vnHour}:00 giờ Việt Nam</p>
+                <p className="text-xs text-muted-foreground">
+                  {String(localHour).padStart(2, "0")}:00 Việt Nam ({String(displayUtc).padStart(2, "0")}:00 UTC dự kiến)
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Số album xử lý mỗi lần (1–50)</Label>
                 <Input
-                  type="number" min={1} max={50}
+                  type="number"
+                  min={1}
+                  max={50}
                   className="h-8 text-sm"
                   value={batchSize}
                   onChange={(e) => setBatchSize(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
@@ -1419,16 +1424,15 @@ function ImportSchedulePanel() {
               </div>
             </div>
 
-            {/* Save button */}
             <div className="flex items-center justify-between pt-1">
               <p className="text-xs text-muted-foreground">
-                Cron job Linux trên VPS sẽ đọc config này khi chạy tự động.
+                Giờ UTC thực tế được tính từ timezone hệ thống khi lưu.
               </p>
               <Button
                 size="sm"
                 className="gap-1.5"
                 disabled={saveConfigMutation.isPending}
-                onClick={() => saveConfigMutation.mutate({ enabled: scheduleEnabled, cronHour, batchSize })}
+                onClick={() => saveConfigMutation.mutate({ enabled: scheduleEnabled, localHour, batchSize })}
               >
                 {saveConfigMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 Lưu cấu hình
@@ -1437,7 +1441,6 @@ function ImportSchedulePanel() {
           </div>
         )}
 
-        {/* Run Now result */}
         {runNowResult && (
           <div className="border-t border-border px-5 py-3 bg-muted/20">
             <p className="text-xs font-medium text-muted-foreground mb-1">Kết quả chạy thủ công:</p>
@@ -1456,13 +1459,12 @@ function ImportSchedulePanel() {
         )}
       </div>
 
-      {/* Status info */}
       <div className="rounded-lg border border-border bg-muted/20 p-4 text-xs text-muted-foreground space-y-1.5">
         <p className="font-medium text-foreground">Ảnh hưởng của chế độ Scheduled-Only:</p>
         <p>• Khi <strong className="text-foreground">Bật lịch tự động</strong>: jobs được đưa vào hàng chờ sau khi upload, chỉ xử lý theo giờ đã cấu hình.</p>
-        <p>• Khi <strong className="text-foreground">Tắt</strong>: jobs vẫn được đưa vào hàng chờ nhưng không tự chạy — dùng nút "Chạy ngay" để kích hoạt thủ công.</p>
-        <p>• Crontab VPS đã được cài sẵn: <code className="font-mono">0 3 * * *</code> (3:00 UTC = 10:00 giờ VN).</p>
-        <p className="text-yellow-400/80">Để thay đổi giờ crontab trên VPS, SSH vào server và chạy <code className="font-mono">crontab -e</code>.</p>
+        <p>• Khi <strong className="text-foreground">Tắt</strong>: jobs vẫn được đưa vào hàng chờ nhưng không tự chạy — dùng nút &quot;Chạy ngay&quot; để kích hoạt thủ công.</p>
+        <p>• Linux cron gọi endpoint mỗi giờ (<code className="font-mono">0 * * * *</code>); backend chỉ dispatch đúng giờ UTC đã lưu.</p>
+        <p className="text-muted-foreground">Timezone: <code className="font-mono">{timezone}</code></p>
       </div>
     </div>
   );
@@ -1504,153 +1506,127 @@ export default function AdminZipImport() {
     { n: 3, label: "Theo dõi tiến độ" },
   ];
 
+  const zipHeader = {
+    icon: FileArchive,
+    title: "ZIP Import",
+    subtitle: "Import album từ file ZIP/RAR",
+  };
+
+  const tabBar = (
+    <div className="flex gap-1 p-1 bg-muted/40 rounded-lg w-fit mb-6">
+      {([
+        { id: "new" as const, label: "Import mới" },
+        { id: "batch" as const, label: "Batch Upload" },
+        { id: "dashboard" as const, label: "Dashboard" },
+        { id: "schedule" as const, label: "Lịch xử lý" },
+      ]).map((tab) => (
+        <button
+          key={tab.id}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            activeTab === tab.id
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setActiveTab(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const newImportPanel = (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2 mb-2">
+          {steps.map((s, i) => (
+            <div key={s.n} className="flex items-center gap-2">
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                  step === s.n
+                    ? "bg-primary text-primary-foreground"
+                    : step > s.n
+                    ? "bg-green-500 text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {step > s.n ? <CheckCircle2 className="w-4 h-4" /> : s.n}
+              </div>
+              <span className={`text-sm ${step === s.n ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                {s.label}
+              </span>
+              {i < steps.length - 1 && <ChevronRight className="w-4 h-4 text-muted-foreground/40 mx-1" />}
+            </div>
+          ))}
+        </div>
+        <CardTitle className="text-lg">
+          {step === 1 && "Bước 1: Tải lên file archive"}
+          {step === 2 && "Bước 2: Cấu hình SEO & Metadata"}
+          {step === 3 && "Bước 3: Theo dõi tiến độ import"}
+        </CardTitle>
+        {step === 1 && (
+          <CardDescription>
+            Kéo thả hoặc chọn file ZIP. File sẽ được upload trực tiếp lên Wasabi staging.
+          </CardDescription>
+        )}
+        {step === 2 && (
+          <CardDescription>
+            File: <span className="font-mono text-xs">{originalFileName}</span> — Job #{jobId}
+          </CardDescription>
+        )}
+      </CardHeader>
+      <CardContent>
+        {step === 1 && <UploadStep onSuccess={handleUploadSuccess} />}
+        {step === 2 && jobId && (
+          <SeoFormStep jobId={jobId} originalFileName={originalFileName} onSuccess={handleAlbumCreated} />
+        )}
+        {step === 3 && jobId && (
+          <ProgressStep jobId={jobId} albumSlug={albumSlug} onReset={handleReset} />
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <AdminLayout>
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">ZIP Import</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Import album từ file ZIP/RAR — tách biệt hoàn toàn với Media Library và crawler cũ.
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-muted/40 rounded-lg w-fit">
-        <button
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            activeTab === "new"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => setActiveTab("new")}
+      {activeTab === "dashboard" ? (
+        <EntityPage
+          shell="full"
+          header={zipHeader}
+          banner={tabBar}
         >
-          Import mới
-        </button>
-        <button
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            activeTab === "batch"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => setActiveTab("batch")}
-        >
-          Batch Upload
-        </button>
-        <button
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            activeTab === "dashboard"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          Dashboard
-        </button>
-        <button
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            activeTab === "schedule"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => setActiveTab("schedule")}
-        >
-          Lịch xử lý
-        </button>
-      </div>
-
-      {activeTab === "batch" && (
-        <Card>
-          <CardContent className="pt-6">
-            <BatchUpload />
-          </CardContent>
-        </Card>
-      )}
-
-      {activeTab === "schedule" && (
-        <ImportSchedulePanel />
-      )}
-
-      {activeTab === "new" ? (
-        <Card>
-          <CardHeader>
-            {/* Step indicator */}
-            <div className="flex items-center gap-2 mb-2">
-              {steps.map((s, i) => (
-                <div key={s.n} className="flex items-center gap-2">
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                      step === s.n
-                        ? "bg-primary text-primary-foreground"
-                        : step > s.n
-                        ? "bg-green-500 text-white"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {step > s.n ? <CheckCircle2 className="w-4 h-4" /> : s.n}
-                  </div>
-                  <span
-                    className={`text-sm ${
-                      step === s.n ? "text-foreground font-medium" : "text-muted-foreground"
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                  {i < steps.length - 1 && (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/40 mx-1" />
-                  )}
-                </div>
-              ))}
-            </div>
-            <CardTitle className="text-lg">
-              {step === 1 && "Bước 1: Tải lên file archive"}
-              {step === 2 && "Bước 2: Cấu hình SEO & Metadata"}
-              {step === 3 && "Bước 3: Theo dõi tiến độ import"}
-            </CardTitle>
-            {step === 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Import Jobs Dashboard</CardTitle>
               <CardDescription>
-                Kéo thả hoặc chọn file ZIP. File sẽ được upload trực tiếp lên Wasabi staging.
+                Danh sách tất cả các import jobs. Luồng ZIP Import riêng biệt, không liên quan Media Library hay crawler cũ.
               </CardDescription>
-            )}
-            {step === 2 && (
-              <CardDescription>
-                File: <span className="font-mono text-xs">{originalFileName}</span> — Job #{jobId}
-              </CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
-            {step === 1 && <UploadStep onSuccess={handleUploadSuccess} />}
-            {step === 2 && jobId && (
-              <SeoFormStep
-                jobId={jobId}
-                originalFileName={originalFileName}
-                onSuccess={handleAlbumCreated}
-              />
-            )}
-            {step === 3 && jobId && (
-              <ProgressStep
-                jobId={jobId}
-                albumSlug={albumSlug}
-                onReset={handleReset}
-              />
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <JobsDashboard />
+            </CardContent>
+          </Card>
+        </EntityPage>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Import Jobs Dashboard</CardTitle>
-            <CardDescription>
-              Danh sách tất cả các import jobs. Lưu ý: đây là luồng ZIP Import riêng biệt,
-              không liên quan đến Media Library hay crawler cũ.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <JobsDashboard />
-          </CardContent>
-        </Card>
+        <OperationsPage
+          shell="full"
+          header={zipHeader}
+          primary={
+            <>
+              {tabBar}
+              {activeTab === "batch" && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <BatchUpload />
+                  </CardContent>
+                </Card>
+              )}
+              {activeTab === "schedule" && <ImportSchedulePanel />}
+              {activeTab === "new" && newImportPanel}
+            </>
+          }
+        />
       )}
-      </div>
     </AdminLayout>
   );
 }

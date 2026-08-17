@@ -12,8 +12,9 @@
  */
 
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { SettingsPage } from "@/admin";
 import AdminLayout from "./AdminLayout";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -154,21 +155,12 @@ export default function AdminAiSettings() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-3xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Bot className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">AI Settings</h1>
-            <p className="text-sm text-muted-foreground">
-              Configure AI provider for SEO generation. Changes take effect immediately.
-            </p>
-          </div>
-        </div>
-
-        {/* Current Status */}
+      <SettingsPage
+        header={{ icon: Bot, title: "Cấu hình AI", subtitle: "Cấu hình AI provider cho SEO generation" }}
+        onSave={handleSave}
+        isSaving={updateConfig.isPending}
+        sections={[{ id: "main", title: "Cấu hình AI", content: (
+      <div className="space-y-6">
         {configLoading ? (
           <Card>
             <CardContent className="py-6 flex items-center gap-2 text-muted-foreground">
@@ -339,8 +331,8 @@ export default function AdminAiSettings() {
                 )}
                 Save Settings
               </Button>
-            </div>
 
+            </div>
             {/* Validated models list */}
             {validatedModels.length > 0 && (
               <div className="mt-2 p-3 rounded-lg bg-green-500/5 border border-green-500/20">
@@ -479,6 +471,8 @@ export default function AdminAiSettings() {
           </CardContent>
         </Card>
       </div>
+        )}]}
+      />
     </AdminLayout>
   );
 }
