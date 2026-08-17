@@ -13,9 +13,12 @@ Baseline ban đầu lấy từ code đang chạy trên VPS (kèm thay đổi ch�
 - Không commit `.env` — copy từ VPS rồi chỉnh `PORT=3010`, `NODE_ENV=development`, `SITE_URL=http://localhost:3010`
 
 ```bash
+docker compose up -d
 pnpm install
 pnpm dev
 ```
+
+MySQL local: `3306` (DB `cosplay_gallery`). Redis local: `6380` (tránh trùng Keyon/Cardon `6379`). Dump: `backups/yukvix-db.sql.gz`.
 
 ## Dev hàng ngày
 

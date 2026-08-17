@@ -1,0 +1,41 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: yukvix-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: yukvix
+      MYSQL_DATABASE: cosplay_gallery
+      MYSQL_USER: cosplay
+      MYSQL_PASSWORD: yukvix
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max-allowed-packet=256M
+    volumes:
+      - yukvix_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ucosplay", "-pyukvix"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: yukvix-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - yukvix_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  yukvix_mysql_data:
+  yukvix_redis_data:
