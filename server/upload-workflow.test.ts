@@ -16,6 +16,7 @@ vi.mock("./db", async (importOriginal) => {
     getAlbumBySlug: vi.fn(),
     getPhotoById: vi.fn(),
     getPhotosByAlbumId: vi.fn(),
+    countPhotosByAlbumId: vi.fn(),
     getTagsByAlbumId: vi.fn(),
     createPhoto: vi.fn(),
     updateAlbum: vi.fn(),
@@ -357,51 +358,42 @@ describe("albums.bySlug — VIP protection", () => {
     createdAt: new Date(), updatedAt: new Date(),
   };
 
-  const allPhotos = [
-    { id: 1, albumId: 10, originalKey: "k1", originalUrl: "u1", webpKey: "w1", webpUrl: "wu1", thumbKey: "t1", thumbUrl: "tu1", width: 1920, height: 1080, fileSize: 500000, mimeType: "image/webp", sortOrder: 0, isFreePreview: true, createdAt: new Date() },
-    { id: 2, albumId: 10, originalKey: "k2", originalUrl: "u2", webpKey: "w2", webpUrl: "wu2", thumbKey: "t2", thumbUrl: "tu2", width: 1920, height: 1080, fileSize: 500000, mimeType: "image/webp", sortOrder: 1, isFreePreview: true, createdAt: new Date() },
-    { id: 3, albumId: 10, originalKey: "k3", originalUrl: "u3", webpKey: "w3", webpUrl: "wu3", thumbKey: "t3", thumbUrl: "tu3", width: 1920, height: 1080, fileSize: 500000, mimeType: "image/webp", sortOrder: 2, isFreePreview: false, createdAt: new Date() },
-    { id: 4, albumId: 10, originalKey: "k4", originalUrl: "u4", webpKey: "w4", webpUrl: "wu4", thumbKey: "t4", thumbUrl: "tu4", width: 1920, height: 1080, fileSize: 500000, mimeType: "image/webp", sortOrder: 3, isFreePreview: false, createdAt: new Date() },
-    { id: 5, albumId: 10, originalKey: "k5", originalUrl: "u5", webpKey: "w5", webpUrl: "wu5", thumbKey: "t5", thumbUrl: "tu5", width: 1920, height: 1080, fileSize: 500000, mimeType: "image/webp", sortOrder: 4, isFreePreview: false, createdAt: new Date() },
-  ];
-
-  it("non-VIP user only sees free preview photos", async () => {
-    const { getAlbumBySlug, getPhotosByAlbumId, getTagsByAlbumId, isBookmarked, incrementAlbumView } = await import("./db");
-    const { getSignedMediaUrl } = await import("./storage-wasabi");
+  it("does not hydrate photo rows; non-VIP gets locked counts", async () => {
+    const {
+      getAlbumBySlug,
+      getPhotosByAlbumId,
+      countPhotosByAlbumId,
+      getTagsByAlbumId,
+      isBookmarked,
+      incrementAlbumView,
+    } = await import("./db");
 
     vi.mocked(getAlbumBySlug).mockResolvedValue(mockAlbum);
-    vi.mocked(getPhotosByAlbumId).mockResolvedValue(allPhotos);
+    vi.mocked(countPhotosByAlbumId).mockResolvedValue({ total: 5, preview: 2 });
     vi.mocked(getTagsByAlbumId).mockResolvedValue([]);
     vi.mocked(isBookmarked).mockResolvedValue(false);
     vi.mocked(incrementAlbumView).mockResolvedValue(undefined as any);
-    vi.mocked(getSignedMediaUrl).mockResolvedValue("https://signed.example.com/photo");
 
-    // Non-VIP user context (regular user)
-    const userCtx = makeUserCtx();
-    const caller = appRouter.createCaller(userCtx);
+    const caller = appRouter.createCaller(makeUserCtx());
     const result = await caller.albums.bySlug({ slug: "vip-album" });
 
-    // Should only see 2 free preview photos
-    expect(result.photos).toHaveLength(2);
-    expect(result.photos.every((p) => p.isFreePreview)).toBe(true);
+    expect(getPhotosByAlbumId).not.toHaveBeenCalled();
+    expect(result.photos).toEqual([]);
+    expect(result.previewCount).toBe(2);
     expect(result.isVipLocked).toBe(true);
-    expect(result.lockedCount).toBe(3); // 5 total - 2 free = 3 locked
-    expect(getSignedMediaUrl).toHaveBeenCalledTimes(2);
-    expect(result.photos.every((p) => !("originalKey" in p) || p.originalKey == null)).toBe(true);
+    expect(result.lockedCount).toBe(3);
+    expect(result.totalPhotos).toBe(5);
   });
 
-  it("VIP user sees all photos with signed URLs", async () => {
-    const { getAlbumBySlug, getPhotosByAlbumId, getTagsByAlbumId, isBookmarked, incrementAlbumView } = await import("./db");
-    const { getSignedMediaUrl } = await import("./storage-wasabi");
+  it("VIP user is not locked and sees full photo total", async () => {
+    const { getAlbumBySlug, getPhotosByAlbumId, countPhotosByAlbumId, getTagsByAlbumId, isBookmarked, incrementAlbumView } = await import("./db");
 
     vi.mocked(getAlbumBySlug).mockResolvedValue(mockAlbum);
-    vi.mocked(getPhotosByAlbumId).mockResolvedValue(allPhotos);
+    vi.mocked(countPhotosByAlbumId).mockResolvedValue({ total: 5, preview: 2 });
     vi.mocked(getTagsByAlbumId).mockResolvedValue([]);
     vi.mocked(isBookmarked).mockResolvedValue(false);
     vi.mocked(incrementAlbumView).mockResolvedValue(undefined as any);
-    vi.mocked(getSignedMediaUrl).mockResolvedValue("https://signed.example.com/photo");
 
-    // VIP user context
     const vipCtx: TrpcContext = {
       user: {
         id: 3, openId: "vip-001", name: "VIP User", email: "vip@test.com",
@@ -415,29 +407,22 @@ describe("albums.bySlug — VIP protection", () => {
     const caller = appRouter.createCaller(vipCtx);
     const result = await caller.albums.bySlug({ slug: "vip-album" });
 
-    // VIP sees all 5 photos
-    expect(result.photos).toHaveLength(5);
+    expect(getPhotosByAlbumId).not.toHaveBeenCalled();
+    expect(result.photos).toEqual([]);
     expect(result.isVipLocked).toBe(false);
     expect(result.lockedCount).toBe(0);
-    // Signed URLs should be generated for all photos with webpKey
-    expect(getSignedMediaUrl).toHaveBeenCalledTimes(5);
-    // All photos should have signed displayUrl
-    result.photos.forEach((p) => {
-      expect(p.displayUrl).toBe("https://signed.example.com/photo");
-    });
+    expect(result.totalPhotos).toBe(5);
+    expect(result.previewCount).toBe(5);
   });
 
-  it("unauthenticated user only sees free preview photos", async () => {
-    const { getAlbumBySlug, getPhotosByAlbumId, getTagsByAlbumId, incrementAlbumView } = await import("./db");
-    const { getSignedMediaUrl } = await import("./storage-wasabi");
+  it("unauthenticated user is VIP-locked", async () => {
+    const { getAlbumBySlug, countPhotosByAlbumId, getTagsByAlbumId, incrementAlbumView } = await import("./db");
 
     vi.mocked(getAlbumBySlug).mockResolvedValue(mockAlbum);
-    vi.mocked(getPhotosByAlbumId).mockResolvedValue(allPhotos);
+    vi.mocked(countPhotosByAlbumId).mockResolvedValue({ total: 5, preview: 2 });
     vi.mocked(getTagsByAlbumId).mockResolvedValue([]);
     vi.mocked(incrementAlbumView).mockResolvedValue(undefined as any);
-    vi.mocked(getSignedMediaUrl).mockResolvedValue("https://signed.example.com/photo");
 
-    // No user (unauthenticated)
     const anonCtx: TrpcContext = {
       user: null,
       req: { protocol: "https", headers: {} } as TrpcContext["req"],
@@ -447,8 +432,8 @@ describe("albums.bySlug — VIP protection", () => {
     const caller = appRouter.createCaller(anonCtx);
     const result = await caller.albums.bySlug({ slug: "vip-album" });
 
-    expect(result.photos).toHaveLength(2); // only free previews
     expect(result.isVipLocked).toBe(true);
-    expect(getSignedMediaUrl).toHaveBeenCalledTimes(2);
+    expect(result.lockedCount).toBe(3);
+    expect(result.previewCount).toBe(2);
   });
 });

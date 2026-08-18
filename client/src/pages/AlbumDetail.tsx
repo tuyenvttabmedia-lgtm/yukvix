@@ -395,7 +395,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
                 <ImageIcon className="w-4 h-4" />
                 {t("album.photoCount", { count: totalPhotos })}
                 {isVipLocked && (
-                  <span className="text-primary">({t("album.freePreview", { count: data.photos?.length ?? allPhotos.length })})</span>
+                  <span className="text-primary">({t("album.freePreview", { count: data.previewCount ?? allPhotos.length })})</span>
                 )}
               </span>
               <span className="flex items-center gap-1.5">

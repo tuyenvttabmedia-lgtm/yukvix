@@ -28,6 +28,7 @@ import { processImportQueueHandler } from "../scheduled/process-import-queue";
 import { registerHealthRoutes } from "./health.js";
 import { paymentReconciliationHandler } from "../scheduled/payment-reconciliation.js";
 import { cleanupSkippedImportsHandler } from "../scheduled/cleanup-skipped-imports.js";
+import { getWorkerMode } from "./worker-mode";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -198,13 +199,40 @@ async function startServer() {
     }
     // Start background image processing worker
     startImageProcessorWorker();
-    // Start import auto-scheduler
     startScheduler();
-    // Start email queue worker
     startEmailQueueWorker();
-    // Start ZIP import scheduler (separate from legacy crawler)
+    if (getWorkerMode() === "http") {
+      console.log("[HTTP] ZIP import runs in WORKER_MODE=import process");
+    } else {
+      startZipImportScheduler();
+    }
+  });
+}
+
+async function startImportWorker(): Promise<void> {
+  const app = express();
+  app.set("trust proxy", 1);
+  registerHealthRoutes(app);
+  app.get("/api/import/keepalive", (_req, res) => {
+    res.json({ ok: true, worker: "import", ts: Date.now() });
+  });
+
+  const port = parseInt(process.env.IMPORT_WORKER_PORT || "3001", 10);
+  app.listen(port, async () => {
+    console.log(`[ImportWorker] health http://127.0.0.1:${port}/api/health`);
+    try {
+      await refreshWasabiConfig();
+      console.log("[Wasabi] Config loaded from DB");
+    } catch {
+      console.log("[Wasabi] Using env config (DB not ready)");
+    }
     startZipImportScheduler();
   });
 }
 
-startServer().catch(console.error);
+const workerMode = getWorkerMode();
+if (workerMode === "import") {
+  startImportWorker().catch(console.error);
+} else {
+  startServer().catch(console.error);
+}

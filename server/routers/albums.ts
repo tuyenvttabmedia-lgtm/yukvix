@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
+  countPhotosByAlbumId,
   createAlbum,
   deleteAlbum,
   getAlbumById,
@@ -19,9 +20,8 @@ import {
   upsertTag,
 } from "../db";
 import { albums as albumsTable } from "../../drizzle/schema";
-import { assertAlbumPubliclyReadable, presentPhotosForClient, viewerFlags } from "../photo-access";
+import { assertAlbumPubliclyReadable, viewerFlags } from "../photo-access";
 import { isAdmin } from '@shared/const';
-import { getPhotosByAlbumId } from "../db";
 
 function slugify(text: string): string {
   return text
@@ -64,24 +64,13 @@ export const albumsRouter = router({
 
       await incrementAlbumView(album.id);
 
-      const allPhotos = await getPhotosByAlbumId(album.id);
       const albumTags = await getTagsByAlbumId(album.id);
+      const { total, preview } = await countPhotosByAlbumId(album.id);
 
       const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
       const bookmarkedByUser = ctx.user ? await isBookmarked(ctx.user.id, album.id) : false;
-
-      let visiblePhotos = allPhotos;
-      if (album.isVip && !userIsVip) {
-        visiblePhotos = allPhotos.filter((p) => p.isFreePreview);
-      }
-
-      const photosWithUrls = await presentPhotosForClient(visiblePhotos, {
-        albumIsVip: !!album.isVip,
-        userIsVip,
-        isAdminUser,
-      });
-
-      const lockedCount = album.isVip && !userIsVip ? allPhotos.length - visiblePhotos.length : 0;
+      const isVipLocked = !!album.isVip && !userIsVip && !isAdminUser;
+      const lockedCount = isVipLocked ? Math.max(0, total - preview) : 0;
 
       // Fetch creator info if assigned
       let creatorName: string | null = null;
@@ -94,11 +83,12 @@ export const albumsRouter = router({
 
       return {
         album,
-        photos: photosWithUrls,
+        photos: [],
+        previewCount: isVipLocked ? preview : total,
         tags: albumTags,
         lockedCount,
-        isVipLocked: album.isVip && !userIsVip,
-        totalPhotos: allPhotos.length,
+        isVipLocked,
+        totalPhotos: total,
         bookmarked: bookmarkedByUser,
         creatorName,
         creatorSlug,

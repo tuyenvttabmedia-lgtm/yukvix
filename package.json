@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "seed": "node scripts/seed.mjs",
-    "setup": "pnpm install && pnpm drizzle-kit migrate && node scripts/seed.mjs"
+    "setup": "pnpm install && pnpm drizzle-kit migrate && node scripts/seed.mjs",
+    "wasabi:privatize": "tsx scripts/privatize-wasabi.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

@@ -6,6 +6,9 @@ echo "[deploy] $(date -Iseconds) starting..."
 /usr/local/bin/yukvix-mysql-backup.sh || echo "[deploy] backup skipped/failed"
 sudo -u cosplay pnpm run build
 sudo systemctl restart cosplay-gallery
+if systemctl cat cosplay-gallery-import.service >/dev/null 2>&1; then
+  sudo systemctl restart cosplay-gallery-import
+fi
 sleep 3
 HTTP=$(curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/health || echo "000")
 if [ "$HTTP" != "200" ]; then

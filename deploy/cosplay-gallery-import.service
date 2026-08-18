@@ -1,0 +1,24 @@
+[Unit]
+Description=Yukvix ZIP import worker
+After=network.target mysql.service redis-server.service cosplay-gallery.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=cosplay
+Group=cosplay
+WorkingDirectory=/var/www/cosplay-gallery
+EnvironmentFile=/var/www/cosplay-gallery/.env
+Environment=WORKER_MODE=import
+Environment=IMPORT_WORKER_PORT=3001
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/cosplay-gallery/import.log
+StandardError=append:/var/log/cosplay-gallery/import-error.log
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target

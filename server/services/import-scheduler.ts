@@ -403,6 +403,13 @@ export async function dispatch(options: DispatchOptions = {}): Promise<DispatchR
 }
 
 export async function runSchedulerNow(options: DispatchOptions = {}): Promise<DispatchResult> {
+  const { isHttpOnlyProcess } = await import("../_core/worker-mode");
+  if (isHttpOnlyProcess()) {
+    console.log(
+      "[ImportScheduler] HTTP process — skip ZIP dispatch; import worker will pick up waiting jobs"
+    );
+    return { started: [], skipped: [], reason: "http-worker-mode" };
+  }
   return dispatch({ ...options, manual: true, source: options.source || "admin" });
 }
 

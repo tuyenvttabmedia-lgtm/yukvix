@@ -41,9 +41,16 @@ export function assertAlbumPubliclyReadable(
   }
 }
 
-function isPrivateFullSizeKey(key: string | null | undefined): boolean {
-  if (!key) return false;
-  return /\/(webp|medium|original)\//.test(key);
+async function signedFullSizeUrl(photo: PhotoLike): Promise<string | null> {
+  const signKey = photo.webpKey || photo.mediumKey || photo.originalKey;
+  if (signKey) {
+    try {
+      return await getSignedMediaUrl(signKey, 3600);
+    } catch (err) {
+      console.warn(`[photo-access] signed URL failed for photo ${photo.id}:`, (err as Error).message);
+    }
+  }
+  return photo.thumbUrl || photo.displayUrl || photo.mediumUrl || photo.webpUrl || null;
 }
 
 export type PhotoClient = PhotoLike & {
@@ -52,9 +59,8 @@ export type PhotoClient = PhotoLike & {
 };
 
 /**
- * Public clients never receive Wasabi keys or permanent CDN URLs for VIP full-size
- * variants. VIP (and free-preview lightbox) get a short-lived signed displayUrl.
- * Thumbs stay public for cards/SEO.
+ * Public clients never receive Wasabi keys or permanent CDN URLs for full-size
+ * variants (webp/medium/original). Those objects are private; thumbs stay public.
  */
 export async function presentPhotoForClient(
   photo: PhotoLike,
@@ -65,18 +71,12 @@ export async function presentPhotoForClient(
   if (isAdminUser) {
     return {
       ...photo,
-      displayUrl: photo.displayUrl ?? photo.mediumUrl ?? photo.webpUrl ?? photo.thumbUrl ?? null,
+      displayUrl: await signedFullSizeUrl(photo),
       isLocked: false,
     };
   }
 
   if (!albumIsVip) {
-    const displayUrl =
-      photo.displayUrl ||
-      photo.mediumUrl ||
-      photo.webpUrl ||
-      photo.thumbUrl ||
-      null;
     return {
       id: photo.id,
       albumId: photo.albumId,
@@ -87,7 +87,7 @@ export async function presentPhotoForClient(
       filename: photo.filename,
       altText: photo.altText,
       thumbUrl: photo.thumbUrl,
-      displayUrl,
+      displayUrl: await signedFullSizeUrl(photo),
       isLocked: false,
     };
   }
@@ -104,28 +104,6 @@ export async function presentPhotoForClient(
     };
   }
 
-  const signKey =
-    (canSeeFull ? photo.webpKey || photo.mediumKey || photo.originalKey : null) ||
-    photo.mediumKey ||
-    photo.webpKey ||
-    photo.thumbKey;
-
-  let displayUrl = photo.thumbUrl || null;
-  if (signKey && isPrivateFullSizeKey(signKey)) {
-    try {
-      displayUrl = await getSignedMediaUrl(signKey, 3600);
-    } catch (err) {
-      console.warn(`[photo-access] signed URL failed for photo ${photo.id}:`, (err as Error).message);
-      displayUrl = photo.thumbUrl || null;
-    }
-  } else if (signKey) {
-    try {
-      displayUrl = await getSignedMediaUrl(signKey, 3600);
-    } catch {
-      displayUrl = photo.thumbUrl || null;
-    }
-  }
-
   return {
     id: photo.id,
     albumId: photo.albumId,
@@ -133,10 +111,10 @@ export async function presentPhotoForClient(
     height: photo.height,
     sortOrder: photo.sortOrder,
     isFreePreview: photo.isFreePreview,
-    filename: isAdminUser ? photo.filename : undefined,
+    filename: undefined,
     altText: photo.altText,
     thumbUrl: photo.thumbUrl,
-    displayUrl,
+    displayUrl: await signedFullSizeUrl(photo),
     isLocked: false,
   };
 }

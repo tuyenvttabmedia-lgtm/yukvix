@@ -388,6 +388,20 @@ export async function getPhotosByAlbumId(albumId: number) {
     .orderBy(photos.sortOrder, photos.createdAt);
 }
 
+/** Cheap aggregate — album pages should not hydrate every photo row. */
+export async function countPhotosByAlbumId(albumId: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, preview: 0 };
+  const [row] = await db
+    .select({
+      total: sql<number>`count(*)`,
+      preview: sql<number>`coalesce(sum(case when ${photos.isFreePreview} then 1 else 0 end), 0)`,
+    })
+    .from(photos)
+    .where(eq(photos.albumId, albumId));
+  return { total: Number(row?.total ?? 0), preview: Number(row?.preview ?? 0) };
+}
+
 /**
  * Paginated photo fetch — cursor-based (by sortOrder).
  * cursor = null means first page. Returns items + nextCursor for next page.
@@ -549,11 +563,19 @@ export async function activateSubscription(
     );
     return;
   }
+  const alreadyActive = sub.status === "active";
   await db
     .update(subscriptions)
     .set({ status: "active", startedAt: new Date(), expiresAt })
     .where(eq(subscriptions.id, sub.id));
   await updateUserRole(sub.userId, "vip");
+  if (!alreadyActive) {
+    void import("./email")
+      .then((m) => m.notifyVipActivated(sub.userId, expiresAt))
+      .catch((err) =>
+        console.error("[Activate] welcome email failed:", err instanceof Error ? err.message : err)
+      );
+  }
 }
 
 export async function listSubscriptions(page = 1, limit = 20, search?: string, status?: string) {

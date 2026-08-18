@@ -80,20 +80,20 @@ export default function VipPage() {
     onSuccess: (data) => {
       setLoadingPlanId(null);
       if (!data.url && !data.sessionId) {
-        toast.error("Failed to create checkout session");
+        toast.error(t("vip.checkoutFailed"));
         return;
       }
       if (selectedPaymentMethod === "crypto" && data.sessionId) {
         navigate(`/payment/crypto/${encodeURIComponent(data.sessionId)}`);
       } else if (data.url) {
-        toast.info("Redirecting to secure checkout...");
+        toast.info(t("vip.redirectingCheckout"));
         window.location.href = data.url;
       } else {
-        toast.error("Failed to create checkout session");
+        toast.error(t("vip.checkoutFailed"));
       }
     },
     onError: (err) => {
-      toast.error(err.message || "Payment system not available");
+      toast.error(err.message || t("vip.paymentUnavailable"));
       setLoadingPlanId(null);
     },
   });
@@ -105,7 +105,7 @@ export default function VipPage() {
   const handleSubscribe = () => {
     const planId = selectedPlanId;
     if (!planId) {
-      toast.error("Please select a plan first");
+      toast.error(t("vip.selectPlanFirst"));
       return;
     }
     if (!isAuthenticated) {
@@ -147,9 +147,9 @@ export default function VipPage() {
   return (
     <div className="min-h-screen py-6">
       <SeoHead
-        title="VIP Membership — Unlock Exclusive Galleries"
-        description="Join Yukvix VIP to access thousands of exclusive high-resolution cosplay galleries. Unlimited downloads, early access, and more."
-        keywords="VIP cosplay membership, premium cosplay photos, exclusive cosplay galleries, cosplay subscription"
+        title={t("vip.pageTitle")}
+        description={t("vip.pageDescription")}
+        keywords={t("vip.pageKeywords")}
         canonical={typeof window !== "undefined" ? window.location.origin + "/vip" : undefined}
         ogType="website"
       />
@@ -277,7 +277,7 @@ export default function VipPage() {
                           </div>
                           {monthlyEquiv && (
                             <p className="text-xs text-primary mt-1">
-                              {monthlyEquiv} · Save {savingPct}%
+                              {monthlyEquiv} · {t("vip.savePct", { pct: savingPct })}
                             </p>
                           )}
                         </div>
@@ -287,7 +287,7 @@ export default function VipPage() {
                           {isCcbillAvailable && <CreditCard className="w-3 h-3" />}
                           {isCcbillAvailable && isCryptoAvailable && <span>+</span>}
                           {isCryptoAvailable && <Bitcoin className="w-3 h-3" />}
-                          <span>{isCcbillAvailable && isCryptoAvailable ? t("vip.cardOrCrypto") : isCryptoAvailable ? "Crypto" : t("vip.cardOnly")}</span>
+                          <span>{isCcbillAvailable && isCryptoAvailable ? t("vip.cardOrCrypto") : isCryptoAvailable ? t("vip.cryptoLabel") : t("vip.cardOnly")}</span>
                         </div>
                       </button>
                     );
@@ -397,7 +397,7 @@ export default function VipPage() {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-semibold text-foreground">{t("vip.cryptoUsdt")}</span>
                           <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
-                            No KYC
+                            {t("vip.noKyc")}
                           </Badge>
 
                         </div>
@@ -449,9 +449,9 @@ export default function VipPage() {
                     return (
                       <>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>${perMonth}/tháng × {months} tháng</span>
+                          <span>${perMonth}/{t("vip.monthAbbrev")} × {months} {t("vip.monthsAbbrev")}</span>
                           <span className="text-emerald-400">
-                            {saved && Number(saved) > 0 ? `Tiết kiệm $${saved}` : ""}
+                            {saved && Number(saved) > 0 ? t("vip.saveAmount", { amount: saved }) : ""}
                           </span>
                         </div>
                       </>
@@ -470,12 +470,14 @@ export default function VipPage() {
                     </span>
                   </span>
                   <span>
-                    {selectedPlan.intervalDays >= 365
-                      ? "12 months"
-                      : selectedPlan.intervalDays >= 180
-                      ? "6 months"
-                      : "1 month"}{" "}
-                    access
+                    {t("vip.accessDuration", {
+                      period:
+                        selectedPlan.intervalDays >= 365
+                          ? t("vip.period12m")
+                          : selectedPlan.intervalDays >= 180
+                          ? t("vip.period6m")
+                          : t("vip.period1m"),
+                    })}
                   </span>
                 </div>
                 <Button
@@ -510,15 +512,15 @@ export default function VipPage() {
                 <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-border/20">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
                     <Shield className="w-3.5 h-3.5" />
-                    <span>Thanh toán bảo mật</span>
+                    <span>{t("vip.trustSecure")}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
                     <Check className="w-3.5 h-3.5" />
-                    <span>Kích hoạt ngay</span>
+                    <span>{t("vip.trustInstant")}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
                     <Crown className="w-3.5 h-3.5" />
-                    <span>Truy cập đầy đủ</span>
+                    <span>{t("vip.trustFull")}</span>
                   </div>
                 </div>
               </div>

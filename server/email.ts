@@ -16,7 +16,7 @@
  */
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
-import { getDb } from "./db";
+import { getDb, getUserById } from "./db";
 import { insertEmailLog } from "./db";
 import { smtpSettings } from "../drizzle/schema";
 
@@ -696,6 +696,125 @@ function vipExpiryReminderTemplate(
   </div>
 </body>
 </html>`;
+}
+
+function vipActivatedTemplate(
+  userName: string,
+  expiresAt: Date,
+  galleryUrl: string,
+  accountUrl: string
+): string {
+  const expiryDateStr = expiresAt.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Welcome to Yukvix VIP</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0a; font-family: 'Helvetica Neue', Arial, sans-serif; color: #e5e5e5; }
+    .wrapper { max-width: 560px; margin: 40px auto; padding: 0 16px; }
+    .card { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden; }
+    .header { background: linear-gradient(135deg, #1a0a00 0%, #2d1200 100%); padding: 32px 40px; text-align: center; border-bottom: 1px solid #3d1f00; }
+    .logo-text { font-size: 22px; font-weight: 700; color: #fff; }
+    .vip-badge { display: inline-block; background: linear-gradient(135deg, #f97316, #fbbf24); color: #000; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: 1px; margin-top: 12px; text-transform: uppercase; }
+    .body { padding: 40px; }
+    h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+    p { font-size: 15px; line-height: 1.6; color: #a3a3a3; margin-bottom: 16px; }
+    .name { color: #f97316; font-weight: 600; }
+    .btn-wrap { text-align: center; margin: 32px 0; }
+    .btn { display: inline-block; background: linear-gradient(135deg, #f97316, #fbbf24); color: #000 !important; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 15px; font-weight: 800; }
+    .footer { padding: 24px 40px; border-top: 1px solid #1e1e1e; text-align: center; }
+    .footer p { font-size: 12px; color: #525252; margin: 0; }
+    .footer a { color: #f97316; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <div class="logo-text">Yukvix</div>
+        <div class="vip-badge">VIP Member</div>
+      </div>
+      <div class="body">
+        <h1>Your VIP membership is active</h1>
+        <p>Hi <span class="name">${escapeHtml(userName)}</span>,</p>
+        <p>Payment confirmed. You now have unlimited access to VIP albums and HD downloads.</p>
+        <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+          <tr>
+            <td style="padding:10px 16px; background:#1a1a1a; border:1px solid #2a2a2a; font-size:13px; color:#737373;">Active until</td>
+            <td style="padding:10px 16px; background:#1a1a1a; border:1px solid #2a2a2a; font-size:16px; font-weight:700; color:#f97316; text-align:right;">${expiryDateStr}</td>
+          </tr>
+        </table>
+        <div class="btn-wrap">
+          <a href="${galleryUrl}" class="btn">Browse VIP albums</a>
+        </div>
+        <p style="font-size:13px; color:#737373; text-align:center;">Manage your plan anytime at <a href="${accountUrl}" style="color:#f97316;">your account</a>.</p>
+      </div>
+      <div class="footer">
+        <p>© ${new Date().getFullYear()} Yukvix · Premium Cosplay Gallery</p>
+        <p style="margin-top:6px;">Need help? <a href="mailto:support@yukvix.com">support@yukvix.com</a></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendVipActivatedEmail(opts: {
+  to: string;
+  userName: string;
+  expiresAt: Date;
+  galleryUrl: string;
+  accountUrl: string;
+}): Promise<SendEmailResult> {
+  const expiryDateStr = opts.expiresAt.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const result = await sendMailWithRetry({
+    type: "vip_activated",
+    to: opts.to,
+    subject: "Your Yukvix VIP is active",
+    html: vipActivatedTemplate(opts.userName, opts.expiresAt, opts.galleryUrl, opts.accountUrl),
+    text: `Hi ${opts.userName},\n\nYour Yukvix VIP membership is active until ${expiryDateStr}.\n\nBrowse albums: ${opts.galleryUrl}\nAccount: ${opts.accountUrl}\n\nSupport: support@yukvix.com`,
+    metadata: { userName: opts.userName, expiresAt: opts.expiresAt.toISOString() },
+  });
+  if (result.success) return { success: true, messageId: result.messageId!, previewUrl: result.previewUrl };
+  return { success: false, error: result.error! };
+}
+
+/** Look up the user and send a welcome/receipt mail. Never throws. */
+export async function notifyVipActivated(userId: number, expiresAt: Date): Promise<void> {
+  try {
+    const user = await getUserById(userId);
+    if (!user?.email) {
+      console.warn(`[Email] skip VIP welcome: no email for user ${userId}`);
+      return;
+    }
+    const { getPublicSiteUrl } = await import("./_core/site-url");
+    const site = getPublicSiteUrl();
+    const result = await sendVipActivatedEmail({
+      to: user.email,
+      userName: user.name || user.email,
+      expiresAt,
+      galleryUrl: `${site}/gallery`,
+      accountUrl: `${site}/account`,
+    });
+    if (!result.success) {
+      console.error(`[Email] VIP welcome failed for user ${userId}:`, result.error);
+    }
+  } catch (err) {
+    console.error(
+      `[Email] VIP welcome threw for user ${userId}:`,
+      err instanceof Error ? err.message : err
+    );
+  }
 }
 
 /**
