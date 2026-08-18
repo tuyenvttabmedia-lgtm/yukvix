@@ -27,6 +27,8 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  /** JWTs with iat before this instant are rejected (password change / ban). */
+  sessionInvalidBefore: timestamp("sessionInvalidBefore"),
 });
 
 export type User = typeof users.$inferSelect;

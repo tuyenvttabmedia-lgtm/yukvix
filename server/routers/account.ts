@@ -119,7 +119,7 @@ export const accountRouter = router({
       const newHash = await hashPassword(input.newPassword);
       await db
         .update(users)
-        .set({ passwordHash: newHash })
+        .set({ passwordHash: newHash, sessionInvalidBefore: new Date(), updatedAt: new Date() })
         .where(eq(users.id, ctx.user.id));
 
       return { success: true };

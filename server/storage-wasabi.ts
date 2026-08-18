@@ -103,13 +103,14 @@ export interface UploadResult {
 export async function uploadToStorage(
   key: string,
   buffer: Buffer,
-  contentType: string
+  contentType: string,
+  opts?: { isPrivate?: boolean }
 ): Promise<UploadResult> {
+  const isPrivate = opts?.isPrivate ?? isPrivateMediaKey(key);
   if (hasWasabi) {
     const client = getS3Client();
-    console.log(`[Wasabi] uploadToStorage: key=${key} size=${buffer.length} type=${contentType}`);
+    console.log(`[Wasabi] uploadToStorage: key=${key} size=${buffer.length} type=${contentType} private=${isPrivate}`);
     try {
-      // AbortController with 30s timeout to prevent hung uploads
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30_000);
       try {
@@ -119,7 +120,8 @@ export async function uploadToStorage(
             Key: key,
             Body: buffer,
             ContentType: contentType,
-            CacheControl: "public, max-age=31536000",
+            CacheControl: isPrivate ? "private, max-age=3600" : "public, max-age=31536000",
+            ...(isPrivate ? { ACL: "private" as const } : {}),
           }),
           { abortSignal: controller.signal }
         );
@@ -130,15 +132,22 @@ export async function uploadToStorage(
       console.error(`[Wasabi] uploadToStorage FAILED: key=${key} error=${err?.message}`);
       throw err;
     }
-    // Public URL: respects CDN_ENABLED flag via getPublicUrl()
     const url = getPublicUrl(key);
     console.log(`[Wasabi] uploadToStorage OK: url=${url}`);
     return { key, url, fileSize: buffer.length };
   } else {
-    // Fallback to Manus built-in storage
     const result = await storagePut(key, buffer, contentType);
     return { key: result.key, url: result.url, fileSize: buffer.length };
   }
+}
+
+/** Full-size VIP variants and download ZIPs must not be world-readable. */
+export function isPrivateMediaKey(key: string): boolean {
+  return (
+    /\/(webp|medium|original)\//.test(key) ||
+    key.startsWith("vip-zips/") ||
+    key.startsWith("download-zips/")
+  );
 }
 
 /**

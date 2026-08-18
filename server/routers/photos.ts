@@ -4,33 +4,26 @@ import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
   bulkDeletePhotos,
   createPhoto,
-  createUploadJob,
   deletePhoto,
   enqueueImageProcessingJob,
   getAlbumById,
-  getCachedSignedUrl,
   getPhotoById,
   getPhotosByAlbumId,
   getPhotosByAlbumIdPaginated,
   getProcessingJobStatus,
-  setCachedSignedUrl,
   setFreePreviewPhotos,
   updateAlbum,
-  updateUploadJob,
 } from "../db";
 import {
   deleteFromStorage,
   getPresignedPutUrl,
-  getPublicUrl,
-  getS3ClientForProcessing,
   getSignedMediaUrl,
   isImageMimeType,
   isWasabiConfigured,
-  processImage,
   uploadPhoto,
-  uploadToStorage,
 } from "../storage-wasabi";
-import { isAdmin, isVipOrAdmin } from '@shared/const';
+import { isAdmin } from "@shared/const";
+import { assertAlbumPubliclyReadable, presentPhotosForClient, viewerFlags } from "../photo-access";
 
 export const photosRouter = router({
   // --- Paginated photos for an album (cursor-based, limit 24) -----------------
@@ -42,50 +35,26 @@ export const photosRouter = router({
     }))
     .query(async ({ input, ctx }) => {
       const album = await getAlbumById(input.albumId);
-      if (!album) throw new TRPCError({ code: "NOT_FOUND" });
+      assertAlbumPubliclyReadable(album, ctx.user?.role);
 
-      const userIsVip = ctx.user && (isVipOrAdmin(ctx.user.role));
+      const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
       const { items, nextCursor } = await getPhotosByAlbumIdPaginated(
         input.albumId,
         input.cursor,
         input.limit
       );
 
-      // Apply VIP access control
-      const visibleItems = (album.isVip && !userIsVip)
+      const visibleItems = album.isVip && !userIsVip
         ? items.filter((p) => p.isFreePreview)
         : items;
 
-      // Generate signed URLs for VIP content (with DB cache to avoid per-request signing)
-      const photosWithUrls = await Promise.all(
-        visibleItems.map(async (photo) => {
-          if (album.isVip && userIsVip && photo.webpKey) {
-            // Try cache first
-            let signedUrl = await getCachedSignedUrl(photo.id);
-            if (!signedUrl) {
-              signedUrl = await getSignedMediaUrl(photo.webpKey, 3600);
-              // Cache for 1 hour
-              await setCachedSignedUrl(photo.id, signedUrl, 3600).catch(() => {});
-            }
-            return { ...photo, displayUrl: signedUrl, isLocked: false };
-          }
-          // Build URL from key as fallback when URL columns are NULL (e.g., ZIP import legacy data)
-          const resolveUrl = (url: string | null | undefined, key: string | null | undefined) =>
-            url || (key ? getPublicUrl(key) : null);
-          return {
-            ...photo,
-            displayUrl:
-              resolveUrl(photo.mediumUrl, photo.mediumKey) ||
-              resolveUrl(photo.webpUrl, photo.webpKey) ||
-              resolveUrl(photo.originalUrl, photo.originalKey) ||
-              resolveUrl(photo.thumbUrl, photo.thumbKey),
-            isLocked: false,
-          };
-        })
-      );
+      const photosWithUrls = await presentPhotosForClient(visibleItems, {
+        albumIsVip: !!album.isVip,
+        userIsVip,
+        isAdminUser,
+      });
 
-      // Stop pagination for non-VIP users on VIP albums
-      const effectiveNextCursor = (album.isVip && !userIsVip) ? null : nextCursor;
+      const effectiveNextCursor = album.isVip && !userIsVip ? null : nextCursor;
       return { items: photosWithUrls, nextCursor: effectiveNextCursor };
     }),
 
@@ -94,15 +63,20 @@ export const photosRouter = router({
     .input(z.object({ albumId: z.number() }))
     .query(async ({ input, ctx }) => {
       const album = await getAlbumById(input.albumId);
-      if (!album) throw new TRPCError({ code: "NOT_FOUND" });
+      assertAlbumPubliclyReadable(album, ctx.user?.role);
 
       const allPhotos = await getPhotosByAlbumId(input.albumId);
-      const userIsVip = ctx.user && (isVipOrAdmin(ctx.user.role));
+      const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
 
-      if (album.isVip && !userIsVip) {
-        return allPhotos.filter((p) => p.isFreePreview);
-      }
-      return allPhotos;
+      const visible = album.isVip && !userIsVip
+        ? allPhotos.filter((p) => p.isFreePreview)
+        : allPhotos;
+
+      return presentPhotosForClient(visible, {
+        albumIsVip: !!album.isVip,
+        userIsVip,
+        isAdminUser,
+      });
     }),
 
   // --- Get signed URL for a premium photo ------------------------------------
@@ -113,14 +87,15 @@ export const photosRouter = router({
       if (!photo) throw new TRPCError({ code: "NOT_FOUND" });
 
       const album = await getAlbumById(photo.albumId);
-      if (!album) throw new TRPCError({ code: "NOT_FOUND" });
+      assertAlbumPubliclyReadable(album, ctx.user.role);
 
-      const userIsVip = isVipOrAdmin(ctx.user.role);
-      if (album.isVip && !userIsVip) {
+      const { userIsVip } = viewerFlags(ctx.user.role);
+      if (album.isVip && !userIsVip && !photo.isFreePreview) {
         throw new TRPCError({ code: "FORBIDDEN", message: "VIP membership required" });
       }
 
-      const key = photo.webpKey || photo.originalKey;
+      const key = photo.webpKey || photo.mediumKey || photo.originalKey;
+      if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "Photo file not found" });
       const signedUrl = await getSignedMediaUrl(key, 3600);
       return { url: signedUrl, expiresIn: 3600 };
     }),

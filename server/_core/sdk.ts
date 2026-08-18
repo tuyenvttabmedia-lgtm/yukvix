@@ -193,13 +193,14 @@ class SDKServer {
       name: payload.name,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setIssuedAt()
       .setExpirationTime(expirationSeconds)
       .sign(secretKey);
   }
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<{ openId: string; appId: string; name: string; iat?: number } | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -225,6 +226,7 @@ class SDKServer {
         openId,
         appId,
         name,
+        iat: typeof payload.iat === "number" ? payload.iat : undefined,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -299,6 +301,17 @@ class SDKServer {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+
+    if (user.status === "banned") {
+      throw ForbiddenError("Account is banned");
+    }
+
+    if (user.sessionInvalidBefore) {
+      const issuedMs = (session.iat ?? 0) * 1000;
+      if (!session.iat || issuedMs < user.sessionInvalidBefore.getTime()) {
+        throw ForbiddenError("Session expired");
+      }
     }
 
     await db.upsertUser({

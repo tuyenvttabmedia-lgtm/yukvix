@@ -42,6 +42,7 @@ export async function signLocalSession(payload: {
     appId: "local",
   })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuedAt()
     .setExpirationTime(expiresAt)
     .sign(secretKey);
 }
@@ -171,6 +172,10 @@ export async function loginLocal(input: LoginInput): Promise<AuthResult> {
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
     return { success: false, error: "Invalid email or password" };
+  }
+
+  if (user.status === "banned") {
+    return { success: false, error: "This account has been suspended." };
   }
 
   // Update lastSignedIn

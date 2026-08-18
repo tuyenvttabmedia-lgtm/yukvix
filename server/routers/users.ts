@@ -16,10 +16,13 @@ import {
   updateUserPassword,
   updateUserRole,
   invalidateUserPasswordResetTokens,
+  getSubscriptionPlans,
+  createSubscription,
+  activateSubscription,
 } from "../db";
 import { hashPassword } from "../auth-local";
 import { sendTempPasswordEmail } from "../email";
-import { isAdmin, isVipOrAdmin } from '@shared/const';
+import { isAdmin } from '@shared/const';
 
 // --- Admin guard helper -------------------------------------------------------
 function requireAdmin(role: string) {
@@ -93,10 +96,30 @@ export const usersRouter = router({
 
   // --- Admin: Grant VIP -------------------------------------------------------
   grantVip: protectedProcedure
-    .input(z.object({ userId: z.number() }))
+    .input(z.object({ userId: z.number(), days: z.number().min(1).max(3650).default(30) }))
     .mutation(async ({ input, ctx }) => {
       requireAdmin(ctx.user.role);
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + input.days);
+
+      const plans = await getSubscriptionPlans();
+      const plan = plans[0];
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "No plans configured" });
+
+      const manualId = `manual_${Date.now()}`;
+      await createSubscription({
+        userId: input.userId,
+        planId: plan.id,
+        sessionId: manualId,
+        provider: "manual",
+        paymentMethod: "manual",
+      });
+
+      await activateSubscription(manualId, expiresAt);
       await updateUserRole(input.userId, "vip");
+      console.log(`[GrantVIP] users.grantVip: userId=${input.userId}, days=${input.days}`);
+
       return { success: true };
     }),
 

@@ -14,7 +14,7 @@
 import type { Express, Request, Response } from "express";
 import path from "path";
 import { getDb, getTagBySlug } from "./db";
-import { albums, creators, tags, photos } from "../drizzle/schema";
+import { albums, creators, tags, photos, categories } from "../drizzle/schema";
 import { eq, and, desc, max } from "drizzle-orm";
 import { ENV } from "./_core/env";
 
@@ -192,6 +192,7 @@ Sitemap: ${base}/sitemap-creators.xml
 Sitemap: ${base}/sitemap-tags.xml
 Sitemap: ${base}/sitemap-images.xml
 Sitemap: ${base}/sitemap-pages.xml
+Sitemap: ${base}/sitemap-categories.xml
 `;
     res.set("Content-Type", "text/plain; charset=utf-8");
     res.set("Cache-Control", "public, max-age=86400");
@@ -225,6 +226,7 @@ Sitemap: ${base}/sitemap-pages.xml
     let albumsLastmod = now;
     let creatorsLastmod = now;
     let tagsLastmod = now;
+    let categoriesLastmod = now;
     try {
       const db = await getDb();
       if (db) {
@@ -243,6 +245,11 @@ Sitemap: ${base}/sitemap-pages.xml
           .select({ maxCreated: max(tags.createdAt) })
           .from(tags);
         if (tagRow?.maxCreated) tagsLastmod = w3cDate(tagRow.maxCreated);
+
+        const [catRow] = await db
+          .select({ maxUpdated: max(categories.updatedAt) })
+          .from(categories);
+        if (catRow?.maxUpdated) categoriesLastmod = w3cDate(catRow.maxUpdated);
       }
     } catch (_err) {
       // fallback to now
@@ -253,6 +260,7 @@ Sitemap: ${base}/sitemap-pages.xml
       { loc: `${base}/sitemap-albums.xml`, lastmod: albumsLastmod },
       { loc: `${base}/sitemap-creators.xml`, lastmod: creatorsLastmod },
       { loc: `${base}/sitemap-tags.xml`, lastmod: tagsLastmod },
+      { loc: `${base}/sitemap-categories.xml`, lastmod: categoriesLastmod },
       { loc: `${base}/sitemap-images.xml`, lastmod: albumsLastmod },
     ];
 
@@ -400,6 +408,41 @@ Sitemap: ${base}/sitemap-pages.xml
       }
     } catch (err) {
       console.error("[SEO] sitemap-tags.xml error:", err);
+    }
+    const xml = `${urlsetOpen()}\n${entries}${urlsetClose()}`;
+    res.set("Content-Type", "application/xml; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.send(xml);
+  });
+
+  // ── Category landing pages ──────────────────────────────────────────────────
+  app.get("/sitemap-categories.xml", async (req: Request, res: Response) => {
+    const base = getBaseUrl(req);
+    let entries = "";
+    try {
+      const db = await getDb();
+      if (db) {
+        const rows = await db
+          .select({
+            slug: categories.slug,
+            updatedAt: categories.updatedAt,
+          })
+          .from(categories)
+          .orderBy(categories.slug);
+
+        for (const row of rows) {
+          const lastmod = w3cDate(row.updatedAt ?? new Date());
+          entries +=
+            urlEntry(
+              `${base}/search?category=${encodeURIComponent(row.slug)}`,
+              lastmod,
+              "weekly",
+              "0.7"
+            ) + "\n";
+        }
+      }
+    } catch (err) {
+      console.error("[SEO] sitemap-categories.xml error:", err);
     }
     const xml = `${urlsetOpen()}\n${entries}${urlsetClose()}`;
     res.set("Content-Type", "application/xml; charset=utf-8");

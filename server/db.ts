@@ -770,7 +770,16 @@ export async function updateUserPassword(userId: number, passwordHash: string): 
   if (!db) throw new Error("Database not available");
   await db
     .update(users)
-    .set({ passwordHash, updatedAt: new Date() })
+    .set({ passwordHash, sessionInvalidBefore: new Date(), updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
+export async function invalidateUserSessions(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(users)
+    .set({ sessionInvalidBefore: new Date(), updatedAt: new Date() })
     .where(eq(users.id, userId));
 }
 
@@ -818,7 +827,10 @@ export async function getUserDetail(userId: number) {
 export async function banUser(userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(users).set({ status: "banned", updatedAt: new Date() }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({ status: "banned", sessionInvalidBefore: new Date(), updatedAt: new Date() })
+    .where(eq(users.id, userId));
 }
 
 /** Unban a user */

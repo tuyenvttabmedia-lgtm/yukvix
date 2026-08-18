@@ -8,6 +8,7 @@ import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { sendVerificationEmail } from "../email";
+import { getPublicSiteUrl } from "../_core/site-url";
 
 // Verification token TTL: 24 hours
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -68,11 +69,7 @@ export const authEmailRouter = router({
       const expiresAt = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
       await db.createEmailVerificationToken(user.id, token, expiresAt);
 
-      // Build verify URL
-      const origin =
-        input?.origin ??
-        (ctx.req.headers.origin as string | undefined) ??
-        "http://localhost:3000";
+      const origin = getPublicSiteUrl(ctx.req);
       const verifyUrl = `${origin}/verify-email?token=${encodeURIComponent(token)}`;
 
       // Send email

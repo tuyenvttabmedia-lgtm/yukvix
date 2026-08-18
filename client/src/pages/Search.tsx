@@ -85,17 +85,29 @@ export default function Search() {
     setQuery(inputValue);
   };
 
-  const hasSearchQuery = !!(query.trim() || filterVip !== undefined || categorySlug);
+  const hasQueryOrVip = !!(query.trim() || filterVip !== undefined);
+  const isCategoryLanding = !!categorySlug && !hasQueryOrVip;
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yukvix.com";
+  const canonical = isCategoryLanding
+    ? `${origin}/search?category=${encodeURIComponent(categorySlug)}`
+    : `${origin}/search`;
+
+  const selectedCategory = categories?.find((c) => c.slug === categorySlug);
+  const seoTitle = isCategoryLanding && selectedCategory
+    ? `${selectedCategory.name} Cosplay Gallery`
+    : "Search Cosplay Albums";
+  const seoDescription = isCategoryLanding && selectedCategory
+    ? `Browse ${selectedCategory.name} cosplay albums and photo sets on Yukvix.`
+    : "Search and filter thousands of cosplay albums by character, series, cosplayer name, and more.";
 
   return (
     <div className="min-h-screen py-8">
       <SeoHead
-        title="Search Cosplay Albums"
-        description="Search and filter thousands of cosplay albums by character, series, cosplayer name, and more."
+        title={seoTitle}
+        description={seoDescription}
         keywords="search cosplay, find cosplay photos, cosplay by character, cosplay by series"
-        canonical={`${origin}/search`}
-        noIndex={hasSearchQuery}
+        canonical={canonical}
+        noIndex={hasQueryOrVip}
       />
       <div className="container">
         <h1

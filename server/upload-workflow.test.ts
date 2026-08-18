@@ -386,8 +386,8 @@ describe("albums.bySlug — VIP protection", () => {
     expect(result.photos.every((p) => p.isFreePreview)).toBe(true);
     expect(result.isVipLocked).toBe(true);
     expect(result.lockedCount).toBe(3); // 5 total - 2 free = 3 locked
-    // Signed URL should NOT be called for non-VIP
-    expect(getSignedMediaUrl).not.toHaveBeenCalled();
+    expect(getSignedMediaUrl).toHaveBeenCalledTimes(2);
+    expect(result.photos.every((p) => !("originalKey" in p) || p.originalKey == null)).toBe(true);
   });
 
   it("VIP user sees all photos with signed URLs", async () => {
@@ -449,6 +449,6 @@ describe("albums.bySlug — VIP protection", () => {
 
     expect(result.photos).toHaveLength(2); // only free previews
     expect(result.isVipLocked).toBe(true);
-    expect(getSignedMediaUrl).not.toHaveBeenCalled();
+    expect(getSignedMediaUrl).toHaveBeenCalledTimes(2);
   });
 });

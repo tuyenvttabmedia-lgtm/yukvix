@@ -19,9 +19,9 @@ import {
   upsertTag,
 } from "../db";
 import { albums as albumsTable } from "../../drizzle/schema";
-import { getSignedMediaUrl, getPublicUrl } from "../storage-wasabi";
+import { assertAlbumPubliclyReadable, presentPhotosForClient, viewerFlags } from "../photo-access";
+import { isAdmin } from '@shared/const';
 import { getPhotosByAlbumId } from "../db";
-import { isAdmin, isVipOrAdmin } from '@shared/const';
 
 function slugify(text: string): string {
   return text
@@ -30,10 +30,6 @@ function slugify(text: string): string {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .trim();
-}
-
-function isVipUser(role: string) {
-  return isVipOrAdmin(role);
 }
 
 export const albumsRouter = router({
@@ -64,48 +60,27 @@ export const albumsRouter = router({
     .input(z.object({ slug: z.string() }))
     .query(async ({ input, ctx }) => {
       const album = await getAlbumBySlug(input.slug);
-      if (!album || album.status !== "published") {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Album not found" });
-      }
+      assertAlbumPubliclyReadable(album, ctx.user?.role);
 
       await incrementAlbumView(album.id);
 
       const allPhotos = await getPhotosByAlbumId(album.id);
       const albumTags = await getTagsByAlbumId(album.id);
 
-      const userIsVip = ctx.user ? isVipUser(ctx.user.role) : false;
+      const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
       const bookmarkedByUser = ctx.user ? await isBookmarked(ctx.user.id, album.id) : false;
 
-      // For VIP albums, only return free preview photos to non-VIP users
       let visiblePhotos = allPhotos;
       if (album.isVip && !userIsVip) {
         visiblePhotos = allPhotos.filter((p) => p.isFreePreview);
       }
 
-      // Generate signed URLs for VIP photos
-      const photosWithUrls = await Promise.all(
-        visiblePhotos.map(async (photo) => {
-          if (album.isVip && userIsVip && photo.webpKey) {
-            // Generate signed URL for premium content
-            const signedUrl = await getSignedMediaUrl(photo.webpKey, 3600);
-            return { ...photo, displayUrl: signedUrl, isLocked: false };
-          }
-          // Build URL from key as fallback when URL columns are NULL (e.g., ZIP import legacy data)
-          const resolveUrl = (url: string | null | undefined, key: string | null | undefined) =>
-            url || (key ? getPublicUrl(key) : null);
-          return {
-            ...photo,
-            displayUrl:
-              resolveUrl(photo.mediumUrl, photo.mediumKey) ||
-              resolveUrl(photo.webpUrl, photo.webpKey) ||
-              resolveUrl(photo.originalUrl, photo.originalKey) ||
-              resolveUrl(photo.thumbUrl, photo.thumbKey),
-            isLocked: false,
-          };
-        })
-      );
+      const photosWithUrls = await presentPhotosForClient(visiblePhotos, {
+        albumIsVip: !!album.isVip,
+        userIsVip,
+        isAdminUser,
+      });
 
-      // For non-VIP users viewing VIP albums, add locked placeholders
       const lockedCount = album.isVip && !userIsVip ? allPhotos.length - visiblePhotos.length : 0;
 
       // Fetch creator info if assigned
@@ -181,6 +156,7 @@ export const albumsRouter = router({
         character: input.character,
         series: input.series,
         status: input.status,
+        publishStatus: input.status === "published" ? "published" : "draft",
         createdBy: ctx.user.id,
       });
 
@@ -224,6 +200,13 @@ export const albumsRouter = router({
 
       const { id, tagNames, ...data } = input;
 
+      const publishSync =
+        data.status === "published"
+          ? { publishStatus: "published" as const }
+          : data.status === "draft" || data.status === "archived"
+            ? { publishStatus: "draft" as const }
+            : {};
+
       // Auto-sync cosplayer field with creator name
       if (data.creatorId !== undefined) {
         if (data.creatorId) {
@@ -249,7 +232,7 @@ export const albumsRouter = router({
         }
       }
 
-      await updateAlbum(id, data);
+      await updateAlbum(id, { ...data, ...publishSync });
 
       if (tagNames !== undefined) {
         const tagIds = await Promise.all(

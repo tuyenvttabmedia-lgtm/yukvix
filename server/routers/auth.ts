@@ -23,6 +23,7 @@ import {
   sendPasswordResetEmail,
   sendPasswordChangedEmail,
 } from "../email";
+import { getPublicSiteUrl } from "../_core/site-url";
 
 // Reset token TTL: 1 hour
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -180,11 +181,7 @@ export const authRouter = router({
       const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
       await db.createPasswordResetToken(user.id, token, expiresAt);
 
-      // Build reset URL
-      const origin =
-        input.origin ??
-        (ctx.req.headers.origin as string | undefined) ??
-        "http://localhost:3000";
+      const origin = getPublicSiteUrl(ctx.req);
       const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(token)}`;
 
       // Send email (non-blocking — don't fail the request if email fails)

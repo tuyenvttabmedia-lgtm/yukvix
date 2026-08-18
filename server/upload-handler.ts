@@ -6,6 +6,7 @@ import type { Express, Request, Response } from "express";
 import multer from "multer";
 import JSZip from "jszip";
 import { sdk } from "./_core/sdk";
+import { isAdmin } from "@shared/const";
 import {
   createPhoto,
   createUploadJob,
@@ -24,7 +25,7 @@ const upload = multer({
 
 function requireAdmin(req: Request, res: Response): boolean {
   const user = (req as any).user;
-  if (!user || user.role !== "admin") {
+  if (!user || !isAdmin(user.role)) {
     res.status(403).json({ error: "Admin access required" });
     return false;
   }
@@ -189,6 +190,10 @@ export function registerUploadRoutes(app: Express) {
       const { albumId, key, fileSize } = req.body;
       if (!albumId || !key) {
         res.status(400).json({ error: "albumId and key are required" });
+        return;
+      }
+      if (typeof key !== "string" || !key.startsWith("download-zips/")) {
+        res.status(400).json({ error: "Invalid ZIP key" });
         return;
       }
       const album = await getAlbumById(parseInt(albumId));

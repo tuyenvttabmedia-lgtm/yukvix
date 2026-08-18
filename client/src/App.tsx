@@ -9,6 +9,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import MobileTabBar from "./components/MobileTabBar";
 import SeoTracking from "./components/SeoTracking";
+import AgeGate from "./components/AgeGate";
 
 // ─── Eagerly loaded (critical path — always needed on first render) ───────────
 import Home from "./pages/Home";
@@ -259,6 +260,7 @@ function App() {
           <Toaster />
           <DynamicFavicon />
           <SeoTracking />
+          <AgeGate />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

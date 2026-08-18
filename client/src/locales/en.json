@@ -771,5 +771,14 @@
     "failedToast": "Failed to reset password. Please try again.",
     "redirecting": "Redirecting to login...",
     "signInNow": "Sign In Now"
+  },
+  "ageGate": {
+    "title": "Are you 18 or older?",
+    "body": "Yukvix contains adult-oriented cosplay photography. You must be at least 18 years old to enter this site.",
+    "confirm": "I am 18 or older",
+    "leave": "Leave",
+    "legal": "By entering you agree to our",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Use"
   }
 }

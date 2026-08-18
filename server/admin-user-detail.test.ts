@@ -37,6 +37,8 @@ vi.mock("./db", () => ({
   createPasswordResetToken: vi.fn(),
   getPasswordResetToken: vi.fn(),
   markPasswordResetTokenUsed: vi.fn(),
+  createSubscription: vi.fn(),
+  activateSubscription: vi.fn(),
 }));
 
 // --- Mock email service -------------------------------------------------------
@@ -185,14 +187,23 @@ describe("admin.users.unban", () => {
 describe("admin.users.grantVip", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("grants VIP successfully", async () => {
-    const { updateUserRole } = await import("./db");
+  it("grants VIP with a manual subscription", async () => {
+    const { updateUserRole, getSubscriptionPlans, createSubscription, activateSubscription } = await import("./db");
     vi.mocked(updateUserRole).mockResolvedValue(undefined);
+    vi.mocked(getSubscriptionPlans).mockResolvedValue([{ id: 1 }] as any);
+    vi.mocked(createSubscription).mockResolvedValue(undefined as any);
+    vi.mocked(activateSubscription).mockResolvedValue(undefined as any);
 
     const caller = appRouter.createCaller(makeAdminCtx());
     const result = await caller.users.grantVip({ userId: 5 });
 
     expect(result.success).toBe(true);
+    expect(createSubscription).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 5,
+      planId: 1,
+      provider: "manual",
+    }));
+    expect(activateSubscription).toHaveBeenCalled();
     expect(updateUserRole).toHaveBeenCalledWith(5, "vip");
   });
 });

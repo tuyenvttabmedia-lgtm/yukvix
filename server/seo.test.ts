@@ -68,6 +68,7 @@ vi.mock("../drizzle/schema", () => ({
   creators: { slug: "slug", updatedAt: "updatedAt", albumCount: "albumCount" },
   tags: { slug: "slug", createdAt: "createdAt" },
   photos: { albumId: "albumId", isFreePreview: "isFreePreview" },
+  categories: { slug: "slug", updatedAt: "updatedAt" },
   adminPermissions: { id: "id", userId: "userId", permission: "permission", grantedBy: "grantedBy", grantedAt: "grantedAt" },
   ADMIN_PERMISSIONS: ["manage_users","manage_albums","manage_payments","manage_cms","manage_import","manage_settings","view_analytics"],
 }));
@@ -107,6 +108,7 @@ describe("SEO Routes", () => {
       expect(res.text).toContain("/sitemap-albums.xml");
       expect(res.text).toContain("/sitemap-images.xml");
       expect(res.text).toContain("/sitemap-pages.xml");
+      expect(res.text).toContain("/sitemap-categories.xml");
     });
 
     it("includes lastmod date", async () => {
@@ -161,6 +163,16 @@ describe("SEO Routes", () => {
       expect(res.text).toContain("<changefreq>daily</changefreq>");
       expect(res.text).toContain("<changefreq>hourly</changefreq>");
       expect(res.text).toContain("<changefreq>monthly</changefreq>");
+    });
+  });
+
+  describe("GET /sitemap-categories.xml", () => {
+    it("returns category landing URLs", async () => {
+      const res = await request(app).get("/sitemap-categories.xml");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toMatch(/application\/xml/);
+      expect(res.text).toContain("<urlset");
+      expect(res.text).toContain("/search?category=");
     });
   });
 
@@ -244,6 +256,7 @@ describe("SEO Routes", () => {
       expect(res.text).toContain("/sitemap-index.xml");
       expect(res.text).toContain("/sitemap.xml");
       expect(res.text).toContain("/sitemap-images.xml");
+      expect(res.text).toContain("/sitemap-categories.xml");
     });
 
     it("sets long cache-control for robots.txt", async () => {

@@ -302,7 +302,7 @@ export default function AdminUserDetail() {
                     <div className="flex flex-wrap gap-2">
                       {!isVip ? (
                         <Button
-                          onClick={() => grantVip.mutate({ userId })}
+                          onClick={() => grantVip.mutate({ userId, days: 30 })}
                           disabled={grantVip.isPending}
                           className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
                         >

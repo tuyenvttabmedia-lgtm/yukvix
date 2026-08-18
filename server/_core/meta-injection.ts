@@ -276,7 +276,7 @@ export async function resolveSpaHtml(
   if (path === "/search") {
     const categorySlug = params.get("category");
     const q = params.get("q")?.trim();
-    const hasFilter = !!(q || params.get("vip") || categorySlug);
+    const hasFilter = !!(q || params.get("vip"));
 
     if (categorySlug) {
       const { getDb } = await import("../db.js");

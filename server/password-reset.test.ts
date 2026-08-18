@@ -139,7 +139,7 @@ describe("auth.forgotPassword", () => {
     );
   });
 
-  it("includes origin in the reset URL", async () => {
+  it("uses canonical site URL, ignoring client origin", async () => {
     vi.mocked(db.getUserByEmail).mockResolvedValue(mockUser);
     vi.mocked(db.invalidateUserPasswordResetTokens).mockResolvedValue(undefined);
     vi.mocked(db.createPasswordResetToken).mockResolvedValue(undefined);
@@ -151,7 +151,9 @@ describe("auth.forgotPassword", () => {
     });
 
     const [, , resetUrl] = vi.mocked(email.sendPasswordResetEmail).mock.calls[0]!;
-    expect(resetUrl).toContain("https://mycustomdomain.com");
+    const { getPublicSiteUrl } = await import("./_core/site-url");
+    expect(resetUrl).toContain(`${getPublicSiteUrl()}/reset-password?token=`);
+    expect(resetUrl).not.toContain("mycustomdomain.com");
   });
 });
 

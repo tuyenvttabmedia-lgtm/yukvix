@@ -621,7 +621,7 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
   // Sync photos from server
   useEffect(() => {
     if (photosData) {
-      setPhotoList(photosData as PhotoItem[]);
+      setPhotoList(photosData as unknown as PhotoItem[]);
       setDisplayLimit(DISPLAY_PAGE); // reset display on data refresh
     }
   }, [photosData]);
@@ -642,7 +642,7 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
       });
       // Determine cover photo from coverUrl match (thumb / webp / original)
       if (album.coverUrl && photosData) {
-        const cover = (photosData as PhotoItem[]).find(
+        const cover = (photosData as unknown as PhotoItem[]).find(
           (p) =>
             p.thumbUrl === album.coverUrl ||
             p.webpUrl === album.coverUrl ||

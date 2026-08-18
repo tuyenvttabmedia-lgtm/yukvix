@@ -826,5 +826,14 @@
     "failedToast": "Không thể đặt lại mật khẩu. Vui lòng thử lại.",
     "redirecting": "Đang chuyển đến trang đăng nhập...",
     "signInNow": "Đăng Nhập Ngay"
+  },
+  "ageGate": {
+    "title": "Bạn đã đủ 18 tuổi chưa?",
+    "body": "Yukvix chứa ảnh cosplay dành cho người lớn. Bạn phải từ 18 tuổi trở lên để vào trang.",
+    "confirm": "Tôi đã đủ 18 tuổi",
+    "leave": "Rời đi",
+    "legal": "Khi vào trang, bạn đồng ý với",
+    "privacy": "Chính sách bảo mật",
+    "terms": "Điều khoản sử dụng"
   }
 }

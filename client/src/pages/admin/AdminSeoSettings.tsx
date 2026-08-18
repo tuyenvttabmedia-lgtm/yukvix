@@ -84,7 +84,7 @@ export default function AdminSeoSettings() {
             title: "Sitemap URLs",
             content: (
               <div className="space-y-1.5 text-sm">
-                {["/sitemap.xml", "/sitemap-pages.xml", "/sitemap-albums.xml", "/sitemap-creators.xml", "/sitemap-tags.xml", "/sitemap-images.xml"].map((path) => (
+                {["/sitemap.xml", "/sitemap-pages.xml", "/sitemap-albums.xml", "/sitemap-creators.xml", "/sitemap-tags.xml", "/sitemap-categories.xml", "/sitemap-images.xml"].map((path) => (
                   <div key={path} className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                     <a href={path} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono text-xs">https://yukvix.com{path}</a>
