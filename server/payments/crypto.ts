@@ -23,6 +23,7 @@
  *   NOWPAYMENTS_CURRENCY   — Default crypto currency (default: "usdttrc20")
  */
 import crypto from "crypto";
+import { getPublicSiteUrl } from "../_core/site-url";
 import type {
   PaymentProvider,
   CheckoutInput,
@@ -132,7 +133,7 @@ export class CryptoProvider implements PaymentProvider {
       pay_currency: this.defaultCurrency,
       order_id: orderId,
       order_description: `Yukvix VIP — ${planName} (${intervalDays} days)`,
-      ipn_callback_url: `${successUrl.replace(/\/payment-success.*$/, "")}/api/crypto/webhook`,
+      ipn_callback_url: `${getPublicSiteUrl()}/api/crypto/webhook`,
       success_url: successUrl,
       cancel_url: cancelUrl,
       is_fee_paid_by_user: false,

@@ -25,19 +25,10 @@ export function registerHealthRoutes(app: Express) {
     } catch {
       checks.redis = "warn";
     }
-    let zipImport: Record<string, unknown> | undefined;
-    try {
-      const { getZipImportHealthBlock } = await import("../import/import-health.js");
-      zipImport = await getZipImportHealthBlock();
-    } catch {
-      zipImport = undefined;
-    }
 
     res.status(ok ? 200 : 503).json({
       status: ok ? "ok" : "degraded",
       checks,
-      zipImport,
-      uptime: process.uptime(),
       ts: new Date().toISOString(),
     });
   });

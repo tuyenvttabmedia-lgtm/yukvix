@@ -101,7 +101,7 @@ export async function resolveSpaHtml(
     const slug = decodeURIComponent(albumMatch[1]);
     const { getDb } = await import("../db.js");
     const { albums, photos } = await import("../../drizzle/schema.js");
-    const { eq, asc } = await import("drizzle-orm");
+    const { eq, and, asc } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return { html: out, status: 404 };
     const rows = await db.select().from(albums).where(eq(albums.slug, slug)).limit(1);
@@ -133,7 +133,7 @@ export async function resolveSpaHtml(
         height: photos.height,
       })
       .from(photos)
-      .where(eq(photos.albumId, album.id))
+      .where(and(eq(photos.albumId, album.id), eq(photos.isFreePreview, true)))
       .orderBy(asc(photos.sortOrder))
       .limit(10);
 
@@ -145,11 +145,11 @@ export async function resolveSpaHtml(
       datePublished: album.createdAt ? new Date(album.createdAt).toISOString() : undefined,
       dateModified: album.updatedAt ? new Date(album.updatedAt).toISOString() : undefined,
       images: photoRows.map((p) => ({
-        url: p.webpUrl || p.originalUrl || p.thumbUrl || "",
+        url: p.thumbUrl || "",
         caption: p.altText || `${album.title} cosplay photo`,
         width: p.width || undefined,
         height: p.height || undefined,
-      })),
+      })).filter((p) => p.url),
     });
     const breadcrumbJsonLd = buildBreadcrumbSchema([
       { name: "Home", url: `${base}/` },

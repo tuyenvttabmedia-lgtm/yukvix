@@ -87,7 +87,7 @@ export default function VipPage() {
         navigate(`/payment/crypto/${encodeURIComponent(data.sessionId)}`);
       } else if (data.url) {
         toast.info("Redirecting to secure checkout...");
-        window.open(data.url, "_blank");
+        window.location.href = data.url;
       } else {
         toast.error("Failed to create checkout session");
       }
@@ -109,7 +109,7 @@ export default function VipPage() {
       return;
     }
     if (!isAuthenticated) {
-      window.location.href = "/login";
+      window.location.href = "/login?redirect=/vip";
       return;
     }
     setLoadingPlanId(planId);

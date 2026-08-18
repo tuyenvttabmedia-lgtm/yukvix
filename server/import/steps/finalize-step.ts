@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { zipImportJobs, albums } from "../../../drizzle/schema";
-import { deleteFromStorage, getPublicUrl } from "../../storage-wasabi";
+import { deleteFromStorage } from "../../storage-wasabi";
 import { clearJobWorkerLock } from "../../services/import-job-lock";
 import { copyObjectWithVerify, headObject } from "../wasabi-verify";
 import { shouldAutoPublishAfterImport } from "../import-profile";
@@ -99,7 +99,7 @@ export class FinalizeStep extends BasePipelineStep {
         ...(vipKey
           ? {
               zipKey: vipKey,
-              zipUrl: getPublicUrl(vipKey),
+              zipUrl: null,
               zipSize: vipSize,
               zipGeneratedAt: new Date(),
             }

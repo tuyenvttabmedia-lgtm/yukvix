@@ -494,7 +494,7 @@ Sitemap: ${base}/sitemap-categories.xml
           let imageEntries = "";
           for (let i = 0; i < albumPhotos.length; i++) {
             const photo = albumPhotos[i];
-            const imageUrl = photo.webpUrl || photo.originalUrl || photo.thumbUrl;
+            const imageUrl = photo.thumbUrl;
             if (!imageUrl) continue;
 
             const modelPart = album.cosplayer || album.title.split(" ")[0] || "Model";

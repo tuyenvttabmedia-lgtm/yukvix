@@ -114,7 +114,7 @@ export default function Search() {
           className="text-2xl md:text-3xl font-bold text-foreground mb-6"
           style={{ fontFamily: "'Playfair Display', serif" }}
         >
-          {t("search.title")}
+          {isCategoryLanding && selectedCategory ? selectedCategory.name : t("search.title")}
         </h1>
 
         {/* Search bar */}

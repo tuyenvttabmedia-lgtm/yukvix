@@ -15,12 +15,19 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const { t } = useTranslation();
 
+  const redirectTo = (() => {
+    if (typeof window === "undefined") return "/";
+    const raw = new URLSearchParams(window.location.search).get("redirect");
+    if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+    return raw;
+  })();
+
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: async (data) => {
       await utils.auth.me.invalidate();
       toast.success(`${t("auth.welcomeBack")}, ${data.user.name}!`);
-      navigate("/");
+      navigate(redirectTo);
     },
     onError: (err) => {
       toast.error(err.message || t("auth.loginFailed"));
@@ -123,7 +130,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             {t("auth.noAccount")}{" "}
-            <Link href="/register" className="text-amber-400 hover:text-amber-300 font-medium transition-colors">
+            <Link href={redirectTo !== "/" ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register"} className="text-amber-400 hover:text-amber-300 font-medium transition-colors">
               {t("auth.createOne")}
             </Link>
           </p>

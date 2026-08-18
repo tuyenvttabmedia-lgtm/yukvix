@@ -499,11 +499,23 @@
       "title": "Thanh toán thành công!",
       "subtitle": "Chào mừng đến VIP! Tài khoản của bạn đã được nâng cấp.",
       "browseVip": "Xem album VIP",
-      "goHome": "Về trang chủ"
+      "goHome": "Về trang chủ",
+      "activated": "Đã kích hoạt VIP",
+      "verifying": "Đang xác nhận thanh toán…",
+      "verifyingDesc": "Có thể mất vài giây sau khi bạn thanh toán.",
+      "verifyFailed": "Chưa xác nhận được thanh toán. Nếu bạn đã trả, hãy đợi hoặc liên hệ hỗ trợ.",
+      "welcomeVip": "Chào mừng VIP",
+      "welcomeVipDesc": "Gói của bạn đã kích hoạt. Tận hưởng album HD không giới hạn.",
+      "exploreVip": "Xem album VIP",
+      "myAccount": "Tài khoản",
+      "unknownStatus": "Đang chờ xác nhận thanh toán",
+      "unknownStatusDesc": "Nếu bạn đã trả, VIP sẽ kích hoạt khi webhook tới. Bạn cũng có thể kiểm tra mục Tài khoản.",
+      "backToVip": "Quay lại VIP"
     },
     "cancel": {
       "title": "Thanh toán bị hủy",
       "subtitle": "Thanh toán của bạn đã bị hủy. Không có khoản phí nào được tính.",
+      "desc": "Thanh toán của bạn đã bị hủy. Không có khoản phí nào được tính.",
       "tryAgain": "Thử lại",
       "goHome": "Về trang chủ"
     }

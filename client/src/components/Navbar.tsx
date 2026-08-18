@@ -173,6 +173,14 @@ export default function Navbar() {
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
+                  className="hidden sm:flex bg-amber-500 text-black hover:bg-amber-400 font-semibold"
+                  onClick={() => navigate("/vip")}
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  {t("nav.upgradeVip")}
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
                   className="hidden sm:flex border-border text-foreground hover:bg-secondary"
                   onClick={() => navigate("/login")}

@@ -90,7 +90,10 @@ export const authRouter = router({
   me: publicProcedure.query(({ ctx }) => ctx.user ?? null),
 
   /** Logout — clears the session cookie. */
-  logout: publicProcedure.mutation(({ ctx }) => {
+  logout: publicProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user) {
+      await db.invalidateUserSessions(ctx.user.id);
+    }
     clearAuthCookie(ctx.res, ctx.req);
     return { success: true as const };
   }),

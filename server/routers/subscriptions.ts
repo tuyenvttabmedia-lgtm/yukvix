@@ -226,13 +226,13 @@ export const subscriptionsRouter = router({
       // Source of truth: DB subscription record
       const sub = await getSubscriptionBySessionId(lookupId);
 
-      if (!sub) {
-        console.warn(`[CryptoStatus] No subscription found for sessionId=${lookupId}`);
+      if (!sub || sub.userId !== ctx.user.id) {
+        console.warn(`[CryptoStatus] No subscription found for sessionId=${lookupId} userId=${ctx.user.id}`);
         return {
           status: "not_found",
           dbStatus: null as string | null,
           expiresAt: null as Date | null,
-          invoiceUrl: `https://nowpayments.io/payment/?iid=${lookupId}`,
+          invoiceUrl: null as string | null,
           message: "Payment session not found. Please contact support if you have already paid.",
         };
       }

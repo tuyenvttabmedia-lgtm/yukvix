@@ -209,7 +209,7 @@ export function registerUploadRoutes(app: Express) {
         const zipUrl = getPublicUrl(key);
         await updateAlbum(parseInt(albumId), {
           zipKey: key,
-          zipUrl,
+          zipUrl: null,
           zipSize: fileSize ? parseInt(fileSize) : null,
           zipGeneratedAt: new Date(),
         });

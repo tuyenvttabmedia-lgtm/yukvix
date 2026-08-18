@@ -19,6 +19,7 @@ import { CryptoProvider } from "./payments/crypto";
 import { StripeProvider } from "./payments/stripe";
 import { PaddleProvider } from "./payments/paddle";
 import type { WebhookHandlerResult } from "./payments/provider";
+import { getSetting } from "./settings-service";
 
 async function handleWebhookResult(
   result: WebhookHandlerResult,
@@ -117,16 +118,16 @@ export function registerStripeWebhook(app: Express) {
     "/api/crypto/webhook",
     express.json(),
     async (req: Request, res: Response) => {
-      const apiKey = process.env.NOWPAYMENTS_API_KEY;
-      const ipnSecret = process.env.NOWPAYMENTS_IPN_SECRET;
+      const apiKey = await getSetting("payment.nowpayments.api_key", "NOWPAYMENTS_API_KEY", "");
+      const ipnSecret = await getSetting("payment.nowpayments.ipn_secret", "NOWPAYMENTS_IPN_SECRET", "");
 
       if (!apiKey || !ipnSecret) {
-        // Crypto not configured — return 200 to prevent retries
-        res.status(200).json({ received: true, note: "Crypto not configured" });
+        console.error("[Crypto Webhook] NOWPayments not configured (DB or env)");
+        res.status(503).json({ error: "Crypto not configured" });
         return;
       }
 
-      const currency = process.env.NOWPAYMENTS_CURRENCY || "usdttrc20";
+      const currency = await getSetting("payment.nowpayments.currency", "NOWPAYMENTS_CURRENCY", "usdttrc20");
       const provider = new CryptoProvider(apiKey, ipnSecret, currency);
 
       let result: WebhookHandlerResult;

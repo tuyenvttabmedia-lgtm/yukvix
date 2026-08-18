@@ -31,6 +31,14 @@ export default function RegisterPage() {
 
   const utils = trpc.useUtils();
   const sendVerification = trpc.authEmail.sendVerification.useMutation();
+
+  const redirectTo = (() => {
+    if (typeof window === "undefined") return "/";
+    const raw = new URLSearchParams(window.location.search).get("redirect");
+    if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+    return raw;
+  })();
+
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: async (data) => {
       await utils.auth.me.invalidate();
@@ -48,7 +56,7 @@ export default function RegisterPage() {
           },
         }
       );
-      navigate("/");
+      navigate(redirectTo);
     },
     onError: (err) => {
       toast.error(err.message || t("auth.registrationFailed"));
@@ -199,7 +207,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             {t("auth.alreadyHaveAccount")}{" "}
-            <Link href="/login" className="text-amber-400 hover:text-amber-300 font-medium transition-colors">
+            <Link href={redirectTo !== "/" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"} className="text-amber-400 hover:text-amber-300 font-medium transition-colors">
               {t("auth.signIn")}
             </Link>
           </p>

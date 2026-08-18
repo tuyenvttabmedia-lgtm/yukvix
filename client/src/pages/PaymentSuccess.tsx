@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { isVipOrAdmin } from "@shared/const";
 import { CheckCircle, Crown, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -14,6 +15,13 @@ export default function PaymentSuccess() {
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(true);
 
+  const { data: me } = trpc.auth.me.useQuery(undefined, {
+    refetchInterval: verifying && !verified ? 3000 : false,
+  });
+  const { data: sub } = trpc.subscriptions.mySubscription.useQuery(undefined, {
+    refetchInterval: verifying && !verified ? 3000 : false,
+  });
+
   const verifyPayment = trpc.subscriptions.verifyPayment.useMutation({
     onSuccess: (data) => {
       if (data.success) {
@@ -24,26 +32,39 @@ export default function PaymentSuccess() {
     },
     onError: () => {
       setVerifying(false);
-        toast.error(t("payment.success.verifyFailed"));
+      toast.error(t("payment.success.verifyFailed"));
     },
   });
 
   useEffect(() => {
-    if (sessionId) {
-      verifyPayment.mutate({ sessionId });
-    } else {
+    if (isVipOrAdmin(me?.role) || sub?.status === "active") {
+      setVerified(true);
       setVerifying(false);
     }
+  }, [me, sub]);
+
+  useEffect(() => {
+    if (sessionId) {
+      verifyPayment.mutate({ sessionId });
+      return;
+    }
+    const timer = setTimeout(() => setVerifying(false), 45000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center py-12">
       <div className="text-center max-w-md mx-auto px-4">
-        {verifying ? (
+        {verifying && !verified ? (
           <div>
             <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-foreground">{t("payment.success.verifying")}</h2>
-            <p className="text-muted-foreground mt-2">{t("payment.success.verifyingDesc")}</p>
+            <h2 className="text-xl font-semibold text-foreground">
+              {t("payment.success.verifying")}
+            </h2>
+            <p className="text-muted-foreground mt-2">
+              {t("payment.success.verifyingDesc")}
+            </p>
           </div>
         ) : verified ? (
           <div className="animate-slide-up">
@@ -75,7 +96,9 @@ export default function PaymentSuccess() {
           </div>
         ) : (
           <div>
-            <h2 className="text-xl font-semibold text-foreground mb-3">{t("payment.success.unknownStatus")}</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-3">
+              {t("payment.success.unknownStatus")}
+            </h2>
             <p className="text-muted-foreground mb-6">
               {t("payment.success.unknownStatusDesc")}
             </p>

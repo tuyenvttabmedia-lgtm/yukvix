@@ -11,12 +11,16 @@ const SKIP_PREFIXES = [
   "/terms",
   "/dmca",
   "/contact",
+  "/about",
+  "/info",
   "/login",
   "/register",
   "/forgot-password",
   "/reset-password",
   "/verify-email",
   "/admin",
+  "/vip",
+  "/payment",
 ];
 
 function shouldSkip(path: string): boolean {

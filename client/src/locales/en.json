@@ -444,11 +444,23 @@
       "title": "Payment Successful!",
       "subtitle": "Welcome to VIP!",
       "browseVip": "Browse VIP Albums",
-      "goHome": "Go to Home"
+      "goHome": "Go to Home",
+      "activated": "VIP activated",
+      "verifying": "Confirming your payment…",
+      "verifyingDesc": "This can take a few seconds after you pay.",
+      "verifyFailed": "Could not confirm payment yet. If you already paid, wait a moment or contact support.",
+      "welcomeVip": "Welcome to VIP",
+      "welcomeVipDesc": "Your membership is active. Enjoy unlimited HD albums.",
+      "exploreVip": "Explore VIP albums",
+      "myAccount": "My account",
+      "unknownStatus": "We're still confirming your payment",
+      "unknownStatusDesc": "If you already paid, VIP will activate when the payment webhook arrives. You can also check Account.",
+      "backToVip": "Back to VIP"
     },
     "cancel": {
       "title": "Payment Cancelled",
       "subtitle": "Your payment was cancelled. No charges were made.",
+      "desc": "Your payment was cancelled. No charges were made.",
       "tryAgain": "Try Again",
       "goHome": "Go to Home"
     }

@@ -126,17 +126,10 @@ export const downloadsRouter = router({
       }
 
       // If album already has a ZIP URL (manually uploaded or previously generated), use it directly
-      if (album.zipUrl && album.zipKey) {
-        // Generate a short-lived presigned GET URL (15 min) so the link cannot be shared
+      if (album.zipKey) {
         const presignedUrl = await getSignedMediaUrl(album.zipKey, 15 * 60);
         await logDownload(ctx.user.id, album.id, album.zipSize ?? undefined);
         return { zipUrl: presignedUrl, zipSize: album.zipSize, cached: true };
-      }
-
-      // album.zipUrl set but no zipKey (legacy /manus-storage/ URL) — serve as-is
-      if (album.zipUrl) {
-        await logDownload(ctx.user.id, album.id, album.zipSize ?? undefined);
-        return { zipUrl: album.zipUrl, zipSize: album.zipSize, cached: true };
       }
 
       // Generate new ZIP
@@ -165,7 +158,7 @@ export const downloadsRouter = router({
       const album = await getAlbumById(input.albumId);
       if (!album) return { hasZip: false, zipSize: null };
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const hasZip = !!(album.zipUrl && album.zipGeneratedAt && album.zipGeneratedAt > sevenDaysAgo);
+      const hasZip = !!(album.zipKey || (album.zipUrl && album.zipGeneratedAt && album.zipGeneratedAt > sevenDaysAgo));
       return { hasZip, zipSize: album.zipSize ?? null };
     }),
 
