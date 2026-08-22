@@ -49,6 +49,14 @@ async function findAvailablePort(startPort: number = 3010): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+/** Nginx proxies public traffic; production binds loopback only. */
+function listenHost(): string | undefined {
+  const host = process.env.HOST?.trim();
+  if (host) return host;
+  if (process.env.NODE_ENV === "production") return "127.0.0.1";
+  return undefined;
+}
+
 // --- Rate limiters -------------------------------------------------------
 // Strict limiter for auth endpoints (login, register, forgot password)
 const authRateLimiter = rateLimit({
@@ -171,8 +179,10 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, async () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  const host = listenHost();
+  const onListen = async () => {
+    const addr = host ?? "0.0.0.0";
+    console.log(`Server running on http://${addr}:${port}/`);
     // Load Wasabi + CDN config from DB (overrides env defaults)
     try {
       await refreshWasabiConfig();
@@ -206,7 +216,9 @@ async function startServer() {
     } else {
       startZipImportScheduler();
     }
-  });
+  };
+  if (host) server.listen(port, host, onListen);
+  else server.listen(port, onListen);
 }
 
 async function startImportWorker(): Promise<void> {
@@ -218,8 +230,10 @@ async function startImportWorker(): Promise<void> {
   });
 
   const port = parseInt(process.env.IMPORT_WORKER_PORT || "3001", 10);
-  app.listen(port, async () => {
-    console.log(`[ImportWorker] health http://127.0.0.1:${port}/api/health`);
+  const host = listenHost();
+  const onListen = async () => {
+    const addr = host ?? "127.0.0.1";
+    console.log(`[ImportWorker] health http://${addr}:${port}/api/health`);
     try {
       await refreshWasabiConfig();
       console.log("[Wasabi] Config loaded from DB");
@@ -227,7 +241,9 @@ async function startImportWorker(): Promise<void> {
       console.log("[Wasabi] Using env config (DB not ready)");
     }
     startZipImportScheduler();
-  });
+  };
+  if (host) app.listen(port, host, onListen);
+  else app.listen(port, onListen);
 }
 
 const workerMode = getWorkerMode();
