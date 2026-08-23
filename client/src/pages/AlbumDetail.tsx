@@ -457,10 +457,10 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
                 }}
                 disabled={zipLoading}
                 className="bg-primary hover:bg-primary/90"
-                title={album.zipUrl ? `ZIP ready${album.zipSize ? ` (${(album.zipSize / 1024 / 1024).toFixed(1)} MB)` : ''}` : 'ZIP will be generated on first download'}
+                title={album.zipKey || album.zipUrl ? `ZIP ready${album.zipSize ? ` (${(album.zipSize / 1024 / 1024).toFixed(1)} MB)` : ''}` : 'ZIP will be generated on first download'}
               >
                 {zipLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                {zipLoading ? t("album.preparingZip") : album.zipUrl ? `${t("album.downloadZip")}${album.zipSize ? ` (${(album.zipSize / 1024 / 1024).toFixed(1)}MB)` : ''}` : t("album.downloadZip")}
+                {zipLoading ? t("album.preparingZip") : (album.zipKey || album.zipUrl) ? `${t("album.downloadZip")}${album.zipSize ? ` (${(album.zipSize / 1024 / 1024).toFixed(1)}MB)` : ''}` : t("album.downloadZip")}
               </Button>
             ) : album.isVip ? (
               <Button size="sm" variant="outline" onClick={() => window.location.href = "/vip"} className="border-primary/50 text-primary hover:bg-primary/10">

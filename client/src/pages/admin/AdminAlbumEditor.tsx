@@ -481,6 +481,12 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
   const bulkDeleteMutation = trpc.photos.bulkDelete.useMutation();
   const updateSeoMutation = trpc.photos.updateSeo.useMutation();
   const updateAlbumMutation = trpc.albums.update.useMutation();
+  const adminGetZipUrl = trpc.downloads.adminGetZipUrl.useMutation({
+    onSuccess: (res) => {
+      window.open(res.zipUrl, "_blank");
+    },
+    onError: (err) => toast.error(err.message || "Không lấy được link ZIP"),
+  });
   const suggestAlbumSeoMutation = trpc.seo.suggestAlbum.useMutation();
   const suggestTagsMutation = trpc.seo.suggestTagsFromImages.useMutation();
   const generateAltTextsMutation = trpc.photos.generateAltTexts.useMutation();
@@ -1326,14 +1332,14 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
               ZIP Tải Xuống
             </h2>
 
-            {/* Current ZIP status */}
-            {(album as any).zipUrl && (
+            {/* Import copies the original archive to zipKey; zipUrl is often null (private bucket). */}
+            {((album as any).zipKey || (album as any).zipUrl) ? (
               <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-950/40 border border-emerald-800/50">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-emerald-300">ZIP đã sẵn sàng</p>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {(album as any).zipUrl.split("/").pop()}
+                    {(((album as any).zipKey || (album as any).zipUrl) as string).split("/").pop()}
                     {(album as any).zipSize && (
                       <span className="ml-2 text-emerald-400/70">
                         ({((album as any).zipSize / 1024 / 1024).toFixed(1)} MB)
@@ -1341,18 +1347,16 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
                     )}
                   </p>
                 </div>
-                <a
-                  href={(album as any).zipUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-shrink-0 text-xs text-emerald-400 hover:text-emerald-300 underline"
+                <button
+                  type="button"
+                  onClick={() => adminGetZipUrl.mutate({ albumId })}
+                  disabled={adminGetZipUrl.isPending || !(album as any).zipKey}
+                  className="flex-shrink-0 text-xs text-emerald-400 hover:text-emerald-300 underline disabled:opacity-50"
                 >
-                  Xem
-                </a>
+                  {adminGetZipUrl.isPending ? "Đang mở..." : "Tải"}
+                </button>
               </div>
-            )}
-
-            {!((album as any).zipUrl) && (
+            ) : (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/50 border border-border">
                 <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <p className="text-sm text-muted-foreground">Chưa có ZIP tải xuống nào được gán cho album này.</p>
@@ -1388,7 +1392,7 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {dlZipUploading ? `${dlZipProgress}%` : (album as any).zipUrl ? "Thay thế ZIP" : "Upload ZIP"}
+                {dlZipUploading ? `${dlZipProgress}%` : ((album as any).zipKey || (album as any).zipUrl) ? "Thay thế ZIP" : "Upload ZIP"}
               </Button>
             </div>
 

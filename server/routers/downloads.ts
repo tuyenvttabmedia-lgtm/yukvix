@@ -121,15 +121,28 @@ export const downloadsRouter = router({
       }
 
       const album = await getAlbumById(input.albumId);
-      if (!album || album.status !== "published") {
+      if (!album) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Album not found" });
+      }
+      const adminUser = isAdmin(ctx.user.role);
+      if (album.status !== "published" && !adminUser) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Album not found" });
       }
 
-      // If album already has a ZIP URL (manually uploaded or previously generated), use it directly
+      // Original VIP ZIP lives in zipKey (zipUrl is often null after private-bucket imports).
       if (album.zipKey) {
         const presignedUrl = await getSignedMediaUrl(album.zipKey, 15 * 60);
-        await logDownload(ctx.user.id, album.id, album.zipSize ?? undefined);
+        if (!adminUser) {
+          await logDownload(ctx.user.id, album.id, album.zipSize ?? undefined);
+        }
         return { zipUrl: presignedUrl, zipSize: album.zipSize, cached: true };
+      }
+
+      if (adminUser && album.status !== "published") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Album has no original ZIP file yet",
+        });
       }
 
       // Generate new ZIP
@@ -168,6 +181,23 @@ export const downloadsRouter = router({
     .query(async ({ input, ctx }) => {
       const { page = 1, limit = 20 } = input ?? {};
       return getDownloadHistory(ctx.user.id, page, limit);
+    }),
+
+  // --- Admin: Signed URL for original ZIP (drafts included; zipKey not zipUrl)
+  adminGetZipUrl: protectedProcedure
+    .input(z.object({ albumId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+      const album = await getAlbumById(input.albumId);
+      if (!album) throw new TRPCError({ code: "NOT_FOUND", message: "Album not found" });
+      if (!album.zipKey) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Album has no original ZIP file yet",
+        });
+      }
+      const zipUrl = await getSignedMediaUrl(album.zipKey, 15 * 60);
+      return { zipUrl, zipSize: album.zipSize, zipKey: album.zipKey };
     }),
 
   // --- Admin: Regenerate ZIP for album ---------------------------------------

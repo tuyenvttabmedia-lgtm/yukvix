@@ -99,6 +99,7 @@ export class FinalizeStep extends BasePipelineStep {
         ...(vipKey
           ? {
               zipKey: vipKey,
+              // Private bucket: never persist a public zipUrl. Download uses signed zipKey.
               zipUrl: null,
               zipSize: vipSize,
               zipGeneratedAt: new Date(),
