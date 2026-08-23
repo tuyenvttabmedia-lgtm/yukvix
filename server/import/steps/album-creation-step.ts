@@ -44,6 +44,7 @@ export class AlbumCreationStep extends BasePipelineStep {
     const db = await getDb();
     if (!db) throw new Error("DB not available");
 
+    const previewCount = ctx.pendingAlbum?.freePreviewCount ?? ctx.importProfile?.preview ?? 10;
     const photoRows = ctx.allProcessed.map((p) => ({
       originalKey: p.webpKey,
       webpKey: p.webpKey,
@@ -56,6 +57,7 @@ export class AlbumCreationStep extends BasePipelineStep {
       width: p.width || null,
       height: p.height || null,
       filename: p.filename,
+      isFreePreview: (p.sortOrder ?? 0) < previewCount,
     }));
 
     const SKIP_COVER_NAMES = /^(logo|banner|preview|sample|thumb|watermark|cover_text)/i;
@@ -83,7 +85,7 @@ export class AlbumCreationStep extends BasePipelineStep {
     }
 
     try {
-      if (ctx.isV2 && ctx.pendingAlbum && !ctx.albumId) {
+      if ((ctx.isV2 || ctx.pendingAlbum) && ctx.pendingAlbum && !ctx.albumId) {
         const pending = ctx.pendingAlbum;
         const albumId = await db.transaction(async (tx) => {
           const [albumResult] = await tx.insert(albums).values({
@@ -94,8 +96,6 @@ export class AlbumCreationStep extends BasePipelineStep {
             collectionName: pending.collectionName,
             description: pending.description,
             shortDescription: pending.shortDescription,
-            category: pending.category,
-            tags: pending.tags ? JSON.stringify(pending.tags) : null,
             metaTitle: pending.metaTitle,
             metaDescription: pending.metaDescription,
             focusKeyword: pending.focusKeyword,
@@ -112,6 +112,7 @@ export class AlbumCreationStep extends BasePipelineStep {
             coverKey: coverThumbKey,
             coverUrl: getPublicUrl(coverThumbKey),
             photoCount: photoRows.length,
+            seoKeywords: pending.tags ? pending.tags.join(", ") : null,
           });
 
           const newAlbumId = (albumResult as { insertId: number }).insertId;

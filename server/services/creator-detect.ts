@@ -328,7 +328,8 @@ export async function detectCreatorWithAi(filename: string): Promise<string | nu
 /** Full resolver — AI+Google verify before create. */
 export async function resolveCreatorFromFilename(
   filename: string,
-  category?: CreatorCategory
+  category?: CreatorCategory,
+  options?: { createIfMissing?: boolean }
 ): Promise<ResolvedCreator> {
   const regexName = parseCreatorFromFilename(filename);
   const dbHit = await findCreatorInDb(filename);
@@ -359,6 +360,15 @@ export async function resolveCreatorFromFilename(
 
   if (dbHit && normalizeName(dbHit.name) === normalizeName(finalName)) {
     return { name: dbHit.name, creatorId: dbHit.id, source: aiName ? "ai" : "db" };
+  }
+
+  if (options?.createIfMissing === false) {
+    const { findExistingCreator } = await import("./creator-service");
+    const catalogHit = await findExistingCreator(finalName);
+    if (catalogHit) {
+      return { name: catalogHit.creator.name, creatorId: catalogHit.creatorId, source: "db" };
+    }
+    return { name: null, creatorId: null, source: "none" };
   }
 
   try {

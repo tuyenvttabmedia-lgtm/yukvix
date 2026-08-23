@@ -119,7 +119,7 @@ export const albums = mysqlTable(
     coverUrl: text("coverUrl"),       // cached public URL
     categoryId: int("categoryId"),
     isVip: boolean("isVip").default(false).notNull(),
-    freePreviewCount: int("freePreviewCount").default(3).notNull(),
+    freePreviewCount: int("freePreviewCount").default(10).notNull(),
     photoCount: int("photoCount").default(0).notNull(),
     viewCount: int("viewCount").default(0).notNull(),
     status: mysqlEnum("status", ["draft", "published", "archived"]).default("draft").notNull(),

@@ -125,7 +125,7 @@ export const schedulerRouter = router({
         batchSize: importRaw.batchSize as number | undefined,
         timezone: importRaw.timezone as string | undefined,
       },
-      { localHour: 17, batchSize: 10 }
+      { localHour: 17, batchSize: 20 }
     );
 
     const seoRaw = (await loadAdminJson("auto_seo_config")) ?? {};
@@ -292,7 +292,7 @@ export const schedulerRouter = router({
         localHour: importRaw.localHour as number | undefined,
         timezone: importRaw.timezone as string | undefined,
       },
-      { localHour: 17, batchSize: 10 }
+      { localHour: 17, batchSize: 20 }
     );
 
     const currentHour = now.getUTCHours();

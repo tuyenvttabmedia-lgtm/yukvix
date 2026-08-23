@@ -89,7 +89,7 @@ async function buildContext(data: ImportJobData): Promise<StepContext> {
 
   const importProfile = parseImportProfile(row[0]?.importProfile);
   const pendingAlbum = parsePendingAlbumData(row[0]?.pendingAlbumData);
-  const isV2 = isZipImportV2Enabled(importProfile);
+  const isV2 = isZipImportV2Enabled(importProfile) || !!pendingAlbum;
   const { checkpoint, stepMetrics } = await loadJobPipelineState(jobId);
 
   const log = async (msg: string) => {

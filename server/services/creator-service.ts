@@ -50,6 +50,45 @@ export interface FindOrCreateCreatorResult {
 }
 
 /**
+ * Match an existing creator only (name / normalized / alias). Never inserts.
+ */
+export async function findExistingCreator(
+  name: string
+): Promise<FindOrCreateCreatorResult | null> {
+  if (!name.trim() || KNOWN_COLLECTIONS.has(name)) return null;
+
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const normalizedInput = normalizeName(name);
+
+  const exactMatch = await db.select().from(creators).where(eq(creators.name, name)).limit(1);
+  if (exactMatch.length > 0) {
+    return { creatorId: exactMatch[0].id, isNew: false, creator: exactMatch[0] };
+  }
+
+  const normalizedMatch = await db
+    .select()
+    .from(creators)
+    .where(eq(creators.normalizedName, normalizedInput))
+    .limit(1);
+  if (normalizedMatch.length > 0) {
+    return { creatorId: normalizedMatch[0].id, isNew: false, creator: normalizedMatch[0] };
+  }
+
+  const aliasMatch = await db
+    .select()
+    .from(creators)
+    .where(sql`JSON_CONTAINS(${creators.aliases}, ${JSON.stringify(name)})`)
+    .limit(1);
+  if (aliasMatch.length > 0) {
+    return { creatorId: aliasMatch[0].id, isNew: false, creator: aliasMatch[0] };
+  }
+
+  return null;
+}
+
+/**
  * Find or create a creator.
  * Matching order:
  * 1. Exact name match
@@ -67,43 +106,14 @@ export async function findOrCreateCreator(
     throw new Error(`"${name}" is a collection name, not a creator`);
   }
 
+  const existing = await findExistingCreator(name);
+  if (existing) {
+    return { creatorId: existing.creatorId, isNew: false, creator: existing.creator };
+  }
+
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-
   const normalizedInput = normalizeName(name);
-
-  // 1. Exact name match
-  const exactMatch = await db
-    .select()
-    .from(creators)
-    .where(eq(creators.name, name))
-    .limit(1);
-
-  if (exactMatch.length > 0) {
-    return { creatorId: exactMatch[0].id, isNew: false, creator: exactMatch[0] };
-  }
-
-  // 2. Normalized name match
-  const normalizedMatch = await db
-    .select()
-    .from(creators)
-    .where(eq(creators.normalizedName, normalizedInput))
-    .limit(1);
-
-  if (normalizedMatch.length > 0) {
-    return { creatorId: normalizedMatch[0].id, isNew: false, creator: normalizedMatch[0] };
-  }
-
-  // 3. Alias match — check if any existing creator has this name in their aliases JSON array
-  const aliasMatch = await db
-    .select()
-    .from(creators)
-    .where(sql`JSON_CONTAINS(${creators.aliases}, ${JSON.stringify(name)})`)
-    .limit(1);
-
-  if (aliasMatch.length > 0) {
-    return { creatorId: aliasMatch[0].id, isNew: false, creator: aliasMatch[0] };
-  }
 
   // 4. Create new creator
   const slug = await generateUniqueCreatorSlug(name, db);

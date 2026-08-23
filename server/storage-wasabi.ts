@@ -11,13 +11,19 @@
  *     "Network Error" at ~5% upload progress.
  */
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CopyObjectCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ARCHIVE_CONTENT_TYPE, ARCHIVE_PUT_EXPIRES_SECONDS } from "./import/archive-upload";
 import sharp from "sharp";
 import { storagePut } from "./storage";
 
@@ -212,6 +218,78 @@ export async function getPresignedPutUrl(
       `expires=${expiresInSeconds}s endpoint=${WASABI_DIRECT_ENDPOINT}`
   );
   return url;
+}
+
+export async function createMultipartUpload(
+  key: string,
+  contentType = ARCHIVE_CONTENT_TYPE
+): Promise<string | null> {
+  if (!hasWasabi) return null;
+  const client = getS3Client();
+  const result = await client.send(
+    new CreateMultipartUploadCommand({
+      Bucket: WASABI_BUCKET,
+      Key: key,
+      ContentType: contentType,
+      CacheControl: "private, max-age=3600",
+    })
+  );
+  if (!result.UploadId) throw new Error("Wasabi did not return multipart uploadId");
+  console.log(`[Wasabi] createMultipartUpload: key=${key} uploadId=${result.UploadId}`);
+  return result.UploadId;
+}
+
+export async function getPresignedUploadPartUrl(
+  key: string,
+  uploadId: string,
+  partNumber: number,
+  expiresInSeconds = ARCHIVE_PUT_EXPIRES_SECONDS
+): Promise<string | null> {
+  if (!hasWasabi) return null;
+  const client = getS3Client();
+  const command = new UploadPartCommand({
+    Bucket: WASABI_BUCKET,
+    Key: key,
+    UploadId: uploadId,
+    PartNumber: partNumber,
+  });
+  return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+}
+
+export async function completeMultipartUpload(key: string, uploadId: string): Promise<void> {
+  if (!hasWasabi) return;
+  const client = getS3Client();
+  const listed = await client.send(
+    new ListPartsCommand({ Bucket: WASABI_BUCKET, Key: key, UploadId: uploadId })
+  );
+  const parts = (listed.Parts || [])
+    .filter((p) => p.PartNumber != null && p.ETag)
+    .map((p) => ({ PartNumber: p.PartNumber!, ETag: p.ETag! }))
+    .sort((a, b) => a.PartNumber - b.PartNumber);
+  if (parts.length === 0) {
+    throw new Error("No uploaded parts found to complete multipart upload");
+  }
+  await client.send(
+    new CompleteMultipartUploadCommand({
+      Bucket: WASABI_BUCKET,
+      Key: key,
+      UploadId: uploadId,
+      MultipartUpload: { Parts: parts },
+    })
+  );
+  console.log(`[Wasabi] completeMultipartUpload: key=${key} parts=${parts.length}`);
+}
+
+export async function abortMultipartUpload(key: string, uploadId: string): Promise<void> {
+  if (!hasWasabi) return;
+  const client = getS3Client();
+  await client.send(
+    new AbortMultipartUploadCommand({
+      Bucket: WASABI_BUCKET,
+      Key: key,
+      UploadId: uploadId,
+    })
+  );
 }
 
 /**

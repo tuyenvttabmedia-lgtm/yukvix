@@ -26,7 +26,6 @@ export function buildImportProfileSnapshot(
   input: BuildImportProfileInput = {}
 ): ImportProfileSnapshot {
   const vipZipMode = (process.env.VIP_ZIP_MODE || "copy") as VipZipMode;
-  const zipImportV2 = process.env.ZIP_IMPORT_V2 === "true";
 
   return {
     profileVersion: IMPORT_PROFILE_VERSION,
@@ -37,7 +36,7 @@ export function buildImportProfileSnapshot(
     seo: "gemini",
     watermark: false,
     vipZipMode: vipZipMode === "regenerate" ? "regenerate" : "copy",
-    zipImportV2,
+    zipImportV2: true,
   };
 }
 

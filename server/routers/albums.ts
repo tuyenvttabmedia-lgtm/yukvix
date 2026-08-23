@@ -121,7 +121,7 @@ export const albumsRouter = router({
         description: z.string().optional(),
         categoryId: z.number().optional(),
         isVip: z.boolean().default(false),
-        freePreviewCount: z.number().min(0).max(20).default(5),
+        freePreviewCount: z.number().min(0).max(20).default(10),
         cosplayer: z.string().optional(),
         character: z.string().optional(),
         series: z.string().optional(),
@@ -267,7 +267,7 @@ export const albumsRouter = router({
       if (!isAdmin(ctx.user.role)) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      return listAlbums({ ...input });
+      return listAlbums({ ...input, excludeProcessing: true });
     }),
 
   // --- Public: Related albums --------------------------------------------------

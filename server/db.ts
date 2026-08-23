@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, ilike, inArray, like, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, inArray, like, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import type { Pool } from "mysql2/promise";
 import { createPool } from "mysql2/promise";
@@ -249,15 +249,17 @@ export async function listAlbums(opts: {
   tagIds?: number[];
   tagSlug?: string;
   sortBy?: string;
+  excludeProcessing?: boolean;
 }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
 
-  const { page = 1, limit = 20, status, isVip, categoryId, creatorId, search, tagIds, tagSlug, sortBy = "newest" } = opts;
+  const { page = 1, limit = 20, status, isVip, categoryId, creatorId, search, tagIds, tagSlug, sortBy = "newest", excludeProcessing } = opts;
   const offset = (page - 1) * limit;
 
   const conditions = [];
   if (status) conditions.push(eq(albums.status, status as Album["status"]));
+  if (excludeProcessing) conditions.push(ne(albums.publishStatus, "processing"));
   if (isVip !== undefined) conditions.push(eq(albums.isVip, isVip));
   if (categoryId) conditions.push(eq(albums.categoryId, categoryId));
   if (creatorId) conditions.push(eq(albums.creatorId, creatorId));

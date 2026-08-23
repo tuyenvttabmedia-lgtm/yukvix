@@ -18,6 +18,7 @@ import { EntityPage, OperationsPage } from "@/admin";
 import AdminLayout from "./AdminLayout";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { uploadArchiveMultipart, uploadArchivePut } from "@/lib/archive-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -211,22 +212,11 @@ function UploadStep({
         size: file.size,
       });
 
-      // Direct upload to Wasabi via presigned URL
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 100));
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Upload failed: HTTP ${xhr.status}`));
-        };
-        xhr.onerror = () => reject(new Error("Upload network error"));
-        xhr.open("PUT", presignedUrl);
-        xhr.setRequestHeader("Content-Type", "application/octet-stream");
-        xhr.send(file);
+      if (!presignedUrl) throw new Error("Wasabi presign failed");
+      await uploadArchivePut({
+        url: presignedUrl,
+        file,
+        onProgress: setUploadProgress,
       });
 
       toast.success("Tải lên thành công", { description: `${file.name} đã được tải lên.` });
@@ -405,8 +395,8 @@ function SeoFormStep({
         originalFileName,
         archivePasswordIndex: form.archivePasswordIndex,
       });
-      toast.success("Album đã được tạo", { description: "Import đang được xếp hàng chờ xử lý." });
-      onSuccess(result.albumId, result.albumSlug);
+      toast.success("Đã xếp vào kho chờ", { description: "Album sẽ được tạo khi worker chạy (Run hoặc lịch ngày)." });
+      onSuccess(result.jobId, result.albumSlug ?? "");
     } catch (err) {
       toast.error("Lỗi tạo album", { description: (err as Error).message });
     }
@@ -878,14 +868,17 @@ function BatchUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Import config
-  const [publishMode, setPublishMode] = useState<"draft" | "published">("draft");
+  const [publishMode, setPublishMode] = useState<"draft" | "published">("published");
   const [defaultVip, setDefaultVip] = useState(true);
-  const [freePreviewCount, setFreePreviewCount] = useState<number | null>(5);
+  const [freePreviewCount, setFreePreviewCount] = useState<number | null>(10);
   const [configSynced, setConfigSynced] = useState(false);
 
   const batchPresign = trpc.zipImport.batchPresignUploads.useMutation();
   const batchAutoImport = trpc.zipImport.batchAutoImport.useMutation();
-  const triggerQueue = trpc.zipImport.triggerQueueNow.useMutation();
+  const initMultipartMut = trpc.zipImport.createMultipartUpload.useMutation();
+  const presignPartMut = trpc.zipImport.presignUploadPart.useMutation();
+  const completeMultipartMut = trpc.zipImport.completeMultipartUpload.useMutation();
+  const abortMultipartMut = trpc.zipImport.abortMultipartUpload.useMutation();
 
   // Load saved config from server
   const { data: savedConfig } = trpc.zipImport.getBatchImportConfig.useQuery(undefined, {
@@ -942,8 +935,15 @@ function BatchUpload() {
 
     setPhase("uploading");
 
-    // Step 1: Presign all files
-    let presignResults: Array<{ jobId: number; filename: string; presignedUrl: string; error?: string }>;
+    // Step 1: Create staging jobs (PUT url or multipart mode)
+    let presignResults: Array<{
+      jobId: number;
+      filename: string;
+      presignedUrl: string;
+      error?: string;
+      mode?: "put" | "multipart";
+      partSize?: number;
+    }>;
     try {
       const res = await batchPresign.mutateAsync({
         files: pending.map((f) => ({ filename: f.file.name, size: f.file.size })),
@@ -955,7 +955,7 @@ function BatchUpload() {
       return;
     }
 
-    // Step 2: Upload each file directly to Wasabi
+    // Step 2: Upload each file directly to Wasabi (multipart for large zips)
     const uploadedJobs: Array<{ jobId: number; filename: string }> = [];
 
     for (let i = 0; i < pending.length; i++) {
@@ -970,22 +970,38 @@ function BatchUpload() {
       updateFile(batchFile.id, { status: "uploading", jobId: presign.jobId });
 
       try {
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("PUT", presign.presignedUrl);
-          xhr.setRequestHeader("Content-Type", "application/octet-stream");
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              updateFile(batchFile.id, { progress: Math.round((e.loaded / e.total) * 100) });
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`HTTP ${xhr.status}`));
-          };
-          xhr.onerror = () => reject(new Error("Network error"));
-          xhr.send(batchFile.file);
-        });
+        const useMultipart = presign.mode === "multipart" || !presign.presignedUrl;
+        if (useMultipart) {
+          await uploadArchiveMultipart({
+            file: batchFile.file,
+            partSize: presign.partSize || 16 * 1024 * 1024,
+            init: async () => {
+              const r = await initMultipartMut.mutateAsync({ jobId: presign.jobId });
+              return { uploadId: r.uploadId };
+            },
+            presignPart: async (uploadId, partNumber) => {
+              const r = await presignPartMut.mutateAsync({
+                jobId: presign.jobId,
+                uploadId,
+                partNumber,
+              });
+              return r.url;
+            },
+            complete: async (uploadId) => {
+              await completeMultipartMut.mutateAsync({ jobId: presign.jobId, uploadId });
+            },
+            abort: async (uploadId) => {
+              await abortMultipartMut.mutateAsync({ jobId: presign.jobId, uploadId });
+            },
+            onProgress: (pct) => updateFile(batchFile.id, { progress: pct }),
+          });
+        } else {
+          await uploadArchivePut({
+            url: presign.presignedUrl,
+            file: batchFile.file,
+            onProgress: (pct) => updateFile(batchFile.id, { progress: pct }),
+          });
+        }
 
         updateFile(batchFile.id, { status: "uploaded", progress: 100 });
         uploadedJobs.push({ jobId: presign.jobId, filename: batchFile.file.name });
@@ -1007,7 +1023,7 @@ function BatchUpload() {
       if (batchFile) updateFile(batchFile.id, { status: "queuing" });
     });
 
-    toast.info(`Đang tạo SEO tự động cho ${uploadedJobs.length} album...`);
+      toast.info(`Đang tạo SEO từ tên file cho ${uploadedJobs.length} zip — chưa tạo album.`);
 
     try {
       const queueRes = await batchAutoImport.mutateAsync({
@@ -1030,17 +1046,8 @@ function BatchUpload() {
       const queued = queueRes.results.filter((r) => !r.error).length;
       const failed = queueRes.results.filter((r) => r.error).length;
 
-      // Step 4: Trigger queue processing immediately (only if not in scheduled-only mode)
-      // In scheduled-only mode, jobs wait for cron/manual trigger
-      try {
-        await triggerQueue.mutateAsync();
-      } catch (err) {
-        // If triggerQueue fails (e.g., in scheduled-only mode), just log it
-        console.log("Queue trigger skipped or failed (may be in scheduled-only mode)", err);
-      }
-
       toast.success(
-        `✅ ${queued} album đã vào hàng chờ xử lý${failed > 0 ? `, ${failed} thất bại` : ""}. Chuyển sang Dashboard để theo dõi.`
+        `${queued} zip đã vào kho chờ. Dùng Run hoặc lịch 20 album/ngày để giải nén — album chỉ tạo lúc đó.${failed > 0 ? ` ${failed} thất bại.` : ""}`
       );
       setPhase("done");
     } catch (err) {
@@ -1061,7 +1068,7 @@ function BatchUpload() {
       <div>
         <h2 className="text-lg font-semibold">Batch Upload</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Upload nhiều file RAR/ZIP cùng lúc — hệ thống tự động tạo SEO và đưa vào hàng chờ xử lý. Cấu hình trạng thái, VIP và số ảnh miễn phí bên dưới.
+          Upload nhiều file ZIP lên Wasabi (kho chờ). Album chỉ được tạo khi bấm Run hoặc tới lịch 20 album/ngày. SEO lấy từ tên file, cosplayer chỉ gán nếu khớp danh mục. Free xem 10 ảnh đầu. ZIP gốc là file tải VIP.
         </p>
       </div>
 
@@ -1109,7 +1116,7 @@ function BatchUpload() {
               max={50}
               className="h-8 text-sm"
               value={freePreviewCount ?? ""}
-              placeholder="Mặc định (5)"
+              placeholder="10"
               disabled={isRunning}
               onChange={(e) => {
                 const v = e.target.value;
@@ -1126,7 +1133,7 @@ function BatchUpload() {
               disabled={saveConfigMutation.isPending || isRunning}
               onClick={() => saveConfigMutation.mutate({
                 defaultVip,
-                freePreviewCount: freePreviewCount ?? 5,
+                freePreviewCount: freePreviewCount ?? 10,
                 publishMode,
               })}
             >
@@ -1281,7 +1288,7 @@ function ImportSchedulePanel() {
   const [cronHourUtc, setCronHourUtc] = useState(10);
   const { data: tzData } = trpc.scheduler.getTimezone.useQuery();
   const timezone = tzData?.timezone ?? "Asia/Ho_Chi_Minh";
-  const [batchSize, setBatchSize] = useState(10);
+  const [batchSize, setBatchSize] = useState(20);
   const [showConfig, setShowConfig] = useState(false);
   const [runNowResult, setRunNowResult] = useState<{ processed: number; skipped: number; message: string } | null>(null);
 
@@ -1292,7 +1299,7 @@ function ImportSchedulePanel() {
     setScheduleEnabled(scheduleConfig.enabled ?? false);
     setLocalHour(scheduleConfig.localHour ?? scheduleConfig.cronHourUtc ?? 17);
     setCronHourUtc(scheduleConfig.cronHourUtc ?? scheduleConfig.cronHour ?? 10);
-    setBatchSize(scheduleConfig.batchSize ?? 10);
+    setBatchSize(scheduleConfig.batchSize ?? 20);
   }, [scheduleConfig]);
 
   const { data: waitingData, refetch: refetchWaiting } = trpc.zipImport.countWaitingJobs.useQuery(undefined, {
