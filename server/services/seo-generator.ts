@@ -448,9 +448,19 @@ export function generateSlug(filename: string): string {
 // ─── Rule-Based Fallback ──────────────────────────────────────────────────────
 
 /**
+ * Fast SEO from filename only — used by batch queue so Cloudflare does not time out.
+ */
+export function generateSeoFromFilename(originalFileName: string, siteName?: string): SeoOutput {
+  const cleaned = originalFileName.replace(/\.(zip|rar|7z)$/i, "").trim();
+  const site = siteName || process.env.SITE_NAME || "Yukvix";
+  return fallbackSeo(cleaned, { originalFileName, siteName: site });
+}
+
+/**
  * Rule-based fallback SEO generation.
  * Used when AI fails or is not configured.
  */
+
 function fallbackSeo(filename: string, input: SeoInput & { siteName: string }): SeoOutput {
   const category = detectCategory(filename);
   const creator =

@@ -1051,7 +1051,9 @@ function BatchUpload() {
       );
       setPhase("done");
     } catch (err) {
-      toast.error(`Queue thất bại: ${(err as Error).message}`);
+      toast.error(
+        `Queue báo lỗi (thường do timeout). ZIP đã lên Wasabi — F5 danh sách job waiting, đừng upload lại. ${(err as Error).message}`
+      );
       setPhase("idle");
     }
   };

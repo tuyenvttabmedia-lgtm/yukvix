@@ -34,7 +34,7 @@ import {
 import { checkSeoQuality } from "../services/seo-quality-check";
 import { eq, and, inArray, ne, desc, sql } from "drizzle-orm";
 import path from "path";
-import { generateSeoData } from "../services/seo-generator";
+import { generateSeoData, generateSeoFromFilename } from "../services/seo-generator";
 import { resolveCreatorFromFilename } from "../services/creator-detect";
 import { getPresignedPutUrl, getSignedMediaUrl, createMultipartUpload, getPresignedUploadPartUrl, completeMultipartUpload, abortMultipartUpload } from "../storage-wasabi";
 import {
@@ -1028,10 +1028,12 @@ export const zipImportRouter = router({
             continue;
           }
 
-          const seo = await generateSeoData({
-            originalFileName: item.filename,
-            siteName: process.env.VITE_APP_TITLE || "CosplayVault",
-          });
+          // Filename-only SEO (no Gemini). AI per file used to take 6–18s × N
+          // and Cloudflare closed the request with 499 before the queue finished.
+          const seo = generateSeoFromFilename(
+            item.filename,
+            process.env.VITE_APP_TITLE || "CosplayVault",
+          );
 
           let albumSlug = seo.slug || generateSlug(seo.albumTitle) || seo.albumTitle.toLowerCase().replace(/\s+/g, "-");
           const existingSlug = await db
