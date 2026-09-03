@@ -21,6 +21,7 @@ import {
 } from "../db";
 import { albums as albumsTable } from "../../drizzle/schema";
 import { assertAlbumPubliclyReadable, viewerFlags } from "../photo-access";
+import { withRewrittenCover } from "../public-media-url";
 import { isAdmin } from '@shared/const';
 
 function slugify(text: string): string {
@@ -52,7 +53,10 @@ export const albumsRouter = router({
         ...input,
         status: "published",
       });
-      return result;
+      return {
+        ...result,
+        items: result.items.map(withRewrittenCover),
+      };
     }),
 
   // --- Public: Get album by slug ----------------------------------------------
@@ -82,7 +86,7 @@ export const albumsRouter = router({
       }
 
       return {
-        album,
+        album: withRewrittenCover(album),
         photos: [],
         previewCount: isVipLocked ? preview : total,
         tags: albumTags,
@@ -267,7 +271,10 @@ export const albumsRouter = router({
       if (!isAdmin(ctx.user.role)) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      return listAlbums({ ...input, excludeProcessing: true });
+      return listAlbums({ ...input, excludeProcessing: true }).then((result) => ({
+        ...result,
+        items: result.items.map(withRewrittenCover),
+      }));
     }),
 
   // --- Public: Related albums --------------------------------------------------
@@ -294,7 +301,10 @@ export const albumsRouter = router({
 
       const result = await listAlbums(opts);
       // Exclude the current album
-      return result.items.filter((a) => a.id !== input.albumId).slice(0, input.limit);
+      return result.items
+        .filter((a) => a.id !== input.albumId)
+        .slice(0, input.limit)
+        .map(withRewrittenCover);
     }),
 
   // --- Admin: Get album by ID (for editor) --------------------------------------
@@ -313,7 +323,7 @@ export const albumsRouter = router({
         const creator = await getCreatorById(album.creatorId);
         if (creator) { creatorName = creator.name; creatorSlug = creator.slug; }
       }
-      return { ...album, tags, creatorName, creatorSlug };
+      return { ...withRewrittenCover(album), tags, creatorName, creatorSlug };
     }),
 
   // --- Admin: Sync isFreePreview flags for all albums -------------------------

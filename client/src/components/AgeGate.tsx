@@ -5,6 +5,10 @@ import { Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "yukvix_age_confirmed";
+const COOKIE_NAME = "yukvix_age_confirmed";
+const CANONICAL_ORIGIN =
+  (import.meta.env.VITE_APP_URL as string | undefined)?.replace(/\/$/, "") || "https://yukvix.com";
+const CANONICAL_HOST = new URL(CANONICAL_ORIGIN).hostname;
 
 const SKIP_PREFIXES = [
   "/privacy",
@@ -27,6 +31,49 @@ function shouldSkip(path: string): boolean {
   return SKIP_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${name}=`;
+  for (const part of document.cookie.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) return decodeURIComponent(trimmed.slice(prefix.length));
+  }
+  return null;
+}
+
+function isAgeConfirmed(): boolean {
+  try {
+    if (localStorage.getItem(STORAGE_KEY) === "1") return true;
+  } catch {
+    /* private mode */
+  }
+  return readCookie(COOKIE_NAME) === "1";
+}
+
+function persistAgeConfirmed() {
+  try {
+    localStorage.setItem(STORAGE_KEY, "1");
+  } catch {
+    /* ignore quota / private mode */
+  }
+  const host = window.location.hostname;
+  if (host === CANONICAL_HOST || host.endsWith(`.${CANONICAL_HOST}`)) {
+    document.cookie = `${COOKIE_NAME}=1; Domain=.${CANONICAL_HOST}; Path=/; Max-Age=31536000; SameSite=Lax; Secure`;
+  }
+}
+
+function isSatelliteHost(hostname: string): boolean {
+  return hostname === "staging.yukvix.com" || hostname === `www.${CANONICAL_HOST}`;
+}
+
+function redirectToCanonical(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!isSatelliteHost(window.location.hostname)) return false;
+  const dest = `${CANONICAL_ORIGIN}${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.replace(dest);
+  return true;
+}
+
 export default function AgeGate() {
   const { t } = useTranslation();
   const [location] = useLocation();
@@ -34,25 +81,23 @@ export default function AgeGate() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isAgeConfirmed()) {
+      if (redirectToCanonical()) return;
+      setOpen(false);
+      return;
+    }
     if (shouldSkip(location)) {
       setOpen(false);
       return;
     }
-    try {
-      setOpen(localStorage.getItem(STORAGE_KEY) !== "1");
-    } catch {
-      setOpen(true);
-    }
+    setOpen(true);
   }, [location]);
 
   if (!open) return null;
 
   const confirm = () => {
-    try {
-      localStorage.setItem(STORAGE_KEY, "1");
-    } catch {
-      // ignore quota / private mode
-    }
+    persistAgeConfirmed();
+    if (redirectToCanonical()) return;
     setOpen(false);
   };
 

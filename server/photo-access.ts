@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { isAdmin, isVipOrAdmin } from "@shared/const";
 import { getSignedMediaUrl } from "./storage-wasabi";
+import { rewritePublicMediaUrl } from "./public-media-url";
 
 type AlbumLike = {
   status?: string | null;
@@ -71,6 +72,7 @@ export async function presentPhotoForClient(
   if (isAdminUser) {
     return {
       ...photo,
+      thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
       displayUrl: await signedFullSizeUrl(photo),
       isLocked: false,
     };
@@ -86,7 +88,7 @@ export async function presentPhotoForClient(
       isFreePreview: photo.isFreePreview,
       filename: photo.filename,
       altText: photo.altText,
-      thumbUrl: photo.thumbUrl,
+      thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
       displayUrl: await signedFullSizeUrl(photo),
       isLocked: false,
     };
@@ -113,7 +115,7 @@ export async function presentPhotoForClient(
     isFreePreview: photo.isFreePreview,
     filename: undefined,
     altText: photo.altText,
-    thumbUrl: photo.thumbUrl,
+    thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
     displayUrl: await signedFullSizeUrl(photo),
     isLocked: false,
   };

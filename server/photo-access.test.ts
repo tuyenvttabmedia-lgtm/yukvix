@@ -3,6 +3,8 @@ import { getWorkerMode } from "./_core/worker-mode";
 
 vi.mock("./storage-wasabi", () => ({
   getSignedMediaUrl: vi.fn().mockResolvedValue("https://signed.example/full.webp"),
+  getPublicUrl: (key: string) => `https://cdn.example/${key}`,
+  getWasabiBucket: () => "media.yukvix.com",
 }));
 
 const photo = {

@@ -3,6 +3,7 @@
  */
 
 import { applyFullMeta, STATIC_ROUTE_META } from "./seo-meta.js";
+import { rewritePublicMediaUrl } from "../public-media-url.js";
 import {
   buildBreadcrumbSchema,
   buildCollectionPageSchema,
@@ -110,7 +111,7 @@ export async function resolveSpaHtml(
 
     const title = album.seoTitle || album.title || "Album";
     const desc = album.seoDescription || album.description || "";
-    const og = album.ogImage || album.coverUrl || "";
+    const og = rewritePublicMediaUrl(album.ogImage || album.coverUrl || "") || "";
     const canonical = album.canonicalUrl || `${base}/album/${slug}`;
     const robots = album.robotsIndex === false ? "noindex, nofollow" : "index, follow";
 
@@ -145,7 +146,7 @@ export async function resolveSpaHtml(
       datePublished: album.createdAt ? new Date(album.createdAt).toISOString() : undefined,
       dateModified: album.updatedAt ? new Date(album.updatedAt).toISOString() : undefined,
       images: photoRows.map((p) => ({
-        url: p.thumbUrl || "",
+        url: rewritePublicMediaUrl(p.thumbUrl) || "",
         caption: p.altText || `${album.title} cosplay photo`,
         width: p.width || undefined,
         height: p.height || undefined,
