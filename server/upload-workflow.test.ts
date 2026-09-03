@@ -17,6 +17,7 @@ vi.mock("./db", async (importOriginal) => {
     getPhotoById: vi.fn(),
     getPhotosByAlbumId: vi.fn(),
     countPhotosByAlbumId: vi.fn(),
+    getPreviewPhotosForNonVip: vi.fn(),
     getTagsByAlbumId: vi.fn(),
     createPhoto: vi.fn(),
     updateAlbum: vi.fn(),
@@ -413,6 +414,31 @@ describe("albums.bySlug — VIP protection", () => {
     expect(result.lockedCount).toBe(0);
     expect(result.totalPhotos).toBe(5);
     expect(result.previewCount).toBe(5);
+  });
+
+  it("falls back to album.freePreviewCount when isFreePreview flags are missing", async () => {
+    const { getAlbumBySlug, countPhotosByAlbumId, getTagsByAlbumId, incrementAlbumView } = await import("./db");
+
+    vi.mocked(getAlbumBySlug).mockResolvedValue(mockAlbum);
+    vi.mocked(countPhotosByAlbumId).mockResolvedValue({ total: 50, preview: 0 });
+    vi.mocked(getTagsByAlbumId).mockResolvedValue([]);
+    vi.mocked(incrementAlbumView).mockResolvedValue(undefined as any);
+
+    const anonCtx: TrpcContext = {
+      user: null,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+
+    const guest = await appRouter.createCaller(anonCtx).albums.bySlug({ slug: "vip-album" });
+    expect(guest.isVipLocked).toBe(true);
+    expect(guest.previewCount).toBe(2);
+    expect(guest.lockedCount).toBe(48);
+
+    const loggedInNonVip = await appRouter.createCaller(makeUserCtx()).albums.bySlug({ slug: "vip-album" });
+    expect(loggedInNonVip.isVipLocked).toBe(true);
+    expect(loggedInNonVip.previewCount).toBe(2);
+    expect(loggedInNonVip.lockedCount).toBe(48);
   });
 
   it("unauthenticated user is VIP-locked", async () => {

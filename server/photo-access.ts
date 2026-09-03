@@ -134,3 +134,26 @@ export function viewerFlags(role?: string | null) {
     isAdminUser: isAdmin(role),
   };
 }
+
+/** Guest and logged-in non-VIP share this: flagged photos, else first N by sort order. */
+export function resolveFreePreviewCount(opts: {
+  albumIsVip: boolean;
+  flaggedPreviewCount: number;
+  freePreviewCount: number;
+  total: number;
+}): number {
+  if (!opts.albumIsVip) return opts.total;
+  const flagged = Math.max(0, Number(opts.flaggedPreviewCount) || 0);
+  if (flagged > 0) return Math.min(flagged, opts.total);
+  return Math.min(Math.max(0, Number(opts.freePreviewCount) || 0), opts.total);
+}
+
+export function pickVisiblePhotosForNonVip<T extends { isFreePreview?: boolean | number | null }>(
+  photos: T[],
+  freePreviewCount: number
+): T[] {
+  const flagged = photos.filter((p) => !!p.isFreePreview);
+  if (flagged.length > 0) return flagged;
+  const n = Math.min(Math.max(0, Number(freePreviewCount) || 0), photos.length);
+  return n > 0 ? photos.slice(0, n) : [];
+}

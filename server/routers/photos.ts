@@ -10,6 +10,7 @@ import {
   getPhotoById,
   getPhotosByAlbumId,
   getPhotosByAlbumIdPaginated,
+  getPreviewPhotosForNonVip,
   getProcessingJobStatus,
   setFreePreviewPhotos,
   updateAlbum,
@@ -23,7 +24,12 @@ import {
   uploadPhoto,
 } from "../storage-wasabi";
 import { isAdmin } from "@shared/const";
-import { assertAlbumPubliclyReadable, presentPhotosForClient, viewerFlags } from "../photo-access";
+import {
+  assertAlbumPubliclyReadable,
+  pickVisiblePhotosForNonVip,
+  presentPhotosForClient,
+  viewerFlags,
+} from "../photo-access";
 
 export const photosRouter = router({
   // --- Paginated photos for an album (cursor-based, limit 24) -----------------
@@ -38,24 +44,32 @@ export const photosRouter = router({
       assertAlbumPubliclyReadable(album, ctx.user?.role);
 
       const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
+
+      if (album.isVip && !userIsVip && !isAdminUser) {
+        const previewItems = await getPreviewPhotosForNonVip(
+          input.albumId,
+          album.freePreviewCount ?? 0
+        );
+        const photosWithUrls = await presentPhotosForClient(
+          previewItems.map((p) => ({ ...p, isFreePreview: true })),
+          { albumIsVip: true, userIsVip: false, isAdminUser: false }
+        );
+        return { items: photosWithUrls, nextCursor: null };
+      }
+
       const { items, nextCursor } = await getPhotosByAlbumIdPaginated(
         input.albumId,
         input.cursor,
         input.limit
       );
 
-      const visibleItems = album.isVip && !userIsVip
-        ? items.filter((p) => p.isFreePreview)
-        : items;
-
-      const photosWithUrls = await presentPhotosForClient(visibleItems, {
+      const photosWithUrls = await presentPhotosForClient(items, {
         albumIsVip: !!album.isVip,
         userIsVip,
         isAdminUser,
       });
 
-      const effectiveNextCursor = album.isVip && !userIsVip ? null : nextCursor;
-      return { items: photosWithUrls, nextCursor: effectiveNextCursor };
+      return { items: photosWithUrls, nextCursor };
     }),
 
   // --- Get photos for an album (with access control) --------------------------
@@ -68,9 +82,13 @@ export const photosRouter = router({
       const allPhotos = await getPhotosByAlbumId(input.albumId);
       const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
 
-      const visible = album.isVip && !userIsVip
-        ? allPhotos.filter((p) => p.isFreePreview)
-        : allPhotos;
+      const visible =
+        album.isVip && !userIsVip && !isAdminUser
+          ? pickVisiblePhotosForNonVip(allPhotos, album.freePreviewCount ?? 0).map((p) => ({
+              ...p,
+              isFreePreview: true,
+            }))
+          : allPhotos;
 
       return presentPhotosForClient(visible, {
         albumIsVip: !!album.isVip,
@@ -90,8 +108,11 @@ export const photosRouter = router({
       assertAlbumPubliclyReadable(album, ctx.user.role);
 
       const { userIsVip } = viewerFlags(ctx.user.role);
-      if (album.isVip && !userIsVip && !photo.isFreePreview) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "VIP membership required" });
+      if (album.isVip && !userIsVip) {
+        const allowed = await getPreviewPhotosForNonVip(album.id, album.freePreviewCount ?? 0);
+        if (!allowed.some((p) => p.id === photo.id)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "VIP membership required" });
+        }
       }
 
       const key = photo.webpKey || photo.mediumKey || photo.originalKey;

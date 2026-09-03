@@ -433,6 +433,30 @@ export async function getPhotosByAlbumIdPaginated(
   return { items, nextCursor };
 }
 
+/**
+ * Photos a guest / logged-in non-VIP may see on a VIP album.
+ * Prefer explicit isFreePreview flags; if none were stored, fall back to the
+ * first `freePreviewCount` photos in display order.
+ */
+export async function getPreviewPhotosForNonVip(albumId: number, freePreviewCount: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const flagged = await db
+    .select()
+    .from(photos)
+    .where(and(eq(photos.albumId, albumId), eq(photos.isFreePreview, true)))
+    .orderBy(photos.sortOrder, photos.createdAt);
+  if (flagged.length > 0) return flagged;
+  const n = Math.max(0, Number(freePreviewCount) || 0);
+  if (n === 0) return [];
+  return db
+    .select()
+    .from(photos)
+    .where(eq(photos.albumId, albumId))
+    .orderBy(photos.sortOrder, photos.createdAt)
+    .limit(n);
+}
+
 export async function getPhotoById(id: number) {
   const db = await getDb();
   if (!db) return undefined;

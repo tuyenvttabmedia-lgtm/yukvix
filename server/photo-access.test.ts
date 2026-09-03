@@ -45,6 +45,73 @@ describe("presentPhotoForClient", () => {
     expect(result.displayUrl).toBeNull();
     expect(getSignedMediaUrl).not.toHaveBeenCalled();
   });
+
+  it("unlocks VIP free-preview photos for guests and non-VIP users", async () => {
+    const { presentPhotoForClient } = await import("./photo-access");
+    const result = await presentPhotoForClient(
+      { ...photo, isFreePreview: true },
+      { albumIsVip: true, userIsVip: false, isAdminUser: false }
+    );
+    expect(result.isLocked).toBe(false);
+    expect(result.displayUrl).toBe("https://signed.example/full.webp");
+    expect(result.thumbUrl).toBe(photo.thumbUrl);
+  });
+});
+
+describe("resolveFreePreviewCount / pickVisiblePhotosForNonVip", () => {
+  it("uses flagged photos when they exist", async () => {
+    const { resolveFreePreviewCount, pickVisiblePhotosForNonVip } = await import("./photo-access");
+    expect(
+      resolveFreePreviewCount({
+        albumIsVip: true,
+        flaggedPreviewCount: 3,
+        freePreviewCount: 10,
+        total: 50,
+      })
+    ).toBe(3);
+    const photos = [
+      { id: 1, isFreePreview: false },
+      { id: 2, isFreePreview: true },
+      { id: 3, isFreePreview: false },
+    ];
+    expect(pickVisiblePhotosForNonVip(photos, 10).map((p) => p.id)).toEqual([2]);
+  });
+
+  it("falls back to first N photos when flags were never stored", async () => {
+    const { resolveFreePreviewCount, pickVisiblePhotosForNonVip } = await import("./photo-access");
+    expect(
+      resolveFreePreviewCount({
+        albumIsVip: true,
+        flaggedPreviewCount: 0,
+        freePreviewCount: 10,
+        total: 50,
+      })
+    ).toBe(10);
+    const photos = Array.from({ length: 50 }, (_, i) => ({ id: i + 1, isFreePreview: false }));
+    expect(pickVisiblePhotosForNonVip(photos, 10).map((p) => p.id)).toEqual(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    );
+  });
+
+  it("returns no previews when freePreviewCount is 0", async () => {
+    const { resolveFreePreviewCount, pickVisiblePhotosForNonVip } = await import("./photo-access");
+    expect(
+      resolveFreePreviewCount({
+        albumIsVip: true,
+        flaggedPreviewCount: 0,
+        freePreviewCount: 0,
+        total: 50,
+      })
+    ).toBe(0);
+    const photos = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, isFreePreview: false }));
+    expect(pickVisiblePhotosForNonVip(photos, 0)).toEqual([]);
+  });
+
+  it("treats guests and logged-in non-VIP the same (no VIP role in picker)", async () => {
+    const { pickVisiblePhotosForNonVip } = await import("./photo-access");
+    const photos = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, isFreePreview: false }));
+    expect(pickVisiblePhotosForNonVip(photos, 10)).toHaveLength(10);
+  });
 });
 
 describe("getWorkerMode", () => {

@@ -20,7 +20,7 @@ import {
   upsertTag,
 } from "../db";
 import { albums as albumsTable } from "../../drizzle/schema";
-import { assertAlbumPubliclyReadable, viewerFlags } from "../photo-access";
+import { assertAlbumPubliclyReadable, resolveFreePreviewCount, viewerFlags } from "../photo-access";
 import { withRewrittenCover } from "../public-media-url";
 import { isAdmin } from '@shared/const';
 
@@ -69,7 +69,13 @@ export const albumsRouter = router({
       await incrementAlbumView(album.id);
 
       const albumTags = await getTagsByAlbumId(album.id);
-      const { total, preview } = await countPhotosByAlbumId(album.id);
+      const { total, preview: flaggedPreview } = await countPhotosByAlbumId(album.id);
+      const preview = resolveFreePreviewCount({
+        albumIsVip: !!album.isVip,
+        flaggedPreviewCount: flaggedPreview,
+        freePreviewCount: album.freePreviewCount ?? 0,
+        total,
+      });
 
       const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
       const bookmarkedByUser = ctx.user ? await isBookmarked(ctx.user.id, album.id) : false;
