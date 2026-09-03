@@ -13,6 +13,7 @@ import {
 } from "./ui/dropdown-menu";
 import { useTranslation } from "react-i18next";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { cmsDisplayUrl } from "@/lib/cms-media";
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -21,7 +22,7 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const { data: siteSettings } = trpc.cms.getPublicSettings.useQuery();
   const { t } = useTranslation();
-  const logoUrl = siteSettings?.["logo_url"] || "/manus-storage/yukvix-logo_cfb9338f.png";
+  const logoUrl = cmsDisplayUrl(siteSettings?.["logo_url"]) || "/manus-storage/yukvix-logo_cfb9338f.png";
   const siteName = siteSettings?.["site_name"] || "Yukvix";
 
   const handleSearch = (e: React.FormEvent) => {

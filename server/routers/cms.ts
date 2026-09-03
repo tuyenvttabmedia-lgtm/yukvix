@@ -9,7 +9,15 @@ import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { siteSettings, menus, menuItems, staticPages, categories, contactSubmissions, dmcaSubmissions } from "../../drizzle/schema";
 import { eq, asc, desc } from "drizzle-orm";
-import { getPresignedPutUrl, getSignedMediaUrl, getPublicUrl, isWasabiConfigured, refreshWasabiConfig } from "../storage-wasabi";
+import { getPresignedPutUrl, isWasabiConfigured, refreshWasabiConfig, uploadToStorage } from "../storage-wasabi";
+import {
+  CMS_MAX_UPLOAD_BYTES,
+  cmsMediaPath,
+  extensionFromFilename,
+  isCmsFolder,
+  normalizeCmsContentType,
+  rewriteCmsSettings,
+} from "../cms-media";
 import { getWasabiSettings, setSetting, deleteSetting, invalidateSettingsCache } from "../settings-service";
 import { nanoid } from "nanoid";
 import { invokeLLM } from "../_core/llm.js";
@@ -37,7 +45,7 @@ async function getAllSettings(): Promise<Record<string, string | null>> {
   const db = await getDb();
   if (!db) return {};
   const rows = await db.select().from(siteSettings);
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  return rewriteCmsSettings(Object.fromEntries(rows.map((r) => [r.key, r.value])));
 }
 
 // -- Router --------------------------------------------------------------------
@@ -126,13 +134,52 @@ export const cmsRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const ext = input.filename.split(".").pop() || "bin";
+      if (!isCmsFolder(input.folder)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid CMS folder" });
+      }
+      const ext = extensionFromFilename(input.filename) || "png";
       const key = `${input.folder}/${nanoid(12)}.${ext}`;
-      const uploadUrl = await getPresignedPutUrl(key, input.contentType);
-      // Always use public URL for CMS assets (logo, banner, favicon)
-      // Signed URLs expire after 1 hour and would break the site
-      const publicUrl = getPublicUrl(key);
-      return { uploadUrl, key, publicUrl };
+      const contentType = normalizeCmsContentType(input.filename, input.contentType);
+      const uploadUrl = await getPresignedPutUrl(key, contentType);
+      // Bucket is private — public Wasabi URLs 403. Serve via same-origin proxy.
+      return { uploadUrl, key, publicUrl: cmsMediaPath(key) };
+    }),
+
+  // -- Admin: server-side CMS upload (avoids browser CORS to Wasabi) ------------
+  uploadAsset: adminProcedure
+    .input(
+      z.object({
+        filename: z.string(),
+        contentType: z.string().optional(),
+        folder: z.string().default("cms"),
+        fileBase64: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      if (!isCmsFolder(input.folder)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid CMS folder" });
+      }
+      if (!isWasabiConfigured()) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Wasabi chưa được cấu hình" });
+      }
+      const ext = extensionFromFilename(input.filename);
+      if (!ext) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Chỉ nhận PNG, JPG, WebP, SVG, ICO, GIF",
+        });
+      }
+      const buffer = Buffer.from(input.fileBase64, "base64");
+      if (!buffer.length) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "File rỗng hoặc không đọc được" });
+      }
+      if (buffer.length > CMS_MAX_UPLOAD_BYTES) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "File quá lớn (tối đa 2MB)" });
+      }
+      const key = `${input.folder}/${nanoid(12)}.${ext}`;
+      const contentType = normalizeCmsContentType(input.filename, input.contentType);
+      await uploadToStorage(key, buffer, contentType, { isPrivate: false });
+      return { key, publicUrl: cmsMediaPath(key) };
     }),
 
   // -- Admin: list all static pages ---------------------------------------------

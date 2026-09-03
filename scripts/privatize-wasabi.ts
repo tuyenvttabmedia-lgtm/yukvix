@@ -41,6 +41,7 @@ function publicReadPolicy(bucket: string) {
           `arn:aws:s3:::${bucket}/albums/*/thumb/*`,
           `arn:aws:s3:::${bucket}/library/thumb/*`,
           `arn:aws:s3:::${bucket}/creators/*`,
+          `arn:aws:s3:::${bucket}/cms/*`,
         ],
       },
     ],

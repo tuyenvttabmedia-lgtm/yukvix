@@ -34,6 +34,7 @@ vi.mock("../server/storage-wasabi", () => ({
   getSignedMediaUrl: vi.fn().mockResolvedValue("https://wasabi.example.com/signed"),
   getPublicUrl: vi.fn().mockReturnValue("https://wasabi.example.com/public"),
   isWasabiConfigured: vi.fn().mockReturnValue(true),
+  uploadToStorage: vi.fn().mockResolvedValue({ key: "cms/logos/testnanoid12.png", url: "/api/cms-media/cms/logos/testnanoid12.png" }),
 }));
 
 vi.mock("nanoid", () => ({ nanoid: () => "testnanoid12" }));
@@ -104,7 +105,32 @@ describe("CMS Router — presigned upload", () => {
     });
     expect(result.uploadUrl).toBeTruthy();
     expect(result.key).toMatch(/^cms\/logos\//);
-    expect(result.publicUrl).toBeTruthy();
+    expect(result.publicUrl).toBe("/api/cms-media/cms/logos/testnanoid12.png");
+  });
+
+  it("uploadAsset stores the file and returns a proxy URL", async () => {
+    const { cmsRouter } = await import("../server/routers/cms");
+    const caller = cmsRouter.createCaller(makeCtx("admin") as any);
+    const result = await caller.uploadAsset({
+      filename: "logo.png",
+      contentType: "image/png",
+      folder: "cms/logos",
+      fileBase64: Buffer.from("fake-png").toString("base64"),
+    });
+    expect(result.key).toMatch(/^cms\/logos\//);
+    expect(result.publicUrl).toBe("/api/cms-media/cms/logos/testnanoid12.png");
+  });
+
+  it("uploadAsset rejects non-image filenames", async () => {
+    const { cmsRouter } = await import("../server/routers/cms");
+    const caller = cmsRouter.createCaller(makeCtx("admin") as any);
+    await expect(
+      caller.uploadAsset({
+        filename: "notes.txt",
+        folder: "cms/logos",
+        fileBase64: Buffer.from("x").toString("base64"),
+      })
+    ).rejects.toThrow();
   });
 
   it("presignedUpload rejects non-admin", async () => {

@@ -1,7 +1,7 @@
 /**
  * Admin CMS — Appearance Management
  * Manages: logo, mobile logo, favicon, homepage banners, footer text, social links
- * All media uploaded directly to Wasabi S3 via presigned PUT URLs.
+ * Uploads branding images through the server (private Wasabi bucket).
  */
 import { trpc } from "@/lib/trpc";
 import { SettingsPage } from "@/admin";
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { Image, Link2, Loader2, Palette, Plus, Save, Trash2, Upload } from "lucide-react";
+import { cmsDisplayUrl, CMS_MAX_UPLOAD_BYTES, fileToBase64 } from "@/lib/cms-media";
 import AdminLayout from "../AdminLayout";
 
 // -- Types ---------------------------------------------------------------------
@@ -55,23 +56,37 @@ function MediaUpload({
   accept?: string;
 }) {
   const [uploading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [broken, setBroken] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const presign = trpc.cms.presignedUpload.useMutation();
+  const uploadAsset = trpc.cms.uploadAsset.useMutation();
+  const previewUrl = cmsDisplayUrl(currentUrl);
 
   const handleFile = async (file: File) => {
+    setError(null);
+    setBroken(false);
+    if (file.size > CMS_MAX_UPLOAD_BYTES) {
+      const msg = "File quá lớn (tối đa 2MB)";
+      setError(msg);
+      toast.error(`${label}: ${msg}`);
+      return;
+    }
     setLoading(true);
     try {
-      const { uploadUrl, key, publicUrl } = await presign.mutateAsync({
+      const fileBase64 = await fileToBase64(file);
+      const { publicUrl, key } = await uploadAsset.mutateAsync({
         filename: file.name,
-        contentType: file.type,
+        contentType: file.type || undefined,
         folder,
+        fileBase64,
       });
-      if (!uploadUrl) throw new Error("No upload URL");
-      await fetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!publicUrl) throw new Error("Server không trả URL ảnh");
       onUploaded(publicUrl, key);
-      toast.success(`${label} uploaded`);
-    } catch {
-      toast.error(`Thất bại to upload ${label}`);
+      toast.success(`Đã tải ${label}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Không upload được";
+      setError(msg);
+      toast.error(`${label}: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -80,10 +95,21 @@ function MediaUpload({
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      {currentUrl && (
+      {previewUrl && (
         <div className="relative w-32 h-16 rounded-lg overflow-hidden border border-border bg-secondary">
-          <img src={currentUrl} alt={label} className="w-full h-full object-contain p-1" />
+          <img
+            src={previewUrl}
+            alt={label}
+            className="w-full h-full object-contain p-1"
+            onError={() => setBroken(true)}
+            onLoad={() => setBroken(false)}
+          />
         </div>
+      )}
+      {(error || broken) && (
+        <p className="text-xs text-destructive">
+          {error || "Ảnh không hiển thị. Upload lại hoặc kiểm tra cấu hình Wasabi."}
+        </p>
       )}
       <div className="flex items-center gap-2">
         <Button
@@ -97,7 +123,7 @@ function MediaUpload({
           {currentUrl ? "Replace" : "Upload"}
         </Button>
         <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-        {currentUrl && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{currentUrl}</span>}
+        {previewUrl && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{previewUrl}</span>}
       </div>
     </div>
   );

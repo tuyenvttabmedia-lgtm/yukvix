@@ -122,9 +122,13 @@ export function registerSeoRoutes(app: Express): void {
       if (db) {
         const rows = await db.select().from(siteSettings).where(eq(siteSettings.key, "favicon_url")).limit(1);
         const faviconUrl = rows[0]?.value;
-        if (faviconUrl && faviconUrl.startsWith("http")) {
-          res.redirect(302, faviconUrl);
-          return;
+        if (faviconUrl) {
+          const { rewriteCmsAssetUrl } = await import("./cms-media.js");
+          const resolved = rewriteCmsAssetUrl(faviconUrl);
+          if (resolved.startsWith("http") || resolved.startsWith("/")) {
+            res.redirect(302, resolved);
+            return;
+          }
         }
       }
     } catch {

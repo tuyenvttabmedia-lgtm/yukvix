@@ -310,6 +310,10 @@ export function isWasabiConfigured(): boolean {
   return hasWasabi;
 }
 
+export function getWasabiBucket(): string {
+  return WASABI_BUCKET;
+}
+
 /**
  * Delete a file from storage
  */

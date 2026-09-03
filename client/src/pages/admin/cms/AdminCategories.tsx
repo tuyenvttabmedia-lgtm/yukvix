@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useRef, useState } from "react";
 import { Edit2, FolderOpen, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { cmsDisplayUrl, CMS_MAX_UPLOAD_BYTES, fileToBase64 } from "@/lib/cms-media";
 import AdminLayout from "../AdminLayout";
 
 // -- Types ---------------------------------------------------------------------
@@ -44,23 +45,35 @@ function CoverUpload({
   onUploaded: (url: string, key: string) => void;
 }) {
   const [uploading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const presign = trpc.cms.presignedUpload.useMutation();
+  const uploadAsset = trpc.cms.uploadAsset.useMutation();
+  const previewUrl = cmsDisplayUrl(currentUrl);
 
   const handleFile = async (file: File) => {
+    setError(null);
+    if (file.size > CMS_MAX_UPLOAD_BYTES) {
+      const msg = "File quá lớn (tối đa 2MB)";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
     setLoading(true);
     try {
-      const { uploadUrl, key, publicUrl } = await presign.mutateAsync({
+      const fileBase64 = await fileToBase64(file);
+      const { publicUrl, key } = await uploadAsset.mutateAsync({
         filename: file.name,
-        contentType: file.type,
+        contentType: file.type || undefined,
         folder: "cms/categories",
+        fileBase64,
       });
-      if (!uploadUrl) throw new Error("No upload URL");
-      await fetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!publicUrl) throw new Error("Server không trả URL ảnh");
       onUploaded(publicUrl, key);
-      toast.success("Cover image uploaded");
-    } catch {
-      toast.error("Failed to upload cover");
+      toast.success("Đã tải ảnh cover");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Không upload được cover";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -69,11 +82,12 @@ function CoverUpload({
   return (
     <div className="space-y-2">
       <Label>Cover Image</Label>
-      {currentUrl && (
+      {previewUrl && (
         <div className="w-full h-28 rounded-lg overflow-hidden border border-border bg-secondary">
-          <img src={currentUrl} alt="Cover" className="w-full h-full object-cover" />
+          <img src={previewUrl} alt="Cover" className="w-full h-full object-cover" />
         </div>
       )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
         {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
         {currentUrl ? "Replace" : "Upload Cover"}

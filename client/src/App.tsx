@@ -5,6 +5,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { lazy, Suspense, useEffect } from "react";
 import { trpc } from "./lib/trpc";
+import { cmsDisplayUrl } from "./lib/cms-media";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import MobileTabBar from "./components/MobileTabBar";
@@ -230,7 +231,7 @@ function Router() {
 function DynamicFavicon() {
   const { data: settings } = trpc.cms.getPublicSettings.useQuery();
   useEffect(() => {
-    const faviconUrl = settings?.["favicon_url"];
+    const faviconUrl = cmsDisplayUrl(settings?.["favicon_url"]);
     if (!faviconUrl) return;
     const selectors = [
       'link[rel="icon"]',
