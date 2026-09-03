@@ -237,7 +237,7 @@ export default function AdminStorageSettings() {
             }`}>
               <FieldRow
                 label="CDN Base URL"
-                hint="Public CDN domain for GET (thumbs/covers). CNAME tới s3.ap-southeast-1.wasabisys.com. Cloudflare phải bật Proxy (cam) để HTTPS có chứng chỉ media.yukvix.com — Proxy off sẽ lỗi SSL. Upload vẫn đi thẳng Wasabi, không qua CDN."
+                hint="Domain public cho thumb, cover và ảnh xem album (URL ký). CNAME tới s3.ap-southeast-1.wasabisys.com, Cloudflare Proxy ON (cam). Upload và file ZIP VIP vẫn đi thẳng Wasabi, không qua CDN."
                 value={form.cdnBaseUrl}
                 onChange={set("cdnBaseUrl")}
                 placeholder="https://cdn.yourdomain.com"

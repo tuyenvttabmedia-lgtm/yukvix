@@ -61,6 +61,7 @@ export async function refreshWasabiConfig(): Promise<void> {
       cfg.endpoint || process.env.WASABI_ENDPOINT || `https://s3.${WASABI_REGION}.wasabisys.com`;
     hasWasabi = !!(WASABI_BUCKET && WASABI_ACCESS_KEY && WASABI_SECRET_KEY);
     s3Client = null; // reset singleton so next call uses new credentials
+    cdnSignClient = null;
   } catch {
     // DB not ready — keep existing config
   }
@@ -68,6 +69,44 @@ export async function refreshWasabiConfig(): Promise<void> {
 
 // Singleton S3 client — uses direct Wasabi endpoint (not CDN)
 let s3Client: S3Client | null = null;
+/** Signs GET URLs against the public CDN host (media.yukvix.com), not s3.wasabisys.com. */
+let cdnSignClient: S3Client | null = null;
+
+function isDownloadZipKey(key: string): boolean {
+  return key.startsWith("vip-zips/") || key.startsWith("download-zips/");
+}
+
+export function isCdnDeliveryHost(baseUrl: string): boolean {
+  if (!baseUrl) return false;
+  const lower = baseUrl.toLowerCase();
+  if (lower.includes("media-proxy") || lower.includes("wasabisys.com")) return false;
+  return /^https?:\/\//i.test(baseUrl);
+}
+
+export function shouldSignMediaViaCdn(
+  key: string,
+  opts?: { cdnEnabled?: boolean; cdnBaseUrl?: string }
+): boolean {
+  const enabled = opts?.cdnEnabled ?? CDN_ENABLED;
+  const base = opts?.cdnBaseUrl ?? CDN_BASE_URL;
+  return Boolean(enabled && isCdnDeliveryHost(base) && !isDownloadZipKey(key));
+}
+
+function getCdnSignClient(): S3Client {
+  if (!cdnSignClient) {
+    cdnSignClient = new S3Client({
+      region: WASABI_REGION,
+      endpoint: CDN_BASE_URL,
+      credentials: {
+        accessKeyId: WASABI_ACCESS_KEY,
+        secretAccessKey: WASABI_SECRET_KEY,
+      },
+      // Bucket is a full URL when bucketEndpoint is true (SDK parses it as the GET host).
+      bucketEndpoint: true,
+    } as ConstructorParameters<typeof S3Client>[0]);
+  }
+  return cdnSignClient;
+}
 
 /**
  * Exported for use in routers that need to fetch from Wasabi (e.g., processAfterUpload).
@@ -158,7 +197,8 @@ export function isPrivateMediaKey(key: string): boolean {
 
 /**
  * Generate a signed URL for private/premium content (expires in 1 hour by default).
- * Uses direct Wasabi endpoint — bypasses Cloudflare.
+ * Album webp/medium/original GETs use the CDN host when CDN is on so the browser
+ * shows media.yukvix.com. ZIP downloads stay on the direct Wasabi endpoint.
  */
 export async function getSignedMediaUrl(key: string, expiresInSeconds = 3600): Promise<string> {
   if (!hasWasabi) {
@@ -168,13 +208,16 @@ export async function getSignedMediaUrl(key: string, expiresInSeconds = 3600): P
     return result.url;
   }
 
-  const client = getS3Client();
+  const viaCdn = shouldSignMediaViaCdn(key);
+  const client = viaCdn ? getCdnSignClient() : getS3Client();
   const command = new GetObjectCommand({
-    Bucket: WASABI_BUCKET,
+    Bucket: viaCdn ? CDN_BASE_URL : WASABI_BUCKET,
     Key: key,
   });
   const url = await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
-  console.log(`[Wasabi] getSignedMediaUrl: key=${key} expires=${expiresInSeconds}s`);
+  console.log(
+    `[Wasabi] getSignedMediaUrl: key=${key} expires=${expiresInSeconds}s viaCdn=${viaCdn}`
+  );
   return url;
 }
 

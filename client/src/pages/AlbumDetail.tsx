@@ -511,7 +511,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
             Array.from({ length: Math.min(lockedCount, 20) }).map((_, i) => {
               // Use a photo from the gallery as background (cycle through available photos)
               const previewPhoto = allPhotos[i % Math.max(allPhotos.length, 1)];
-              const previewUrl = previewPhoto?.displayUrl || previewPhoto?.thumbUrl || "";
+              const previewUrl = previewPhoto?.thumbUrl || "";
               return (
                 <div
                   key={`locked-${i}`}
