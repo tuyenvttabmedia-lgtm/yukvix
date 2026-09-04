@@ -15,7 +15,7 @@ import type { Express, Request, Response } from "express";
 import path from "path";
 import { getDb, getTagBySlug } from "./db";
 import { albums, creators, tags, photos, categories } from "../drizzle/schema";
-import { eq, and, desc, max } from "drizzle-orm";
+import { eq, and, desc, max, sql } from "drizzle-orm";
 import { ENV } from "./_core/env";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -356,17 +356,19 @@ Sitemap: ${base}/sitemap-categories.xml
           .select({
             slug: creators.slug,
             updatedAt: creators.updatedAt,
-            albumCount: creators.albumCount,
+            albumCount: sql<number>`(
+              SELECT COUNT(*) FROM albums
+              WHERE albums.creatorId = ${creators.id} AND albums.status = 'published'
+            )`.as("albumCount"),
             robotsIndex: creators.robotsIndex,
             avatarUrl: creators.avatarUrl,
-            bannerUrl: creators.bannerUrl,
           })
           .from(creators)
           .orderBy(desc(creators.updatedAt));
 
         for (const row of rows) {
           if (row.robotsIndex === false) continue;
-          if ((row.albumCount ?? 0) <= 0 || !row.avatarUrl) continue;
+          if (Number(row.albumCount) <= 0 || !row.avatarUrl) continue;
           const lastmod = w3cDate(row.updatedAt);
           const changefreq = smartChangefreq(row.updatedAt);
           const priority = creatorPriority(row.albumCount);

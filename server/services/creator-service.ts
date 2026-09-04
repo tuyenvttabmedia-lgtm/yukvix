@@ -221,16 +221,8 @@ export async function updateCreatorBannerIfEmpty(
 }
 
 export async function incrementCreatorAlbumCount(creatorId: number): Promise<void> {
-  const db = await getDb();
-  if (!db) return;
-
-  await db
-    .update(creators)
-    .set({
-      albumCount: sql`${creators.albumCount} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(eq(creators.id, creatorId));
+  const { updateCreatorAlbumCount } = await import("../db");
+  await updateCreatorAlbumCount(creatorId);
 }
 
 export type PickedCreatorImage = { url: string; key: string };

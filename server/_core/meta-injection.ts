@@ -164,13 +164,8 @@ export async function resolveSpaHtml(
   const creatorMatch = path.match(/^\/creator\/([^/?#]+)/);
   if (creatorMatch) {
     const slug = decodeURIComponent(creatorMatch[1]);
-    const { getDb } = await import("../db.js");
-    const { creators } = await import("../../drizzle/schema.js");
-    const { eq } = await import("drizzle-orm");
-    const db = await getDb();
-    if (!db) return { html: out, status: 404 };
-    const rows = await db.select().from(creators).where(eq(creators.slug, slug)).limit(1);
-    const creator = rows[0];
+    const { getCreatorBySlug } = await import("../db.js");
+    const creator = await getCreatorBySlug(slug);
     if (!creator) return { html: out, status: 404 };
     if ((creator.albumCount ?? 0) <= 0 || !creator.avatarUrl) {
       return { html: injectNoIndex(out, base), status: 404 };

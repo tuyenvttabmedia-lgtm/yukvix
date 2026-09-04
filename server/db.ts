@@ -210,19 +210,66 @@ export async function createAlbum(data: InsertAlbum) {
   return result[0];
 }
 
+const publishedAlbumCountSql = sql<number>`(
+  SELECT COUNT(*) FROM albums
+  WHERE albums.creatorId = ${creators.id} AND albums.status = 'published'
+)`;
+
+export async function getPublishedAlbumCount(creatorId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(albums)
+    .where(and(eq(albums.creatorId, creatorId), eq(albums.status, "published")));
+  return Number(count);
+}
+
+async function withLiveAlbumCount<T extends { id: number; albumCount: number }>(creator: T): Promise<T> {
+  return { ...creator, albumCount: await getPublishedAlbumCount(creator.id) };
+}
+
+async function withLiveAlbumCounts<T extends { id: number; albumCount: number }>(items: T[]): Promise<T[]> {
+  if (items.length === 0) return items;
+  const db = await getDb();
+  if (!db) return items;
+  const rows = await db
+    .select({
+      creatorId: albums.creatorId,
+      count: sql<number>`count(*)`,
+    })
+    .from(albums)
+    .where(and(inArray(albums.creatorId, items.map((i) => i.id)), eq(albums.status, "published")))
+    .groupBy(albums.creatorId);
+  const counts = new Map(rows.map((r) => [Number(r.creatorId), Number(r.count)]));
+  return items.map((item) => ({ ...item, albumCount: counts.get(item.id) ?? 0 }));
+}
+
 export async function updateAlbum(id: number, data: Partial<InsertAlbum>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  const current = await getAlbumById(id);
   await db.update(albums).set(data).where(eq(albums.id, id));
+  const creatorChanged = data.creatorId !== undefined && data.creatorId !== current?.creatorId;
+  const statusChanged = data.status !== undefined && data.status !== current?.status;
+  if (creatorChanged || statusChanged) {
+    const ids = new Set<number>();
+    if (current?.creatorId) ids.add(current.creatorId);
+    const nextId = data.creatorId !== undefined ? data.creatorId : current?.creatorId;
+    if (nextId) ids.add(nextId);
+    await Promise.all([...ids].map((creatorId) => updateCreatorAlbumCount(creatorId)));
+  }
 }
 
 export async function deleteAlbum(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  const current = await getAlbumById(id);
   await db.delete(albumTags).where(eq(albumTags.albumId, id));
   await db.delete(photos).where(eq(photos.albumId, id));
   await db.delete(bookmarks).where(eq(bookmarks.albumId, id));
   await db.delete(albums).where(eq(albums.id, id));
+  if (current?.creatorId) await updateCreatorAlbumCount(current.creatorId);
 }
 
 export async function getAlbumById(id: number) {
@@ -339,7 +386,7 @@ export async function listAlbums(opts: {
       updatedAt: albums.updatedAt,
       creatorName: creators.name,
       creatorSlug: creators.slug,
-      creatorAlbumCount: creators.albumCount,
+      creatorAlbumCount: publishedAlbumCountSql,
       creatorAvatarUrl: creators.avatarUrl,
       creatorBannerUrl: creators.bannerUrl,
     })
@@ -1251,32 +1298,33 @@ export async function listCreators(opts: { page?: number; limit?: number; search
   const offset = (page - 1) * limit;
   const conditions: any[] = [];
   if (search) conditions.push(or(like(creators.name, `%${search}%`), like(creators.bio ?? sql`''`, `%${search}%`))!);
-  if (hasAlbums || publicOnly) conditions.push(sql`${creators.albumCount} > 0`);
+  if (hasAlbums || publicOnly) conditions.push(sql`${publishedAlbumCountSql} > 0`);
   if (publicOnly) {
     conditions.push(sql`${creators.avatarUrl} IS NOT NULL AND ${creators.avatarUrl} != ''`);
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   let orderBy;
-  if (sortBy === "albumCount") orderBy = desc(creators.albumCount);
+  if (sortBy === "albumCount") orderBy = desc(publishedAlbumCountSql);
   else if (sortBy === "newest") orderBy = desc(creators.createdAt);
   else orderBy = creators.name;
   const items = await db.select().from(creators).where(where).orderBy(orderBy).limit(limit).offset(offset);
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(creators).where(where);
-  return { items: items.map(withRewrittenCreatorMedia), total: Number(count) };
+  const withCounts = await withLiveAlbumCounts(items);
+  return { items: withCounts.map(withRewrittenCreatorMedia), total: Number(count) };
 }
 
 export async function getCreatorBySlug(slug: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(creators).where(eq(creators.slug, slug)).limit(1);
-  return result[0] ? withRewrittenCreatorMedia(result[0]) : undefined;
+  return result[0] ? withRewrittenCreatorMedia(await withLiveAlbumCount(result[0])) : undefined;
 }
 
 export async function getCreatorById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(creators).where(eq(creators.id, id)).limit(1);
-  return result[0] ? withRewrittenCreatorMedia(result[0]) : undefined;
+  return result[0] ? withRewrittenCreatorMedia(await withLiveAlbumCount(result[0])) : undefined;
 }
 
 export async function createCreator(data: InsertCreator) {
@@ -1304,11 +1352,8 @@ export async function deleteCreator(id: number) {
 export async function updateCreatorAlbumCount(creatorId: number) {
   const db = await getDb();
   if (!db) return;
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(albums)
-    .where(and(eq(albums.creatorId, creatorId), eq(albums.status, "published")));
-  await db.update(creators).set({ albumCount: Number(count) }).where(eq(creators.id, creatorId));
+  const count = await getPublishedAlbumCount(creatorId);
+  await db.update(creators).set({ albumCount: count }).where(eq(creators.id, creatorId));
 }
 
 // --- Tags (extended) --------------------------------------------------------------

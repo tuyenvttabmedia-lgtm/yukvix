@@ -1,6 +1,6 @@
 import path from "path";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../db";
+import { getDb, updateCreatorAlbumCount } from "../../db";
 import {
   albums,
   photos,
@@ -13,7 +13,6 @@ import { rebuildProcessedFromUploads } from "../import-image-utils";
 import {
   updateCreatorAvatarIfEmpty,
   updateCreatorBannerIfEmpty,
-  incrementCreatorAlbumCount,
 } from "../../services/creator-service";
 import { verifyAllObjects } from "../wasabi-verify";
 import { BasePipelineStep, type StepContext, type StepResult } from "../pipeline-step";
@@ -147,7 +146,7 @@ export class AlbumCreationStep extends BasePipelineStep {
           );
         }
         if (pending.creatorId) {
-          await incrementCreatorAlbumCount(pending.creatorId);
+          await updateCreatorAlbumCount(pending.creatorId);
         }
       } else if (ctx.albumId) {
         await db.transaction(async (tx) => {
