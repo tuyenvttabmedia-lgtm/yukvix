@@ -11,8 +11,10 @@ import {
   updateCreator,
   getDb,
 } from "../db";
-import { uploadToStorage } from "../storage-wasabi";
+import { getPublicUrl, uploadToStorage } from "../storage-wasabi";
 import { isAdmin, isVipOrAdmin } from '@shared/const';
+import { applyCreatorImagesFromAlbums, listCreatorAlbumIds } from "../services/creator-service";
+import { toPublicCreatorImageUrl } from "../public-media-url";
 
 function slugify(text: string): string {
   return text
@@ -60,7 +62,17 @@ export const creatorsRouter = router({
     .input(z.object({ page: z.number().min(1).default(1), limit: z.number().min(1).max(500).default(20), search: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
-      return listCreators(input ?? {});
+      const result = await listCreators(input ?? {});
+      const missing = result.items.filter((c) => !c.avatarUrl);
+      if (missing.length > 0) {
+        await Promise.all(
+          missing.slice(0, 8).map((c) =>
+            applyCreatorImagesFromAlbums(c.id, { applyAvatar: true, applyBanner: !c.bannerUrl })
+          )
+        );
+        return listCreators(input ?? {});
+      }
+      return result;
     }),
 
   // --- Admin: get creator by ID -----------------------------------------------
@@ -133,6 +145,8 @@ export const creatorsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const { id, socialLinks, ...rest } = input;
+      if (rest.avatarUrl) rest.avatarUrl = toPublicCreatorImageUrl(rest.avatarUrl) ?? rest.avatarUrl;
+      if (rest.bannerUrl) rest.bannerUrl = toPublicCreatorImageUrl(rest.bannerUrl) ?? rest.bannerUrl;
       await updateCreator(id, {
         ...rest,
         ...(socialLinks !== undefined ? { socialLinks: JSON.stringify(socialLinks) } : {}),
@@ -174,108 +188,31 @@ export const creatorsRouter = router({
     }),
 
   // --- Admin: auto-pick avatar & banner from creator's album photos -----------
-  // Picks the best available photo from the creator's albums:
-  //   avatar → first photo of the most-viewed album (square-ish or portrait)
-  //   banner → first landscape photo found across all albums
-  // If a specific albumId is provided, restricts search to that album.
   adminAutoPickImages: protectedProcedure
     .input(z.object({
       creatorId: z.number(),
-      albumId: z.number().optional(), // restrict to specific album
+      albumId: z.number().optional(),
       applyAvatar: z.boolean().default(true),
       applyBanner: z.boolean().default(true),
     }))
     .mutation(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
-      const { albums, photos } = await import("../../drizzle/schema");
-      const { eq, and, desc, isNotNull } = await import("drizzle-orm");
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      // Get albums for this creator (ordered by viewCount desc)
-      const albumRows = await db
-        .select({ id: albums.id, coverUrl: albums.coverUrl })
-        .from(albums)
-        .where(and(
-          eq(albums.creatorId, input.creatorId),
-          eq(albums.status, "published"),
-          ...(input.albumId ? [eq(albums.id, input.albumId)] : [])
-        ))
-        .orderBy(desc(albums.viewCount))
-        .limit(10);
-
-      if (albumRows.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Creator has no published albums" });
+      const result = await applyCreatorImagesFromAlbums(input.creatorId, {
+        albumId: input.albumId,
+        applyAvatar: input.applyAvatar,
+        applyBanner: input.applyBanner,
+      });
+      if (!result.applied) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Không tìm thấy ảnh album cho cosplayer này",
+        });
       }
-
-      let avatarUrl: string | null = null;
-      let bannerUrl: string | null = null;
-
-      // Collect photos from all albums (up to 5 albums, 20 photos each)
-      for (const album of albumRows) {
-        if (avatarUrl && bannerUrl) break;
-        const photoRows = await db
-          .select({
-            id: photos.id,
-            thumbUrl: photos.thumbUrl,
-            webpUrl: photos.webpUrl,
-            mediumUrl: photos.mediumUrl,
-            width: photos.width,
-            height: photos.height,
-          })
-          .from(photos)
-          .where(and(eq(photos.albumId, album.id), isNotNull(photos.thumbUrl)))
-          .orderBy(photos.sortOrder)
-          .limit(20);
-
-        for (const photo of photoRows) {
-          const url = photo.mediumUrl || photo.webpUrl || photo.thumbUrl;
-          if (!url) continue;
-          // Avatar: pick first available photo (portrait or square preferred)
-          if (!avatarUrl && input.applyAvatar) {
-            const isPortraitOrSquare = !photo.width || !photo.height ||
-              photo.height >= photo.width * 0.8; // portrait or near-square
-            if (isPortraitOrSquare) avatarUrl = url;
-          }
-          // Banner: pick first landscape photo (width > height * 1.3)
-          if (!bannerUrl && input.applyBanner) {
-            const isLandscape = photo.width && photo.height &&
-              photo.width > photo.height * 1.3;
-            if (isLandscape) bannerUrl = url;
-          }
-          if (avatarUrl && bannerUrl) break;
-        }
-        // Fallback: use album cover for avatar if no portrait found
-        if (!avatarUrl && input.applyAvatar && album.coverUrl) {
-          avatarUrl = album.coverUrl;
-        }
-        // Fallback: use first photo as banner if no landscape found
-        if (!bannerUrl && input.applyBanner) {
-          const firstPhoto = await db
-            .select({ mediumUrl: photos.mediumUrl, webpUrl: photos.webpUrl, thumbUrl: photos.thumbUrl })
-            .from(photos)
-            .where(and(eq(photos.albumId, album.id), isNotNull(photos.thumbUrl)))
-            .orderBy(photos.sortOrder)
-            .limit(1);
-          if (firstPhoto[0]) {
-            bannerUrl = firstPhoto[0].mediumUrl || firstPhoto[0].webpUrl || firstPhoto[0].thumbUrl || null;
-          }
-        }
-      }
-
-      // Apply to creator record (store URL directly — no re-upload needed)
-      const updates: Record<string, string | null> = {};
-      if (input.applyAvatar && avatarUrl) { updates.avatarUrl = avatarUrl; updates.avatarKey = "auto-picked"; }
-      if (input.applyBanner && bannerUrl) { updates.bannerUrl = bannerUrl; updates.bannerKey = "auto-picked"; }
-      if (Object.keys(updates).length > 0) {
-        await updateCreator(input.creatorId, updates as any);
-      }
-
       return {
         success: true,
-        avatarUrl: input.applyAvatar ? avatarUrl : undefined,
-        bannerUrl: input.applyBanner ? bannerUrl : undefined,
-        applied: Object.keys(updates).length > 0,
+        avatarUrl: result.avatarUrl ?? undefined,
+        bannerUrl: result.bannerUrl ?? undefined,
+        applied: true,
       };
     }),
 
@@ -288,44 +225,48 @@ export const creatorsRouter = router({
     }))
     .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
-      const { albums, photos } = await import("../../drizzle/schema");
-      const { eq, and, desc, isNotNull } = await import("drizzle-orm");
+      const { photos } = await import("../../drizzle/schema");
+      const { inArray } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const creator = await getCreatorById(input.creatorId);
+      if (!creator) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const albumIds = await listCreatorAlbumIds(input.creatorId, creator.name, 40);
+      if (albumIds.length === 0) return { photos: [], total: 0, albumCount: 0 };
+
       const offset = (input.page - 1) * input.limit;
-      // Get all album IDs for this creator
-      const albumRows = await db
-        .select({ id: albums.id, title: albums.title })
-        .from(albums)
-        .where(eq(albums.creatorId, input.creatorId))
-        .orderBy(desc(albums.viewCount))
-        .limit(20);
-
-      if (albumRows.length === 0) return { photos: [], total: 0, albumCount: 0 };
-      const albumIds = albumRows.map((a) => a.id);
-
-      const { inArray } = await import("drizzle-orm");
       const photoRows = await db
         .select({
           id: photos.id,
           albumId: photos.albumId,
           thumbUrl: photos.thumbUrl,
-          mediumUrl: photos.mediumUrl,
-          webpUrl: photos.webpUrl,
+          thumbKey: photos.thumbKey,
           width: photos.width,
           height: photos.height,
         })
         .from(photos)
-        .where(and(inArray(photos.albumId, albumIds), isNotNull(photos.thumbUrl)))
+        .where(inArray(photos.albumId, albumIds))
         .orderBy(photos.sortOrder)
         .limit(input.limit)
         .offset(offset);
 
       return {
-        photos: photoRows,
+        photos: photoRows.map((p) => {
+          const thumb = p.thumbKey ? getPublicUrl(p.thumbKey) : toPublicCreatorImageUrl(p.thumbUrl);
+          return {
+            id: p.id,
+            albumId: p.albumId,
+            thumbUrl: thumb,
+            mediumUrl: thumb,
+            webpUrl: thumb,
+            width: p.width,
+            height: p.height,
+          };
+        }),
         total: photoRows.length,
-        albumCount: albumRows.length,
+        albumCount: albumIds.length,
       };
     }),
 });

@@ -32,6 +32,7 @@ import {
   type InsertEmailQueueItem,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { withRewrittenCreatorMedia } from "./public-media-url";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: Pool | null = null;
@@ -1233,21 +1234,21 @@ export async function listCreators(opts: { page?: number; limit?: number; search
   else orderBy = creators.name;
   const items = await db.select().from(creators).where(where).orderBy(orderBy).limit(limit).offset(offset);
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(creators).where(where);
-  return { items, total: Number(count) };
+  return { items: items.map(withRewrittenCreatorMedia), total: Number(count) };
 }
 
 export async function getCreatorBySlug(slug: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(creators).where(eq(creators.slug, slug)).limit(1);
-  return result[0];
+  return result[0] ? withRewrittenCreatorMedia(result[0]) : undefined;
 }
 
 export async function getCreatorById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(creators).where(eq(creators.id, id)).limit(1);
-  return result[0];
+  return result[0] ? withRewrittenCreatorMedia(result[0]) : undefined;
 }
 
 export async function createCreator(data: InsertCreator) {

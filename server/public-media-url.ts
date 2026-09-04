@@ -55,6 +55,35 @@ export function rewritePublicMediaUrl(url: string | null | undefined): string | 
   return getPublicUrl(key);
 }
 
+/** Map a stored full-size key to the public thumb variant. */
+export function toPublicThumbKey(key: string): string {
+  return key.replace(/\/(webp|medium|original)\//, "/thumb/");
+}
+
+/**
+ * Creator avatars/banners must be public thumbs/covers — never private webp/medium.
+ */
+export function toPublicCreatorImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const key = extractStorageObjectKey(url);
+  if (!key) return url;
+  if (key.startsWith("vip-zips/") || key.startsWith("download-zips/")) return url;
+  return getPublicUrl(toPublicThumbKey(key));
+}
+
 export function withRewrittenCover<T extends { coverUrl?: string | null }>(album: T): T {
   return { ...album, coverUrl: rewritePublicMediaUrl(album.coverUrl ?? null) };
+}
+
+export function withRewrittenCreatorMedia<T extends {
+  avatarUrl?: string | null;
+  bannerUrl?: string | null;
+  ogImage?: string | null;
+}>(creator: T): T {
+  return {
+    ...creator,
+    avatarUrl: toPublicCreatorImageUrl(creator.avatarUrl ?? null),
+    bannerUrl: toPublicCreatorImageUrl(creator.bannerUrl ?? null),
+    ogImage: creator.ogImage != null ? toPublicCreatorImageUrl(creator.ogImage) : creator.ogImage,
+  };
 }

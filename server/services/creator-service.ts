@@ -10,10 +10,12 @@
  */
 
 import { getDb } from "../db";
-import { creators } from "../../drizzle/schema";
-import { eq, sql } from "drizzle-orm";
+import { albums, creators, photos } from "../../drizzle/schema";
+import { desc, eq, or, sql } from "drizzle-orm";
 import type { YukvixCategory } from "./seo-generator";
 import { generateSlug } from "./seo-generator";
+import { getPublicUrl } from "../storage-wasabi";
+import { extractStorageObjectKey, toPublicCreatorImageUrl, toPublicThumbKey } from "../public-media-url";
 
 // Known collection names — do NOT create creators for these
 export const KNOWN_COLLECTIONS = new Set([
@@ -159,15 +161,19 @@ export async function updateCreatorAvatarIfEmpty(
   if (!db) return;
 
   const existing = await db
-    .select({ avatarKey: creators.avatarKey })
+    .select({ avatarKey: creators.avatarKey, avatarUrl: creators.avatarUrl })
     .from(creators)
     .where(eq(creators.id, creatorId))
     .limit(1);
 
-  if (existing.length > 0 && !existing[0].avatarKey) {
+  if (existing.length > 0 && !existing[0].avatarUrl) {
     await db
       .update(creators)
-      .set({ avatarKey: thumbKey, updatedAt: new Date() })
+      .set({
+        avatarKey: existing[0].avatarKey || thumbKey,
+        avatarUrl: getPublicUrl(thumbKey),
+        updatedAt: new Date(),
+      })
       .where(eq(creators.id, creatorId));
     console.log(`[Creator] Updated avatar for creator ${creatorId}: ${thumbKey}`);
   }
@@ -189,21 +195,22 @@ export async function updateCreatorBannerIfEmpty(
   if (!db) return;
 
   const existing = await db
-    .select({ bannerKey: creators.bannerKey })
+    .select({ bannerKey: creators.bannerKey, bannerUrl: creators.bannerUrl })
     .from(creators)
     .where(eq(creators.id, creatorId))
     .limit(1);
 
-  if (existing.length > 0 && !existing[0].bannerKey) {
+  if (existing.length > 0 && !existing[0].bannerUrl) {
+    const publicKey = toPublicThumbKey(mediumKey);
     await db
       .update(creators)
       .set({
-        bannerKey: mediumKey,
-        bannerUrl: mediumUrl || null,
+        bannerKey: publicKey,
+        bannerUrl: getPublicUrl(publicKey),
         updatedAt: new Date(),
       })
       .where(eq(creators.id, creatorId));
-    console.log(`[Creator] Updated banner for creator ${creatorId}: ${mediumKey}`);
+    console.log(`[Creator] Updated banner for creator ${creatorId}: ${publicKey}`);
   }
 }
 
@@ -218,6 +225,124 @@ export async function incrementCreatorAlbumCount(creatorId: number): Promise<voi
       updatedAt: new Date(),
     })
     .where(eq(creators.id, creatorId));
+}
+
+export type PickedCreatorImage = { url: string; key: string };
+
+function imageFromThumb(thumbKey: string | null | undefined, thumbUrl: string | null | undefined): PickedCreatorImage | null {
+  if (thumbKey) return { url: getPublicUrl(thumbKey), key: thumbKey };
+  const url = toPublicCreatorImageUrl(thumbUrl);
+  if (!url) return null;
+  const extracted = thumbUrl ? extractStorageObjectKey(thumbUrl) : null;
+  return { url, key: extracted ? toPublicThumbKey(extracted) : "auto-picked" };
+}
+
+export async function listCreatorAlbumIds(creatorId: number, creatorName: string, limit = 20): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({ id: albums.id })
+    .from(albums)
+    .where(or(eq(albums.creatorId, creatorId), eq(albums.cosplayer, creatorName)))
+    .orderBy(desc(albums.viewCount), desc(albums.id))
+    .limit(limit);
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Pick public thumb/cover URLs from a creator's albums (by creatorId or cosplayer name).
+ */
+export async function pickCreatorImagesFromAlbums(
+  creatorId: number,
+  opts?: { albumId?: number }
+): Promise<{ avatar: PickedCreatorImage | null; banner: PickedCreatorImage | null }> {
+  const db = await getDb();
+  if (!db) return { avatar: null, banner: null };
+
+  const [creator] = await db
+    .select({ id: creators.id, name: creators.name })
+    .from(creators)
+    .where(eq(creators.id, creatorId))
+    .limit(1);
+  if (!creator) return { avatar: null, banner: null };
+
+  const albumWhere = opts?.albumId
+    ? eq(albums.id, opts.albumId)
+    : or(eq(albums.creatorId, creatorId), eq(albums.cosplayer, creator.name));
+
+  const albumRows = await db
+    .select({ id: albums.id, coverUrl: albums.coverUrl, coverKey: albums.coverKey })
+    .from(albums)
+    .where(albumWhere)
+    .orderBy(desc(albums.viewCount), desc(albums.id))
+    .limit(10);
+
+  let avatar: PickedCreatorImage | null = null;
+  let banner: PickedCreatorImage | null = null;
+
+  for (const album of albumRows) {
+    const photoRows = await db
+      .select({
+        thumbKey: photos.thumbKey,
+        thumbUrl: photos.thumbUrl,
+        width: photos.width,
+        height: photos.height,
+      })
+      .from(photos)
+      .where(eq(photos.albumId, album.id))
+      .orderBy(photos.sortOrder)
+      .limit(8);
+
+    const coverImage = album.coverKey
+      ? { url: getPublicUrl(album.coverKey), key: album.coverKey }
+      : imageFromThumb(null, album.coverUrl);
+
+    if (!avatar) {
+      const portrait =
+        photoRows.find((p) => !p.width || !p.height || p.height >= p.width * 0.8) || photoRows[0];
+      avatar = (portrait && imageFromThumb(portrait.thumbKey, portrait.thumbUrl)) || coverImage;
+    }
+    if (!banner) {
+      const landscape = photoRows.find((p) => p.width && p.height && p.width > p.height * 1.3);
+      banner =
+        (landscape && imageFromThumb(landscape.thumbKey, landscape.thumbUrl)) ||
+        (photoRows[0] && imageFromThumb(photoRows[0].thumbKey, photoRows[0].thumbUrl)) ||
+        coverImage;
+    }
+    if (avatar && banner) break;
+  }
+
+  return { avatar, banner };
+}
+
+export async function applyCreatorImagesFromAlbums(
+  creatorId: number,
+  opts?: { albumId?: number; applyAvatar?: boolean; applyBanner?: boolean }
+): Promise<{ avatarUrl: string | null; bannerUrl: string | null; applied: boolean }> {
+  const applyAvatar = opts?.applyAvatar !== false;
+  const applyBanner = opts?.applyBanner !== false;
+  const picked = await pickCreatorImagesFromAlbums(creatorId, { albumId: opts?.albumId });
+  const db = await getDb();
+  if (!db) return { avatarUrl: null, bannerUrl: null, applied: false };
+
+  const updates: Partial<typeof creators.$inferInsert> = { updatedAt: new Date() };
+  if (applyAvatar && picked.avatar) {
+    updates.avatarUrl = picked.avatar.url;
+    updates.avatarKey = picked.avatar.key;
+  }
+  if (applyBanner && picked.banner) {
+    updates.bannerUrl = picked.banner.url;
+    updates.bannerKey = picked.banner.key;
+  }
+  const applied = Boolean((applyAvatar && picked.avatar) || (applyBanner && picked.banner));
+  if (applied) {
+    await db.update(creators).set(updates).where(eq(creators.id, creatorId));
+  }
+  return {
+    avatarUrl: applyAvatar ? picked.avatar?.url ?? null : null,
+    bannerUrl: applyBanner ? picked.banner?.url ?? null : null,
+    applied,
+  };
 }
 
 /**

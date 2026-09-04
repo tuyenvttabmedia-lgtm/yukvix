@@ -5,7 +5,7 @@ vi.mock("./storage-wasabi", () => ({
   getPublicUrl: (key: string) => `https://media.yukvix.com/${key}`,
 }));
 
-import { extractStorageObjectKey, rewritePublicMediaUrl } from "./public-media-url";
+import { extractStorageObjectKey, rewritePublicMediaUrl, toPublicCreatorImageUrl } from "./public-media-url";
 
 describe("extractStorageObjectKey", () => {
   it("parses path-style Wasabi, media-proxy, and CDN hosts", () => {
@@ -45,5 +45,16 @@ describe("rewritePublicMediaUrl", () => {
   it("does not unsigned-rewrite private full-size objects", () => {
     const webp = "https://yukvix.com/media-proxy/albums/a/webp/1.webp";
     expect(rewritePublicMediaUrl(webp)).toBe(webp);
+  });
+
+  it("maps private webp/medium creator images onto the public thumb CDN URL", () => {
+    expect(
+      toPublicCreatorImageUrl(
+        "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/albums/a/medium/1.webp"
+      )
+    ).toBe("https://media.yukvix.com/albums/a/thumb/1.webp");
+    expect(
+      toPublicCreatorImageUrl("https://yukvix.com/media-proxy/albums/a/webp/1.webp")
+    ).toBe("https://media.yukvix.com/albums/a/thumb/1.webp");
   });
 });
