@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { Crown } from "lucide-react";
@@ -88,9 +89,13 @@ function redirectToCanonical(): boolean {
 export default function AgeGate() {
   const { t } = useTranslation();
   const [location] = useLocation();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !isAgeConfirmed();
+  });
 
   useEffect(() => {
+    document.getElementById("age-gate-boot")?.remove();
     if (typeof window === "undefined") return;
     if (isAgeConfirmed()) {
       if (redirectToCanonical()) return;
@@ -104,21 +109,22 @@ export default function AgeGate() {
     setOpen(true);
   }, [location]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const confirm = () => {
     persistAgeConfirmed();
+    document.getElementById("age-gate-boot")?.remove();
     if (redirectToCanonical()) return;
     setOpen(false);
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-8 overflow-y-auto"
+      className="fixed inset-0 flex items-center justify-center px-4 py-8 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="age-gate-title"
-      style={{ background: "rgba(10, 10, 15, 0.96)" }}
+      style={{ background: "rgba(10, 10, 15, 0.96)", zIndex: 2147483645 }}
     >
       <div
         className="relative w-full max-w-md rounded-2xl border p-8 shadow-2xl"
@@ -156,6 +162,7 @@ export default function AgeGate() {
           </Link>
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

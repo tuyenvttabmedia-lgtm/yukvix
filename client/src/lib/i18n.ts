@@ -49,11 +49,17 @@ function normalizeLocale(raw: string): string {
 
 // Determine initial language: stored preference → browser locale → "en"
 function getInitialLanguage(): string {
-  const stored = localStorage.getItem("cosplay-lang");
-  if (stored) return stored;
+  try {
+    const stored = localStorage.getItem("cosplay-lang");
+    if (stored) return stored;
+  } catch {
+    /* private mode / Telegram WKWebView */
+  }
 
   const browserLang =
-    navigator.language || navigator.languages?.[0] || "en";
+    (typeof navigator !== "undefined" &&
+      (navigator.language || navigator.languages?.[0])) ||
+    "en";
   return normalizeLocale(browserLang);
 }
 

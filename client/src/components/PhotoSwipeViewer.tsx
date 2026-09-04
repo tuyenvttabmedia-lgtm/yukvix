@@ -120,9 +120,35 @@ function OriginalLoadingOverlay({ visible }: { visible: boolean }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
+function applyNaturalPhotoSize(
+  content?: { element?: HTMLElement; width?: number; height?: number; data?: { width?: number; height?: number } },
+  slide?: { data?: { width?: number; height?: number }; updateContentSize?: (force?: boolean) => void }
+) {
+  const el = content?.element;
+  const img =
+    el instanceof HTMLImageElement
+      ? el
+      : el?.querySelector?.("img.pswp__img, img");
+  if (!(img instanceof HTMLImageElement) || img.naturalWidth < 2 || img.naturalHeight < 2) {
+    return;
+  }
+  const nw = img.naturalWidth;
+  const nh = img.naturalHeight;
+  if (content) {
+    content.width = nw;
+    content.height = nh;
+    if (content.data) {
+      content.data.width = nw;
+      content.data.height = nh;
+    }
+  }
+  if (slide?.data) {
+    slide.data.width = nw;
+    slide.data.height = nh;
+    slide.updateContentSize?.(true);
+  }
+}
+
 export default function PhotoSwipeViewer({
   items,
   initialIndex,
@@ -139,16 +165,14 @@ export default function PhotoSwipeViewer({
     return items.map((item) => {
       // Lightbox starts on 1200px medium (displayUrl). Never use 4K webp as src.
       const src = item.displayUrl || item.mediumUrl || item.thumbUrl || "";
-      const w = item.width || 0;
-      const h = item.height || 0;
-      // When width/height are unknown (ZIP import), use 0 to let PhotoSwipe
-      // auto-detect from the loaded image. Fall back to 4:3 portrait ratio.
-      const displayW = w > 0 ? Math.min(w, 3840) : 1200;
-      const displayH = h > 0 ? Math.round(displayW / (w / h)) : 1600;
+      const w = Number(item.width) || 0;
+      const h = Number(item.height) || 0;
+      // Placeholder only. Real size is applied from the loaded file so a bad
+      // DB width/height (or 400×400 thumb) cannot stretch the photo.
       return {
         src,
-        width: displayW,
-        height: displayH,
+        width: w > 1 && h > 1 ? w : 1600,
+        height: w > 1 && h > 1 ? h : 1600,
         alt: item.altText || albumTitle || "",
         _originalSrc: item.originalUrl || item.webpUrl || "",
         _id: item.id,
@@ -205,8 +229,8 @@ export default function PhotoSwipeViewer({
           // Step 2: only upgrade if user is still on the same slide
           if (!pswp.currSlide || pswp.currIndex !== slideIndex) return;
 
-          const originalW = item.width || 4000;
-          const originalH = item.height || 2667;
+          const originalW = img.naturalWidth || item.width || 4000;
+          const originalH = img.naturalHeight || item.height || 2667;
 
           // Step 3: find the <img> element PhotoSwipe is currently rendering
           const imgEl = pswp.currSlide.container?.querySelector(
@@ -255,36 +279,15 @@ export default function PhotoSwipeViewer({
       }
     });
 
-    // Auto-detect image dimensions when width/height are unknown (ZIP import)
-    // This fires after PhotoSwipe loads the image and can read naturalWidth/naturalHeight
-    lightbox.on("contentLoad", (e) => {
-      const slide = e.slide;
-      if (!slide) return;
-      const item = items[slide.index];
-      if (!item) return;
-      // Only auto-detect if dimensions are unknown (NULL from ZIP import)
-      if (!item.width || !item.height) {
-        const img = slide.container?.querySelector(".pswp__img") as HTMLImageElement | null;
-        if (img) {
-          const onLoad = () => {
-            if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-              slide.data.width = img.naturalWidth;
-              slide.data.height = img.naturalHeight;
-              slide.updateContentSize(true);
-            }
-          };
-          if (img.complete && img.naturalWidth > 0) {
-            onLoad();
-          } else {
-            img.addEventListener("load", onLoad, { once: true });
-          }
-        }
-      }
+    lightbox.on("loadComplete", (e) => {
+      applyNaturalPhotoSize(e.content, e.slide);
     });
-
-    // Hide spinner when navigating to a different slide
     lightbox.on("change", () => {
       setLoadingOriginal(false);
+      const pswp = lightbox.pswp;
+      if (pswp?.currSlide) {
+        applyNaturalPhotoSize(pswp.currSlide.content, pswp.currSlide);
+      }
     });
 
     lightbox.on("close", () => {
@@ -361,7 +364,8 @@ export function PhotoSwipeStyles() {
 
       .pswp__img {
         border-radius: 4px;
-        /* GPU-accelerated — no layout/paint cost */
+        object-fit: contain !important;
+        object-position: center center;
         will-change: opacity;
       }
 
