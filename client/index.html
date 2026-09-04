@@ -13,6 +13,21 @@
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#0a0a0f" />
     <meta name="color-scheme" content="dark" />
+    <script>
+      (function () {
+        var KEY = "yukvix_age_confirmed";
+        function skip() {
+          try {
+            return /\/(privacy|terms|dmca|contact|about|info|login|register|forgot-password|reset-password|verify-email|admin|vip|payment)(\/|$)/.test(location.pathname);
+          } catch (e) { return false; }
+        }
+        function confirmed() {
+          try { if (localStorage.getItem(KEY) === "1") return true; } catch (e) {}
+          try { return document.cookie.indexOf(KEY + "=1") !== -1; } catch (e) { return false; }
+        }
+        if (confirmed() || skip()) document.documentElement.className += " age-ok";
+      })();
+    </script>
     <style>
       html, body { background: #0a0a0f; color: #f4f4f5; margin: 0; }
       #age-gate-boot {
@@ -21,6 +36,7 @@
         padding: 24px; background: #0a0a0f;
         font-family: system-ui, -apple-system, sans-serif;
       }
+      html.age-ok #age-gate-boot { display: none !important; }
       #age-gate-boot .ag-card {
         width: 100%; max-width: 400px; background: #16161f;
         border: 1px solid rgba(255,255,255,0.12); border-radius: 16px;
@@ -54,40 +70,46 @@
   </head>
 
   <body>
+    <div id="age-gate-boot" role="dialog" aria-modal="true">
+      <div class="ag-card">
+        <h1 id="age-gate-title">Are you 18 or older?</h1>
+        <p id="age-gate-body">Yukvix contains adult-oriented cosplay photography. You must be at least 18 years old to enter this site.</p>
+        <button type="button" class="ag-yes" id="age-gate-yes">I am 18 or older</button>
+        <button type="button" class="ag-no" id="age-gate-no">Leave</button>
+      </div>
+    </div>
     <div id="root"></div>
     <script>
       (function () {
         var KEY = "yukvix_age_confirmed";
-        var COOKIE = "yukvix_age_confirmed=1";
-        function confirmed() {
-          try { if (localStorage.getItem(KEY) === "1") return true; } catch (e) {}
-          return document.cookie.indexOf(COOKIE) !== -1;
+        var vi = false;
+        try { vi = ((navigator.language || "") + "").toLowerCase().indexOf("vi") === 0; } catch (e) {}
+        if (vi) {
+          var title = document.getElementById("age-gate-title");
+          var body = document.getElementById("age-gate-body");
+          var yes = document.getElementById("age-gate-yes");
+          var no = document.getElementById("age-gate-no");
+          if (title) title.textContent = "Bạn đã đủ 18 tuổi?";
+          if (body) body.textContent = "Yukvix chứa ảnh cosplay dành cho người lớn. Bạn phải từ 18 tuổi trở lên để vào trang.";
+          if (yes) yes.textContent = "Tôi đã đủ 18 tuổi";
+          if (no) no.textContent = "Rời đi";
         }
-        function skip() {
-          return /\/(privacy|terms|dmca|contact|about|info|login|register|forgot-password|reset-password|verify-email|admin|vip|payment)(\/|$)/.test(location.pathname);
-        }
-        if (confirmed() || skip()) return;
-        var vi = ((navigator.language || "") + "").toLowerCase().indexOf("vi") === 0;
-        var wrap = document.createElement("div");
-        wrap.id = "age-gate-boot";
-        wrap.setAttribute("role", "dialog");
-        wrap.setAttribute("aria-modal", "true");
-        wrap.innerHTML =
-          '<div class="ag-card">' +
-            "<h1>" + (vi ? "Bạn đã đủ 18 tuổi?" : "Are you 18 or older?") + "</h1>" +
-            "<p>" + (vi
-              ? "Yukvix chứa ảnh cosplay dành cho người lớn. Bạn phải từ 18 tuổi trở lên để vào trang."
-              : "Yukvix contains adult-oriented cosplay photography. You must be at least 18 years old to enter this site.") + "</p>" +
-            '<button type="button" class="ag-yes" id="age-gate-yes">' + (vi ? "Tôi đã đủ 18 tuổi" : "I am 18 or older") + "</button>" +
-            '<button type="button" class="ag-no" id="age-gate-no">' + (vi ? "Rời đi" : "Leave") + "</button>" +
-          "</div>";
-        document.body.appendChild(wrap);
-        document.getElementById("age-gate-yes").onclick = function () {
+        var yesBtn = document.getElementById("age-gate-yes");
+        var noBtn = document.getElementById("age-gate-no");
+        if (yesBtn) yesBtn.onclick = function () {
           try { localStorage.setItem(KEY, "1"); } catch (e) {}
-          document.cookie = KEY + "=1; Path=/; Max-Age=31536000; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : "");
-          wrap.remove();
+          var secure = location.protocol === "https:" ? "; Secure" : "";
+          document.cookie = KEY + "=1; Path=/; Max-Age=31536000; SameSite=Lax" + secure;
+          try {
+            if (/(^|\.)yukvix\.com$/i.test(location.hostname)) {
+              document.cookie = KEY + "=1; Domain=.yukvix.com; Path=/; Max-Age=31536000; SameSite=Lax" + secure;
+            }
+          } catch (e) {}
+          document.documentElement.className += " age-ok";
+          var wrap = document.getElementById("age-gate-boot");
+          if (wrap) wrap.remove();
         };
-        document.getElementById("age-gate-no").onclick = function () {
+        if (noBtn) noBtn.onclick = function () {
           location.href = "https://www.google.com";
         };
       })();

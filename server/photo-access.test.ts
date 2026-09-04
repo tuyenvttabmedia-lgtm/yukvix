@@ -75,14 +75,35 @@ describe("presentPhotoForClient", () => {
     expect(result.originalUrl).toBe("https://signed.example/full.webp");
   });
 
-  it("uses the public thumb for lightbox when medium is missing instead of 4K webp", async () => {
+  it("derives the 1200px medium key from a library thumb when mediumKey is missing", async () => {
     const { presentPhotoForClient } = await import("./photo-access");
     const { getSignedMediaUrl } = await import("./storage-wasabi");
     const result = await presentPhotoForClient(
-      { ...photo, mediumKey: null },
+      {
+        ...photo,
+        mediumKey: null,
+        thumbKey: "library/thumb/177_Coser-Nnian_thumb.webp",
+        thumbUrl: "https://cdn.example/library/thumb/177_Coser-Nnian_thumb.webp",
+      },
       { albumIsVip: false, userIsVip: false, isAdminUser: false }
     );
-    expect(result.displayUrl).toBe(photo.thumbUrl);
+    expect(result.displayUrl).toBe("https://signed.example/full.webp");
+    expect(result.thumbUrl).toBe("https://cdn.example/library/thumb/177_Coser-Nnian_thumb.webp");
+    expect(getSignedMediaUrl).toHaveBeenCalledWith(
+      "library/medium/177_Coser-Nnian_medium.webp",
+      3600
+    );
+    expect(getSignedMediaUrl).not.toHaveBeenCalledWith(photo.webpKey, 3600);
+  });
+
+  it("does not put a square thumb in displayUrl when no medium or webp can be signed", async () => {
+    const { presentPhotoForClient } = await import("./photo-access");
+    const { getSignedMediaUrl } = await import("./storage-wasabi");
+    const result = await presentPhotoForClient(
+      { ...photo, mediumKey: null, thumbKey: null, webpKey: null },
+      { albumIsVip: false, userIsVip: false, isAdminUser: false }
+    );
+    expect(result.displayUrl).toBeNull();
     expect(getSignedMediaUrl).not.toHaveBeenCalled();
   });
 });

@@ -72,6 +72,7 @@ function persistAgeConfirmed() {
   if (host === CANONICAL_HOST || host.endsWith(`.${CANONICAL_HOST}`)) {
     document.cookie = `${COOKIE_NAME}=1; Domain=.${CANONICAL_HOST}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
   }
+  document.documentElement.classList.add("age-ok");
 }
 
 function isSatelliteHost(hostname: string): boolean {
@@ -91,18 +92,29 @@ export default function AgeGate() {
   const [location] = useLocation();
   const [open, setOpen] = useState(() => {
     if (typeof window === "undefined") return false;
-    return !isAgeConfirmed();
+    if (isAgeConfirmed()) return false;
+    if (document.getElementById("age-gate-boot")) return false;
+    return true;
   });
 
   useEffect(() => {
-    document.getElementById("age-gate-boot")?.remove();
     if (typeof window === "undefined") return;
     if (isAgeConfirmed()) {
+      document.documentElement.classList.add("age-ok");
+      document.getElementById("age-gate-boot")?.remove();
       if (redirectToCanonical()) return;
       setOpen(false);
       return;
     }
     if (shouldSkip(location)) {
+      document.documentElement.classList.add("age-ok");
+      setOpen(false);
+      return;
+    }
+    document.documentElement.classList.remove("age-ok");
+    // Keep the HTML boot overlay — never strip it before the user confirms.
+    // Removing it here was the iPhone black screen ("Đang tải Yukvix").
+    if (document.getElementById("age-gate-boot")) {
       setOpen(false);
       return;
     }

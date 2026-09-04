@@ -120,33 +120,48 @@ function OriginalLoadingOverlay({ visible }: { visible: boolean }) {
   );
 }
 
-function applyNaturalPhotoSize(
-  content?: { element?: HTMLElement; width?: number; height?: number; data?: { width?: number; height?: number } },
-  slide?: { data?: { width?: number; height?: number }; updateContentSize?: (force?: boolean) => void }
-) {
+type PswpSlide = {
+  width?: number;
+  height?: number;
+  data?: { src?: string; width?: number; height?: number };
+  content?: { element?: HTMLElement; width?: number; height?: number; slide?: PswpSlide };
+  updateContentSize?: (force?: boolean) => void;
+};
+
+function photoImg(content?: { element?: HTMLElement } | null): HTMLImageElement | null {
   const el = content?.element;
-  const img =
-    el instanceof HTMLImageElement
-      ? el
-      : el?.querySelector?.("img.pswp__img, img");
-  if (!(img instanceof HTMLImageElement) || img.naturalWidth < 2 || img.naturalHeight < 2) {
-    return;
-  }
+  if (el instanceof HTMLImageElement) return el;
+  const nested = el?.querySelector?.("img.pswp__img:not(.pswp__img--placeholder), img");
+  return nested instanceof HTMLImageElement ? nested : null;
+}
+
+function slideFromEvent(e: {
+  slide?: PswpSlide;
+  content?: { element?: HTMLElement; slide?: PswpSlide };
+}): PswpSlide | null {
+  return e.slide || e.content?.slide || null;
+}
+
+function applyNaturalPhotoSize(slide?: PswpSlide | null, pswp?: { updateSize?: (force?: boolean) => void } | null) {
+  const img = photoImg(slide?.content);
+  if (!img || img.naturalWidth < 2 || img.naturalHeight < 2) return;
   const nw = img.naturalWidth;
   const nh = img.naturalHeight;
+  const content = slide?.content;
   if (content) {
     content.width = nw;
     content.height = nh;
-    if (content.data) {
-      content.data.width = nw;
-      content.data.height = nh;
-    }
   }
-  if (slide?.data) {
-    slide.data.width = nw;
-    slide.data.height = nh;
+  if (slide) {
+    slide.width = nw;
+    slide.height = nh;
+    if (slide.data) {
+      slide.data.width = nw;
+      slide.data.height = nh;
+    }
     slide.updateContentSize?.(true);
   }
+  pswp?.updateSize?.(true);
 }
 
 export default function PhotoSwipeViewer({
@@ -163,14 +178,13 @@ export default function PhotoSwipeViewer({
 
   const getDataSource = useCallback(() => {
     return items.map((item) => {
-      // Lightbox starts on 1200px medium (displayUrl). Never use 4K webp as src.
-      const src = item.displayUrl || item.mediumUrl || item.thumbUrl || "";
+      // Never open the lightbox on a 400×400 square thumb — that is what stretched photos.
+      const src = item.displayUrl || item.mediumUrl || "";
       const w = Number(item.width) || 0;
       const h = Number(item.height) || 0;
-      // Placeholder only. Real size is applied from the loaded file so a bad
-      // DB width/height (or 400×400 thumb) cannot stretch the photo.
       return {
         src,
+        msrc: item.thumbUrl || undefined,
         width: w > 1 && h > 1 ? w : 1600,
         height: w > 1 && h > 1 ? h : 1600,
         alt: item.altText || albumTitle || "",
@@ -266,7 +280,10 @@ export default function PhotoSwipeViewer({
           pswp.currSlide.data.src = item.originalUrl!;
           pswp.currSlide.data.width = originalW;
           pswp.currSlide.data.height = originalH;
+          (pswp.currSlide as PswpSlide).width = originalW;
+          (pswp.currSlide as PswpSlide).height = originalH;
           pswp.currSlide.updateContentSize(true);
+          pswp.updateSize(true);
         };
 
         img.onerror = () => {
@@ -279,15 +296,27 @@ export default function PhotoSwipeViewer({
       }
     });
 
+    const syncSlideSize = (slide?: PswpSlide | null) => {
+      applyNaturalPhotoSize(slide, lightbox.pswp);
+    };
+
+    lightbox.on("contentLoad", (e) => {
+      const img = photoImg(e.content);
+      const slide = slideFromEvent(e) || lightbox.pswp?.currSlide;
+      if (!img) return;
+      const run = () => syncSlideSize(slide);
+      if (img.complete && img.naturalWidth > 1) run();
+      else img.addEventListener("load", run, { once: true });
+    });
     lightbox.on("loadComplete", (e) => {
-      applyNaturalPhotoSize(e.content, e.slide);
+      syncSlideSize(slideFromEvent(e) || lightbox.pswp?.currSlide);
     });
     lightbox.on("change", () => {
       setLoadingOriginal(false);
-      const pswp = lightbox.pswp;
-      if (pswp?.currSlide) {
-        applyNaturalPhotoSize(pswp.currSlide.content, pswp.currSlide);
-      }
+      syncSlideSize(lightbox.pswp?.currSlide);
+    });
+    lightbox.on("openingAnimationEnd", () => {
+      syncSlideSize(lightbox.pswp?.currSlide);
     });
 
     lightbox.on("close", () => {
@@ -367,6 +396,9 @@ export function PhotoSwipeStyles() {
         object-fit: contain !important;
         object-position: center center;
         will-change: opacity;
+      }
+      .pswp__img--placeholder {
+        object-fit: contain !important;
       }
 
       /* Spinner keyframe */

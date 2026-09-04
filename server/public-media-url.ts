@@ -61,6 +61,35 @@ export function toPublicThumbKey(key: string): string {
 }
 
 /**
+ * Image worker writes medium next to thumb/webp:
+ *   library/thumb/TS_Name_thumb.webp  → library/medium/TS_Name_medium.webp
+ *   library/webp/TS_Name.webp         → library/medium/TS_Name_medium.webp
+ * Photos attached from the media library often omit mediumKey; derive it so
+ * the lightbox never falls back to the 400×400 square thumb.
+ */
+export function deriveMediumObjectKey(
+  storedKey?: string | null,
+  publicUrl?: string | null
+): string | null {
+  const key = storedKey || (publicUrl ? extractStorageObjectKey(publicUrl) : null);
+  if (!key) return null;
+  if (/\/medium\//.test(key)) return key;
+  if (/\/thumb\//.test(key)) {
+    const next = key
+      .replace(/\/thumb\//, "/medium/")
+      .replace(/_thumb(\.[a-z0-9]+)$/i, "_medium$1");
+    return next !== key ? next : null;
+  }
+  if (/\/webp\//.test(key)) {
+    const next = key
+      .replace(/\/webp\//, "/medium/")
+      .replace(/(\.[a-z0-9]+)$/i, "_medium$1");
+    return next !== key ? next : null;
+  }
+  return null;
+}
+
+/**
  * Creator avatars must be public thumbs/covers — never private webp/medium.
  */
 export function toPublicCreatorImageUrl(url: string | null | undefined): string | null {

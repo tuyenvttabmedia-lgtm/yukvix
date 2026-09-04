@@ -5,7 +5,7 @@ vi.mock("./storage-wasabi", () => ({
   getPublicUrl: (key: string) => `https://media.yukvix.com/${key}`,
 }));
 
-import { extractStorageObjectKey, isCreatorPubliclyVisible, isLowResCreatorBanner, preferredBannerSourceKey, rewritePublicMediaUrl, toPublicCreatorBannerUrl, toPublicCreatorImageUrl } from "./public-media-url";
+import { deriveMediumObjectKey, extractStorageObjectKey, isCreatorPubliclyVisible, isLowResCreatorBanner, preferredBannerSourceKey, rewritePublicMediaUrl, toPublicCreatorBannerUrl, toPublicCreatorImageUrl } from "./public-media-url";
 
 describe("extractStorageObjectKey", () => {
   it("parses path-style Wasabi, media-proxy, and CDN hosts", () => {
@@ -73,6 +73,27 @@ describe("creator banner URLs", () => {
     expect(isLowResCreatorBanner("https://media.yukvix.com/albums/a/thumb/1.webp")).toBe(true);
     expect(isLowResCreatorBanner("https://media.yukvix.com/creators/banner/9.webp")).toBe(false);
     expect(isLowResCreatorBanner(null)).toBe(true);
+  });
+});
+
+describe("deriveMediumObjectKey", () => {
+  it("maps library and album thumbs onto the 1200px medium object", () => {
+    expect(deriveMediumObjectKey("library/thumb/177_Coser-Nnian_thumb.webp")).toBe(
+      "library/medium/177_Coser-Nnian_medium.webp"
+    );
+    expect(deriveMediumObjectKey("albums/9/thumb/a_thumb.webp")).toBe("albums/9/medium/a_medium.webp");
+    expect(deriveMediumObjectKey("library/webp/177_Coser-Nnian.webp")).toBe(
+      "library/medium/177_Coser-Nnian_medium.webp"
+    );
+    expect(deriveMediumObjectKey("library/medium/177_Coser-Nnian_medium.webp")).toBe(
+      "library/medium/177_Coser-Nnian_medium.webp"
+    );
+    expect(
+      deriveMediumObjectKey(
+        null,
+        "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/library/thumb/177_thumb.webp"
+      )
+    ).toBe("library/medium/177_medium.webp");
   });
 });
 

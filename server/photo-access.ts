@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { isAdmin, isVipOrAdmin } from "@shared/const";
 import { getSignedMediaUrl } from "./storage-wasabi";
-import { rewritePublicMediaUrl } from "./public-media-url";
+import { deriveMediumObjectKey, rewritePublicMediaUrl } from "./public-media-url";
 
 type AlbumLike = {
   status?: string | null;
@@ -44,10 +44,13 @@ export function assertAlbumPubliclyReadable(
 
 async function signedVariantUrl(
   photo: PhotoLike,
-  keys: Array<string | null | undefined>
+  keys: Array<string | null | undefined>,
+  opts?: { allowThumbFallback?: boolean }
 ): Promise<string | null> {
+  const tried = new Set<string>();
   for (const signKey of keys) {
-    if (!signKey) continue;
+    if (!signKey || tried.has(signKey)) continue;
+    tried.add(signKey);
     try {
       return await getSignedMediaUrl(signKey, 3600);
     } catch (err) {
@@ -57,12 +60,21 @@ async function signedVariantUrl(
       );
     }
   }
+  if (opts?.allowThumbFallback === false) return null;
   return photo.thumbUrl || photo.displayUrl || photo.mediumUrl || photo.webpUrl || null;
 }
 
-/** Lightbox default: 1200px medium only. Never start the viewer on 4K webp/original. */
+/** Lightbox default: 1200px medium. Never start the viewer on a square 400px thumb. */
 async function signedDisplayUrl(photo: PhotoLike): Promise<string | null> {
-  return signedVariantUrl(photo, [photo.mediumKey]);
+  const derivedMedium = deriveMediumObjectKey(
+    photo.mediumKey || photo.thumbKey || photo.webpKey,
+    photo.thumbUrl
+  );
+  return signedVariantUrl(
+    photo,
+    [photo.mediumKey, derivedMedium, photo.webpKey],
+    { allowThumbFallback: false }
+  );
 }
 
 /** VIP zoom only. */

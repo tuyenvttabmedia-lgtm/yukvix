@@ -135,14 +135,17 @@ export const mediaRouter = router({
           ? Math.max(...existingPhotos.map((p) => p.sortOrder)) + 1
           : 0;
 
+      const { deriveMediumObjectKey } = await import("../public-media-url");
       // Insert photos rows (skip duplicates via originalKey)
       for (const item of items) {
+        const mediumKey = deriveMediumObjectKey(item.thumbKey || item.webpKey, item.thumbUrl);
         await db.insert(photosTable).ignore().values({
           albumId: input.albumId,
           originalKey: item.originalKey,
           originalUrl: item.originalUrl ?? undefined,
           webpKey: item.webpKey ?? undefined,
           webpUrl: item.webpUrl ?? undefined,
+          mediumKey: mediumKey ?? undefined,
           thumbKey: item.thumbKey ?? undefined,
           thumbUrl: item.thumbUrl ?? undefined,
           width: item.width ?? undefined,
