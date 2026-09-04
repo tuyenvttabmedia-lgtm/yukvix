@@ -78,23 +78,17 @@ function vitePluginManusDebugCollector(): Plugin {
   return {
     name: "manus-debug-collector",
 
-    transformIndexHtml(html) {
-      if (process.env.NODE_ENV === "production") {
-        return html;
-      }
-      return {
-        html,
-        tags: [
-          {
-            tag: "script",
-            attrs: {
-              src: "/__manus__/debug-collector.js",
-              defer: true,
-            },
-            injectTo: "head",
+    transformIndexHtml() {
+      return [
+        {
+          tag: "script",
+          attrs: {
+            src: "/__manus__/debug-collector.js",
+            defer: true,
           },
-        ],
-      };
+          injectTo: "head" as const,
+        },
+      ];
     },
 
     configureServer(server: ViteDevServer) {
@@ -150,10 +144,13 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [react(), tailwindcss(), jsxLocPlugin()];
 
-export default defineConfig({
-  plugins,
+export default defineConfig(({ command }) => ({
+  plugins:
+    command === "serve"
+      ? [...plugins, vitePluginManusRuntime(), vitePluginManusDebugCollector()]
+      : plugins,
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -184,4 +181,4 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
-});
+}));
