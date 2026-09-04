@@ -77,6 +77,23 @@ function formatSkipReason(reason: string): string {
   return reason;
 }
 
+function formatSocialPostError(lastError: string | null | undefined): string {
+  if (!lastError) return "";
+  if (/ambiguous publish/i.test(lastError)) {
+    return "Telegram không xác nhận đã đăng — kiểm tra kênh trước khi gửi lại.";
+  }
+  if (/402|payment required|client-not-enrolled|not enrolled/i.test(lastError)) {
+    return "X API chưa có gói trả phí (Basic trở lên).";
+  }
+  if (/401|unauthorized|invalid credentials/i.test(lastError)) {
+    return "Sai Consumer Key/Secret hoặc Access Token.";
+  }
+  if (/403|forbidden|read.?only/i.test(lastError)) {
+    return "App X chưa có quyền Read and Write.";
+  }
+  return lastError;
+}
+
 function parseConfig(raw: string | null | undefined) {
   if (!raw) {
     return {
