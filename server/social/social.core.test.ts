@@ -680,6 +680,23 @@ describe("manual / auto share core", () => {
     const scheduled = store.posts[0].scheduledAt.getTime();
     expect(scheduled).toBeGreaterThan(Date.now() + 60_000);
   });
+
+  it("scheduled random share posts immediately without autoShare on the account", async () => {
+    const store = new MemorySocialQueue();
+    const result = await createAutoSharePosts(42, {
+      album,
+      photos,
+      config: DEFAULT_SOCIAL_CONFIG,
+      store,
+      accounts: [telegramAccount],
+      requireAutoShare: false,
+      scheduledAt: new Date(),
+    });
+    expect(result.created).toHaveLength(1);
+    expect(result.created[0].status).toBe("pending");
+    expect(store.posts[0].trigger).toBe("auto");
+    expect(store.posts[0].scheduledAt.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+  });
 });
 
 describe("content + sanitizer + risk", () => {

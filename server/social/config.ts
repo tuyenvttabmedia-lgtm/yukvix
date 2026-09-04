@@ -6,6 +6,10 @@ export const DEFAULT_SOCIAL_CONFIG: SocialDistributionConfig = {
   enabled: true,
   contentRating: "mature",
   defaultDelayMinutes: 15,
+  schedule: {
+    enabled: false,
+    intervalHours: 4,
+  },
   platforms: {
     telegram: {
       enabled: true,
@@ -67,6 +71,20 @@ function mergePlatform(
   };
 }
 
+export const SOCIAL_SCHEDULE_STATE_KEY = "social_schedule_state";
+
+export function normalizeScheduleIntervalHours(value: unknown): 2 | 4 {
+  return value === 2 ? 2 : 4;
+}
+
+function parseSchedule(raw: unknown): SocialDistributionConfig["schedule"] {
+  const o = asObject(raw) ?? {};
+  return {
+    enabled: o.enabled === true,
+    intervalHours: normalizeScheduleIntervalHours(o.intervalHours),
+  };
+}
+
 export function parseSocialConfig(
   raw: string | null | undefined
 ): SocialDistributionConfig {
@@ -89,6 +107,7 @@ export function parseSocialConfig(
         parsed.defaultDelayMinutes >= 0
           ? parsed.defaultDelayMinutes
           : DEFAULT_SOCIAL_CONFIG.defaultDelayMinutes,
+      schedule: parseSchedule(parsed.schedule),
       platforms: {
         telegram: mergePlatform(
           DEFAULT_SOCIAL_CONFIG.platforms.telegram,
@@ -129,4 +148,84 @@ export async function loadSocialConfig(): Promise<SocialDistributionConfig> {
     .where(eq(adminSettings.key, SOCIAL_CONFIG_KEY))
     .limit(1);
   return parseSocialConfig(rows[0]?.value);
+}
+
+export async function saveSocialConfig(
+  patch: Partial<SocialDistributionConfig> & {
+    schedule?: Partial<SocialDistributionConfig["schedule"]>;
+  }
+): Promise<SocialDistributionConfig> {
+  const current = await loadSocialConfig();
+  const next: SocialDistributionConfig = {
+    ...current,
+    ...patch,
+    schedule: {
+      ...current.schedule,
+      ...(patch.schedule ?? {}),
+      intervalHours: normalizeScheduleIntervalHours(
+        patch.schedule?.intervalHours ?? current.schedule.intervalHours
+      ),
+    },
+    platforms: patch.platforms ?? current.platforms,
+  };
+  const { getDb } = await import("../db");
+  const { adminSettings } = await import("../../drizzle/schema");
+  const db = await getDb();
+  if (!db) return next;
+  const value = JSON.stringify(next);
+  await db
+    .insert(adminSettings)
+    .values({ key: SOCIAL_CONFIG_KEY, value })
+    .onDuplicateKeyUpdate({ set: { value } });
+  return next;
+}
+
+export type SocialScheduleState = {
+  lastRunAt: string | null;
+  lastAlbumId: number | null;
+  lastStatus: string | null;
+};
+
+export async function loadScheduleState(): Promise<SocialScheduleState> {
+  const { getDb } = await import("../db");
+  const { adminSettings } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const db = await getDb();
+  const empty: SocialScheduleState = {
+    lastRunAt: null,
+    lastAlbumId: null,
+    lastStatus: null,
+  };
+  if (!db) return empty;
+  const rows = await db
+    .select({ value: adminSettings.value })
+    .from(adminSettings)
+    .where(eq(adminSettings.key, SOCIAL_SCHEDULE_STATE_KEY))
+    .limit(1);
+  if (!rows[0]?.value) return empty;
+  try {
+    const parsed = JSON.parse(rows[0].value) as SocialScheduleState;
+    return {
+      lastRunAt: typeof parsed.lastRunAt === "string" ? parsed.lastRunAt : null,
+      lastAlbumId:
+        typeof parsed.lastAlbumId === "number" ? parsed.lastAlbumId : null,
+      lastStatus: typeof parsed.lastStatus === "string" ? parsed.lastStatus : null,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+export async function saveScheduleState(
+  state: SocialScheduleState
+): Promise<void> {
+  const { getDb } = await import("../db");
+  const { adminSettings } = await import("../../drizzle/schema");
+  const db = await getDb();
+  if (!db) return;
+  const value = JSON.stringify(state);
+  await db
+    .insert(adminSettings)
+    .values({ key: SOCIAL_SCHEDULE_STATE_KEY, value })
+    .onDuplicateKeyUpdate({ set: { value } });
 }

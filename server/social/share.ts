@@ -208,6 +208,9 @@ export async function createAutoSharePosts(
     config?: SocialDistributionConfig;
     store?: SocialQueueStore;
     photos?: PhotoLike[];
+    /** Publish-hook auto requires autoShare. Scheduled random share does not. */
+    requireAutoShare?: boolean;
+    scheduledAt?: Date;
   }
 ) {
   const config = opts?.config ?? (await loadSocialConfig());
@@ -216,6 +219,7 @@ export async function createAutoSharePosts(
       created: [] as Array<{ accountId: number; id: number; status: string }>,
     };
 
+  const requireAutoShare = opts?.requireAutoShare !== false;
   const accounts = opts?.accounts ?? (await listEligibleAutoShareAccounts());
   const created: Array<{
     accountId: number;
@@ -226,7 +230,8 @@ export async function createAutoSharePosts(
 
   for (const account of accounts) {
     try {
-      if (!account.isEnabled || !account.autoShare) continue;
+      if (!account.isEnabled) continue;
+      if (requireAutoShare && !account.autoShare) continue;
       const capabilities = getSocialAdapter(account.platform).getCapabilities();
       const maxImages = Math.min(
         capabilities.maxImages,
@@ -251,6 +256,8 @@ export async function createAutoSharePosts(
       if (!albumRow) continue;
 
       const delayMinutes = delayMinutesFor(config, account.platform);
+      const scheduledAt =
+        opts?.scheduledAt ?? new Date(Date.now() + delayMinutes * 60_000);
       const policy = withPolicySnapshot(
         evaluateSocialPolicy({
           album: albumRow,
@@ -299,7 +306,7 @@ export async function createAutoSharePosts(
           platform: account.platform,
           trigger: "auto",
           status,
-          scheduledAt: new Date(Date.now() + delayMinutes * 60_000),
+          scheduledAt,
           contentRating: config.contentRating,
           caption: content.caption,
           media: snapshot,

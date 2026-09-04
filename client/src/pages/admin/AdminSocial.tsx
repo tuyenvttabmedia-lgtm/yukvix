@@ -52,6 +52,115 @@ function parseConfig(raw: string | null | undefined) {
   }
 }
 
+function TelegramScheduleCard() {
+  const utils = trpc.useUtils();
+  const { data: status } = trpc.social.getScheduleStatus.useQuery();
+  const saveSchedule = trpc.social.saveSchedule.useMutation();
+  const runNow = trpc.social.runScheduleNow.useMutation();
+  const [enabled, setEnabled] = useState(false);
+  const [intervalHours, setIntervalHours] = useState<2 | 4>(4);
+
+  useEffect(() => {
+    if (!status) return;
+    setEnabled(status.enabled);
+    setIntervalHours(status.intervalHours === 2 ? 2 : 4);
+  }, [status]);
+
+  const persist = async (nextEnabled: boolean, nextHours: 2 | 4) => {
+    try {
+      await saveSchedule.mutateAsync({ enabled: nextEnabled, intervalHours: nextHours });
+      toast.success(
+        nextEnabled
+          ? `Đã bật lịch: mỗi ${nextHours} giờ random 1 album chưa lên kênh`
+          : "Đã tắt lịch tự share"
+      );
+      await utils.social.getScheduleStatus.invalidate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không lưu được lịch");
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-border p-4 space-y-4">
+      <h2 className="font-medium">Lịch random Telegram</h2>
+      <p className="text-sm text-muted-foreground">
+        Không share khi publish album. Cứ 2 hoặc 4 giờ hệ thống chọn ngẫu nhiên 1 album
+        <span className="text-foreground"> published</span> chưa từng lên kênh này (trùng album + kênh bị chặn).
+        Bật lịch xong bài đầu tiên chạy sau đúng 1 chu kỳ — dùng “Chạy 1 bài ngay” để test.
+      </p>
+      <div className="flex flex-wrap gap-4 items-center">
+        <label className="flex items-center gap-2 text-sm">
+          <Switch
+            checked={enabled}
+            disabled={saveSchedule.isPending}
+            onCheckedChange={v => {
+              setEnabled(v);
+              void persist(v, intervalHours);
+            }}
+          />
+          Bật lịch tự share
+        </label>
+        <div className="flex items-center gap-2 text-sm">
+          <Label className="m-0">Chu kỳ</Label>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            value={intervalHours}
+            disabled={saveSchedule.isPending}
+            onChange={e => {
+              const hours = Number(e.target.value) === 2 ? 2 : 4;
+              setIntervalHours(hours);
+              void persist(enabled, hours);
+            }}
+          >
+            <option value={2}>Mỗi 2 giờ</option>
+            <option value={4}>Mỗi 4 giờ</option>
+          </select>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={runNow.isPending}
+          onClick={async () => {
+            try {
+              const result = await runNow.mutateAsync();
+              if (!result.ran) {
+                toast.message(result.reason || "Không có bài để share");
+              } else if (result.status === "duplicate") {
+                toast.message("Album trùng — đã bỏ qua");
+              } else {
+                toast.success(`Đã xếp album #${result.albumId} lên hàng đợi`);
+              }
+              await utils.social.getScheduleStatus.invalidate();
+              await utils.social.listPosts.invalidate();
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Chạy lịch thất bại");
+            }
+          }}
+        >
+          {runNow.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+          Chạy 1 bài ngay
+        </Button>
+      </div>
+      <div className="text-sm text-muted-foreground space-y-1">
+        <p>Kênh: {status?.accountName || "chưa có tài khoản Telegram enabled"}</p>
+        <p>Còn {status?.remaining ?? "—"} album chưa lên kênh</p>
+        <p>
+          Lần chạy gần nhất:{" "}
+          {status?.lastRunAt ? new Date(status.lastRunAt).toLocaleString() : "chưa có"}
+          {status?.lastAlbumId ? ` · album #${status.lastAlbumId}` : ""}
+          {status?.lastStatus ? ` · ${status.lastStatus}` : ""}
+        </p>
+        <p>
+          Lần tới:{" "}
+          {status?.enabled && status.nextRunAt
+            ? new Date(status.nextRunAt).toLocaleString()
+            : "—"}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export default function AdminSocial() {
   const search = useSearch();
   const albumFromQuery = Number(new URLSearchParams(search).get("albumId") || "") || 0;
@@ -240,7 +349,7 @@ export default function AdminSocial() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Telegram Manual Share</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Phase Telegram: validate bot, dry-run và manual share. Auto-share chưa bật.
+            Manual share khi bạn chọn album. Lịch tự động random 1 bài / 2–4 giờ, không share lúc publish album.
             Token không bao giờ được hiển thị lại sau khi lưu.
           </p>
         </div>
@@ -370,7 +479,7 @@ export default function AdminSocial() {
               Silent
             </label>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              Auto-share: tắt (phase sau)
+              Auto-share lúc publish: tắt. Dùng lịch random bên dưới.
             </label>
           </div>
           <Button onClick={saveAccount} disabled={upsert.isPending || !keyStatus?.configured}>
@@ -477,6 +586,8 @@ export default function AdminSocial() {
             )}
           </div>
         </section>
+
+        <TelegramScheduleCard />
 
         <section className="rounded-xl border border-border p-4 space-y-4">
           <h2 className="font-medium flex items-center gap-2">

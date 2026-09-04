@@ -154,6 +154,11 @@ export interface SocialDistributionConfig {
   contentRating: string;
   defaultDelayMinutes: number;
   platforms: Record<SocialPlatform, PlatformConfig>;
+  /** Random 1 album per interval. Not tied to album publish. */
+  schedule: {
+    enabled: boolean;
+    intervalHours: 2 | 4;
+  };
 }
 
 export class SocialNotImplementedError extends Error {

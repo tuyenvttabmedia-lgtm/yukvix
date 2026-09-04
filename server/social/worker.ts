@@ -1,4 +1,5 @@
 import { resolveSocialAdapter } from "./adapters";
+import { runTelegramScheduleTick } from "./schedule";
 import {
   claimSocialPost,
   getSocialQueue,
@@ -15,6 +16,7 @@ import {
 import { SocialApiError, SocialNotImplementedError, type MediaSnapshot } from "./types";
 
 const POLL_MS = 5_000;
+const SCHEDULE_POLL_MS = 60_000;
 const CONCURRENCY = 2;
 /** Reclaim processing rows whose lease (processedAt) is older than this. */
 export const SOCIAL_STUCK_MS = 30 * 60 * 1000;
@@ -22,6 +24,7 @@ const HEARTBEAT_MS = 60_000;
 
 const inFlight = new Set<number>();
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let scheduleIntervalId: ReturnType<typeof setInterval> | null = null;
 let tickRunning = false;
 
 function snapshotMedia(post: SocialPostRow): MediaSnapshot {
@@ -224,11 +227,21 @@ export function startSocialWorker(): void {
   intervalId = setInterval(() => {
     runSocialWorkerTick().catch(logTickError);
   }, POLL_MS);
+  setTimeout(() => {
+    runTelegramScheduleTick().catch(logTickError);
+  }, 15_000);
+  scheduleIntervalId = setInterval(() => {
+    runTelegramScheduleTick().catch(logTickError);
+  }, SCHEDULE_POLL_MS);
 }
 
 export function stopSocialWorker(): void {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
+  }
+  if (scheduleIntervalId) {
+    clearInterval(scheduleIntervalId);
+    scheduleIntervalId = null;
   }
 }

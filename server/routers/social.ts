@@ -10,10 +10,14 @@ import {
   peekSocialCredentialsKey,
   saveSocialCredentialsKey,
 } from "../social/crypto";
-import { loadSocialConfig } from "../social/config";
+import { loadSocialConfig, saveScheduleState, saveSocialConfig } from "../social/config";
 import { runSocialDryRun } from "../social/dry-run";
 import { cancelSocialPost, retrySocialPost } from "../social/queue";
 import { createManualShare, loadSocialAccount } from "../social/share";
+import {
+  getTelegramScheduleStatus,
+  runTelegramScheduleTick,
+} from "../social/schedule";
 import { createTelegramAdapter } from "../social/adapters/telegram";
 import {
   parseTelegramConfig,
@@ -78,6 +82,37 @@ function redactAccountConfigJson(raw: string | null): string | null {
 
 export const socialRouter = router({
   getConfig: adminProcedure.query(async () => loadSocialConfig()),
+
+  getScheduleStatus: adminProcedure.query(async () => getTelegramScheduleStatus()),
+
+  saveSchedule: adminProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+        intervalHours: z.union([z.literal(2), z.literal(4)]),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const before = await loadSocialConfig();
+      const next = await saveSocialConfig({
+        schedule: {
+          enabled: input.enabled,
+          intervalHours: input.intervalHours,
+        },
+      });
+      if (input.enabled && !before.schedule.enabled) {
+        await saveScheduleState({
+          lastRunAt: new Date().toISOString(),
+          lastAlbumId: null,
+          lastStatus: "enabled",
+        });
+      }
+      return next.schedule;
+    }),
+
+  runScheduleNow: adminProcedure.mutation(async () => {
+    return runTelegramScheduleTick({ force: true });
+  }),
 
   getCredentialsKeyStatus: adminProcedure.query(async () => peekSocialCredentialsKey()),
 
