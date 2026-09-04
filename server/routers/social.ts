@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { socialAccounts, socialPosts } from "../../drizzle/schema";
+import { albums, socialAccounts, socialPosts } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -321,6 +321,7 @@ export const socialRouter = router({
       z
         .object({
           albumId: z.number().optional(),
+          platform: platformEnum.optional(),
           limit: z.number().min(1).max(100).default(50),
         })
         .optional()
@@ -328,34 +329,35 @@ export const socialRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
-      const rows = input?.albumId
-        ? await db
-            .select()
-            .from(socialPosts)
-            .where(eq(socialPosts.albumId, input.albumId))
-            .limit(input.limit ?? 50)
-        : await db
-            .select()
-            .from(socialPosts)
-            .limit(input?.limit ?? 50);
-      return rows.map(row => ({
-        id: row.id,
-        albumId: row.albumId,
-        accountId: row.accountId,
-        platform: row.platform,
-        trigger: row.trigger,
-        status: row.status,
-        scheduledAt: row.scheduledAt,
-        contentRating: row.contentRating,
-        caption: row.caption,
-        mediaJson: row.mediaJson,
-        policyJson: row.policyJson,
-        externalPostId: row.externalPostId,
-        externalUrl: row.externalUrl,
-        attempts: row.attempts,
-        lastError: row.lastError,
-        createdAt: row.createdAt,
-      }));
+      const filters = [];
+      if (input?.albumId) filters.push(eq(socialPosts.albumId, input.albumId));
+      if (input?.platform) filters.push(eq(socialPosts.platform, input.platform));
+      const rows = await db
+        .select({
+          id: socialPosts.id,
+          albumId: socialPosts.albumId,
+          albumTitle: albums.title,
+          accountId: socialPosts.accountId,
+          platform: socialPosts.platform,
+          trigger: socialPosts.trigger,
+          status: socialPosts.status,
+          scheduledAt: socialPosts.scheduledAt,
+          contentRating: socialPosts.contentRating,
+          caption: socialPosts.caption,
+          mediaJson: socialPosts.mediaJson,
+          policyJson: socialPosts.policyJson,
+          externalPostId: socialPosts.externalPostId,
+          externalUrl: socialPosts.externalUrl,
+          attempts: socialPosts.attempts,
+          lastError: socialPosts.lastError,
+          createdAt: socialPosts.createdAt,
+        })
+        .from(socialPosts)
+        .leftJoin(albums, eq(albums.id, socialPosts.albumId))
+        .where(filters.length ? and(...filters) : undefined)
+        .orderBy(desc(socialPosts.id))
+        .limit(input?.limit ?? 50);
+      return rows;
     }),
 
   cancelPost: adminProcedure
