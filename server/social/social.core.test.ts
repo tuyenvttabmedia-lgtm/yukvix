@@ -142,6 +142,7 @@ describe("policy", () => {
     const decision = evaluateSocialPolicy(policyInput(enabledX));
     expect(decision.allowed).toBe(true);
     expect(decision.requiresSensitive).toBe(true);
+    expect(decision.requiresApproval).toBe(false);
   });
 
   it("rejects disabled accounts", () => {
@@ -761,6 +762,60 @@ describe("manual / auto share core", () => {
     expect(result.created[0].status).toBe("pending");
     expect(store.posts[0].trigger).toBe("auto");
     expect(store.posts[0].scheduledAt.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+  });
+
+  it("X shares go pending even when stale requireApproval is set", async () => {
+    const store = new MemorySocialQueue();
+    const result = await createManualShare({
+      albumId: 42,
+      account: { ...xAccount, isEnabled: true, requireApproval: true },
+      album,
+      photos,
+      config: {
+        ...DEFAULT_SOCIAL_CONFIG,
+        platforms: {
+          ...DEFAULT_SOCIAL_CONFIG.platforms,
+          x: {
+            ...DEFAULT_SOCIAL_CONFIG.platforms.x,
+            requireApproval: true,
+          },
+        },
+      },
+      store,
+      scheduledAt: new Date(),
+    });
+    expect(result.status).toBe("pending");
+    expect(store.posts[0].status).toBe("pending");
+  });
+
+  it("promotes parked X awaiting_approval rows so the worker can claim them", async () => {
+    const store = new MemorySocialQueue();
+    await store.insert({
+      albumId: 42,
+      accountId: 9,
+      platform: "x",
+      trigger: "manual",
+      status: "awaiting_approval",
+      scheduledAt: new Date(Date.now() - 1000),
+      contentRating: "mature",
+      caption: "caption",
+      media: { items: [] },
+      policy: withPolicySnapshot(
+        evaluateSocialPolicy(
+          policyInput({ ...xAccount, isEnabled: true, requireApproval: true })
+        ),
+        {
+          album,
+          account: { ...xAccount, isEnabled: true },
+          config: DEFAULT_SOCIAL_CONFIG,
+          delayMinutes: 0,
+          maxImages: 4,
+        }
+      ),
+      idempotencyKey: "x-awaiting",
+    });
+    expect(await store.promoteXAwaitingApproval()).toBe(1);
+    expect(store.posts[0].status).toBe("pending");
   });
 });
 

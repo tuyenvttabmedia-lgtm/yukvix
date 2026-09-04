@@ -60,9 +60,10 @@ export function evaluateSocialPolicy(input: {
     contentRating === "adult" ||
     contentRating === "nsfw";
   const requiresSensitive = isMature;
-  const requiresApproval = Boolean(
-    account.requireApproval || platformCfg.requireApproval
-  );
+  const requiresApproval =
+    account.platform === "x"
+      ? false
+      : Boolean(account.requireApproval || platformCfg.requireApproval);
 
   if (
     isMature &&

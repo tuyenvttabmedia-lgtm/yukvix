@@ -63,7 +63,7 @@ export async function loadSocialAccount(
     displayName: row.displayName,
     isEnabled: row.isEnabled,
     autoShare: row.autoShare,
-    requireApproval: row.requireApproval,
+    requireApproval: row.platform === "x" ? false : row.requireApproval,
     configJson: row.configJson,
   };
 }
@@ -82,7 +82,7 @@ export async function listEligibleAutoShareAccounts(): Promise<
       displayName: row.displayName,
       isEnabled: row.isEnabled,
       autoShare: row.autoShare,
-      requireApproval: row.requireApproval,
+      requireApproval: row.platform === "x" ? false : row.requireApproval,
       configJson: row.configJson,
     }));
 }
@@ -91,6 +91,9 @@ function initialStatus(
   account: SocialAccountFlags,
   policyRequiresApproval: boolean
 ): SocialPostStatus {
+  // X has no admin approve UI. Stale platform/account requireApproval
+  // used to park posts in awaiting_approval forever (worker only claims pending).
+  if (account.platform === "x") return "pending";
   if (account.requireApproval || policyRequiresApproval)
     return "awaiting_approval";
   return "pending";

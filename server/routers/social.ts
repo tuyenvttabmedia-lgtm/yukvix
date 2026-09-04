@@ -341,7 +341,8 @@ export const socialRouter = router({
       if (input.autoShare) {
         throw new Error("Auto-share lúc publish album chưa bật — dùng lịch random");
       }
-      const requireApproval = input.requireApproval ?? false;
+      const requireApproval =
+        input.platform === "x" ? false : (input.requireApproval ?? false);
       const prepared = await prepareAccountPayload(input);
 
       if (input.id) {

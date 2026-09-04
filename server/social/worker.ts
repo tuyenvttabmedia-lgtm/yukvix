@@ -4,6 +4,7 @@ import {
   claimSocialPost,
   getSocialQueue,
   nextRetryAt,
+  promoteXAwaitingApprovalToPending,
   recoverStuckSocialPosts,
   type SocialPostRow,
   type SocialQueueStore,
@@ -194,6 +195,7 @@ export async function runSocialWorkerTick(
       timeoutMs: SOCIAL_STUCK_MS,
       inFlightIds: Array.from(inFlight),
     });
+    await promoteXAwaitingApprovalToPending(store);
     const slots = Array.from({ length: CONCURRENCY }, async () => {
       while (true) {
         const claimed = await claimSocialPost(new Date(), store);

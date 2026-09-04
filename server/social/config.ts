@@ -173,9 +173,11 @@ export function parseSocialConfig(
         ),
         x: {
           ...mergePlatform(DEFAULT_SOCIAL_CONFIG.platforms.x, platforms.x),
-          // Live adapter. Stored configs from before launch kept enabled:false.
-          // Account isEnabled is the kill switch.
+          // Live adapter. Stored configs from before launch kept
+          // enabled:false and requireApproval:true (no approve UI exists).
+          // Account isEnabled is the kill switch; posts go pending → worker.
           enabled: true,
+          requireApproval: false,
         },
       },
     };

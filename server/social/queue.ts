@@ -1,6 +1,7 @@
 import { and, desc, eq, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
+  socialAccounts,
   socialPostAttempts,
   socialPosts,
   type InsertSocialPost,
@@ -75,6 +76,7 @@ export interface SocialQueueStore {
     cutoff: Date,
     excludeIds: number[]
   ): Promise<SocialPostRow[]>;
+  promoteXAwaitingApproval(): Promise<number>;
 }
 
 export type SocialPostRow = {
@@ -237,6 +239,19 @@ export class MemorySocialQueue implements SocialQueueStore {
         p.processedAt != null &&
         p.processedAt.getTime() < cutoff.getTime()
     );
+  }
+
+  async promoteXAwaitingApproval(): Promise<number> {
+    const now = new Date();
+    let n = 0;
+    for (const post of this.posts) {
+      if (post.platform === "x" && post.status === "awaiting_approval") {
+        post.status = "pending";
+        post.scheduledAt = now;
+        n++;
+      }
+    }
+    return n;
   }
 }
 
@@ -464,6 +479,33 @@ export const mysqlSocialQueue: SocialQueueStore = {
     const exclude = new Set(excludeIds);
     return rows.filter(r => !exclude.has(r.id)).map(mapSqlPost);
   },
+
+  async promoteXAwaitingApproval() {
+    try {
+      const db = await getDb();
+      if (!db) return 0;
+      await db
+        .update(socialAccounts)
+        .set({ requireApproval: false })
+        .where(eq(socialAccounts.platform, "x"));
+      const result = await db
+        .update(socialPosts)
+        .set({ status: "pending", scheduledAt: new Date() })
+        .where(
+          and(
+            eq(socialPosts.platform, "x"),
+            eq(socialPosts.status, "awaiting_approval")
+          )
+        );
+      return mysqlAffectedRows(result);
+    } catch (err) {
+      console.error(
+        "[Social] promote X awaiting_approval failed",
+        err instanceof Error ? err.message : String(err)
+      );
+      return 0;
+    }
+  },
 };
 
 let activeStore: SocialQueueStore = mysqlSocialQueue;
@@ -573,6 +615,13 @@ export async function recoverStuckSocialPosts(
     if (ok) recovered++;
   }
   return recovered;
+}
+
+/** Stale X requireApproval parked posts here; worker only claims pending. */
+export async function promoteXAwaitingApprovalToPending(
+  store: SocialQueueStore = getSocialQueue()
+): Promise<number> {
+  return store.promoteXAwaitingApproval();
 }
 
 export function nextRetryAt(attempts: number, now = new Date()): Date {

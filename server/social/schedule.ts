@@ -102,7 +102,7 @@ export async function listEnabledAccounts(
     displayName: row.displayName,
     isEnabled: row.isEnabled,
     autoShare: row.autoShare,
-    requireApproval: row.requireApproval,
+    requireApproval: row.platform === "x" ? false : row.requireApproval,
     configJson: row.configJson,
   }));
 }
