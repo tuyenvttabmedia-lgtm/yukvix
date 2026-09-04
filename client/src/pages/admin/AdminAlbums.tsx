@@ -1,19 +1,20 @@
 import { trpc } from "@/lib/trpc";
 import { EntityPage, EntityToolbar, DataTable, AdminStatusBadge, adminGlossary } from "@/admin";
-import { Hash, ImageIcon, X as XIcon } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
+  Check,
   Crown,
   Edit,
+  FileArchive,
+  Hash,
+  ImageIcon,
   Loader2,
   Plus,
   RefreshCw,
   Trash2,
   X,
-  Check,
-  FileArchive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -645,7 +646,7 @@ function CreateAlbumModal({
                 <span key={tag} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full border border-primary/20">
                   #{tag}
                   <button type="button" onClick={() => removeTag(tag)} className="hover:text-destructive transition-colors">
-                    <XIcon className="w-3 h-3" />
+                    <X className="w-3 h-3" />
                   </button>
                 </span>
               ))}
@@ -888,7 +889,7 @@ function EditAlbumModal({
                 <span key={tag} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full border border-primary/20">
                   #{tag}
                   <button type="button" onClick={() => removeTag(tag)} className="hover:text-destructive transition-colors">
-                    <XIcon className="w-3 h-3" />
+                    <X className="w-3 h-3" />
                   </button>
                 </span>
               ))}
