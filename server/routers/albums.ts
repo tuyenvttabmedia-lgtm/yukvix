@@ -268,19 +268,20 @@ export const albumsRouter = router({
     .input(
       z.object({
         page: z.number().min(1).default(1),
-        limit: z.number().min(1).max(100).default(20),
+        limit: z.number().min(1).max(200).default(20),
         search: z.string().optional(),
         status: z.enum(["draft", "published", "archived"]).optional(),
         isVip: z.boolean().optional(),
         categoryId: z.number().optional(),
         tagSlug: z.string().optional(),
+        sortBy: z.enum(["newest", "oldest", "popular", "title"]).default("newest"),
       })
     )
     .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      return listAlbums({ ...input, excludeProcessing: true }).then((result) => ({
+      return listAlbums({ ...input, excludeProcessing: false }).then((result) => ({
         ...result,
         items: result.items.map(withRewrittenCover),
       }));

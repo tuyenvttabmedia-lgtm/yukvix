@@ -2,15 +2,14 @@ import { trpc } from "@/lib/trpc";
 import { EntityPage, EntityToolbar, DataTable, AdminStatusBadge, adminGlossary } from "@/admin";
 import { Hash, ImageIcon, X as XIcon } from "lucide-react";
 import AdminLayout from "./AdminLayout";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Crown,
   Edit,
-  Eye,
-  ImageIcon,
   Loader2,
   Plus,
+  RefreshCw,
   Trash2,
   X,
   Check,
@@ -22,14 +21,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const PAGE_SIZE_KEY = "yukvix.admin.albums.pageSize";
+const PAGE_SIZES = [10, 20, 50, 100] as const;
+
+function readPageSize(): number {
+  if (typeof window === "undefined") return 20;
+  const raw = Number(window.localStorage.getItem(PAGE_SIZE_KEY));
+  return PAGE_SIZES.includes(raw as (typeof PAGE_SIZES)[number]) ? raw : 20;
+}
+
 export default function AdminAlbums() {
   const [, navigate] = useLocation();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(readPageSize);
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft" | "archived">("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "free" | "vip">("all");
   const [tagFilter, setTagFilter] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "popular" | "title">("newest");
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState<any | null>(null);
@@ -46,16 +56,32 @@ export default function AdminAlbums() {
 
   const { data: allTagsForFilter } = trpc.albums.tags.useQuery();
 
-  const { data, isLoading } = trpc.albums.adminList.useQuery({
+  const { data, isLoading, isFetching, refetch } = trpc.albums.adminList.useQuery({
     page,
-    limit: 20,
+    limit: pageSize,
     status: statusFilter === "all" ? undefined : statusFilter,
     search: debouncedSearch || undefined,
     isVip: typeFilter === "all" ? undefined : typeFilter === "vip",
     tagSlug: tagFilter || undefined,
-  });
+    sortBy,
+  }, { placeholderData: (prev) => prev });
+
+  useEffect(() => {
+    if (!data) return;
+    const lastPage = Math.max(1, Math.ceil(data.total / pageSize));
+    if (page > lastPage) setPage(lastPage);
+  }, [data, page, pageSize]);
 
   const invalidateAlbums = () => {
+    utils.albums.list.invalidate();
+    utils.albums.adminList.invalidate();
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(size));
+  };
     utils.albums.list.invalidate();
     utils.albums.adminList.invalidate();
   };
@@ -95,7 +121,7 @@ export default function AdminAlbums() {
   });
 
   const albums = data?.items ?? [];
-  const totalPages = data ? Math.ceil(data.total / 20) : 1;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
   const hasFilters = !!(search || statusFilter !== "all" || typeFilter !== "all" || tagFilter);
   const clearFilters = () => {
     setSearch("");
@@ -103,6 +129,7 @@ export default function AdminAlbums() {
     setStatusFilter("all");
     setTypeFilter("all");
     setTagFilter("");
+    setSortBy("newest");
     setPage(1);
   };
 
@@ -115,13 +142,19 @@ export default function AdminAlbums() {
           title: "Quản lý album",
           subtitle: isLoading ? adminGlossary.loading.page : `${data?.total ?? 0} album`,
           actions: (
-            <Button
-              className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-              onClick={() => setShowCreateModal(true)}
-            >
-              <Plus className="w-4 h-4" />
-              {adminGlossary.action.createAlbum}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()} disabled={isFetching}>
+                <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+                Làm mới
+              </Button>
+              <Button
+                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                onClick={() => setShowCreateModal(true)}
+              >
+                <Plus className="w-4 h-4" />
+                {adminGlossary.action.createAlbum}
+              </Button>
+            </div>
           ),
         }}
         toolbar={
@@ -177,17 +210,35 @@ export default function AdminAlbums() {
                   <Hash className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
                 </div>
                 {hasFilters && (
-                  <button onClick={clearFilters} className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                  <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                     <X className="w-3.5 h-3.5" /> Xóa bộ lọc
                   </button>
                 )}
+                <select
+                  value={sortBy}
+                  onChange={(e) => { setSortBy(e.target.value as typeof sortBy); setPage(1); }}
+                  className="px-3 py-1 rounded-xl text-xs bg-secondary/30 border-0 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value="newest">Mới nhất</option>
+                  <option value="oldest">Cũ nhất</option>
+                  <option value="popular">Xem nhiều</option>
+                  <option value="title">Theo tên</option>
+                </select>
               </div>
             }
           />
         }
         pagination={
-          data && data.total > 20
-            ? { page, totalPages, total: data.total, onPageChange: setPage, itemLabel: "album" }
+          data
+            ? {
+                page,
+                totalPages,
+                total: data.total,
+                pageSize,
+                onPageChange: setPage,
+                onPageSizeChange: handlePageSizeChange,
+                itemLabel: "album",
+              }
             : undefined
         }
         isEmpty={!isLoading && albums.length === 0}
@@ -199,14 +250,14 @@ export default function AdminAlbums() {
             : { label: adminGlossary.action.createAlbum, onClick: () => setShowCreateModal(true) },
         }}
       >
-        <div className="rounded-xl border border-border/50 overflow-hidden bg-card">
-          <DataTable
+        <DataTable
+            stickyHeader={false}
             columns={[
               {
                 id: "album",
                 header: "Album",
                 cell: (album) => (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted shrink-0">
                       {album.coverUrl ? (
                         <img src={album.coverUrl} alt="" className="w-full h-full object-cover" />
@@ -217,14 +268,14 @@ export default function AdminAlbums() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-foreground" title={album.title}>{album.title}</p>
+                      <p className="font-medium text-foreground truncate max-w-[28rem]" title={album.title}>{album.title}</p>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         {album.isVip && (
                           <span className="vip-badge flex items-center gap-0.5">
                             <Crown className="w-2 h-2" />VIP
                           </span>
                         )}
-                        <span className="text-xs text-muted-foreground">{album.slug}</span>
+                        <span className="text-xs text-muted-foreground truncate max-w-[20rem]">{album.slug}</span>
                       </div>
                     </div>
                   </div>
@@ -235,23 +286,51 @@ export default function AdminAlbums() {
                 header: "Trạng thái",
                 hideBelow: "md",
                 cell: (album) => (
-                  <AdminStatusBadge
-                    status={album.status === "published" ? "published" : album.status === "draft" ? "draft" : "cancelled"}
-                    label={album.status === "published" ? "Đã xuất bản" : album.status === "draft" ? "Nháp" : "Lưu trữ"}
-                  />
+                  <div className="flex flex-col gap-1 items-start">
+                    <AdminStatusBadge
+                      status={album.status === "published" ? "published" : album.status === "draft" ? "draft" : "cancelled"}
+                      label={album.status === "published" ? "Đã xuất bản" : album.status === "draft" ? "Nháp" : "Lưu trữ"}
+                    />
+                    {(album as any).publishStatus === "processing" && (
+                      <AdminStatusBadge status="processing" />
+                    )}
+                    {(album as any).publishStatus === "ready_for_review" && album.status === "draft" && (
+                      <AdminStatusBadge status="ready_for_review" />
+                    )}
+                  </div>
+                ),
+              },
+              {
+                id: "creator",
+                header: "Cosplayer",
+                hideBelow: "lg",
+                cell: (album) => (
+                  <span className="text-muted-foreground truncate max-w-[10rem] block" title={(album as any).creatorName || album.cosplayer || ""}>
+                    {(album as any).creatorName || album.cosplayer || "—"}
+                  </span>
                 ),
               },
               {
                 id: "photos",
                 header: "Ảnh",
                 hideBelow: "sm",
-                cell: (album) => <span className="text-muted-foreground">{album.photoCount}</span>,
+                cell: (album) => <span className="text-muted-foreground tabular-nums">{album.photoCount}</span>,
               },
               {
                 id: "views",
                 header: "Lượt xem",
                 hideBelow: "lg",
-                cell: (album) => <span className="text-muted-foreground">{album.viewCount.toLocaleString()}</span>,
+                cell: (album) => <span className="text-muted-foreground tabular-nums">{album.viewCount.toLocaleString()}</span>,
+              },
+              {
+                id: "updated",
+                header: "Cập nhật",
+                hideBelow: "lg",
+                cell: (album) => (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {album.updatedAt ? new Date(album.updatedAt).toLocaleDateString("vi-VN") : "—"}
+                  </span>
+                ),
               },
               {
                 id: "zip",
@@ -306,7 +385,6 @@ export default function AdminAlbums() {
               </div>
             )}
           />
-        </div>
       </EntityPage>
 
       {/* Tạo album Modal */}

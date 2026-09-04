@@ -354,6 +354,7 @@ export async function listAlbums(opts: {
   let orderBy;
   if (sortBy === "popular") orderBy = desc(albums.viewCount);
   else if (sortBy === "oldest") orderBy = albums.createdAt;
+  else if (sortBy === "title") orderBy = albums.title;
   else orderBy = desc(albums.createdAt);
 
   const rows = await db
@@ -370,6 +371,7 @@ export async function listAlbums(opts: {
       photoCount: albums.photoCount,
       viewCount: albums.viewCount,
       status: albums.status,
+      publishStatus: albums.publishStatus,
       seoTitle: albums.seoTitle,
       seoDescription: albums.seoDescription,
       seoKeywords: albums.seoKeywords,

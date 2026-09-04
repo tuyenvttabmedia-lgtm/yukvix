@@ -16,8 +16,11 @@ export const adminGlossary = {
   pagination: {
     prev: "Trang trước",
     next: "Trang sau",
+    pageSize: "Mỗi trang",
     summary: (page: number, totalPages: number, total: number, itemLabel: string) =>
       `Trang ${page}/${totalPages} · ${total} ${itemLabel}`,
+    range: (from: number, to: number, total: number, itemLabel: string) =>
+      `Hiển thị ${from}–${to} / ${total} ${itemLabel}`,
   },
   empty: {
     default: "Chưa có dữ liệu",

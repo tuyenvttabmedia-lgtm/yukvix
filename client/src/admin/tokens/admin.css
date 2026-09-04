@@ -48,7 +48,7 @@
 }
 
 [data-admin] .admin-table-wrap {
-  @apply rounded-xl border border-border/50 overflow-hidden bg-card;
+  @apply rounded-xl border border-border/50 bg-card overflow-x-auto;
 }
 
 [data-admin] .admin-table {

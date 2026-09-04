@@ -43,7 +43,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn("admin-table-wrap overflow-x-auto", stickyHeader && "max-h-[70vh]")}>
+    <div className={cn("admin-table-wrap", stickyHeader && "max-h-[min(70vh,calc(100vh-16rem))] overflow-auto")}>
       <table className="admin-table">
         <thead className={cn("admin-thead", stickyHeader && "sticky top-0 z-10")}>
           <tr>
