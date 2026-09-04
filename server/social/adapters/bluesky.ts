@@ -3,6 +3,7 @@ import { socialAccounts } from "../../../drizzle/schema";
 import { getDb } from "../../db";
 import { decryptSocialCredentialsAsync } from "../crypto";
 import { clipCaptionPreservingCta } from "../content";
+import { buildBlueskyLinkFacets } from "../bluesky-facets";
 import { sanitizeSocialErrorMessage } from "../sanitize";
 import { loadSocialUploadJpeg } from "../upload-bytes";
 import {
@@ -267,6 +268,7 @@ export function createBlueskyAdapter(opts: BlueskyAdapterOptions): SocialAdapter
         });
       }
       const text = clipCaptionPreservingCta(post.caption || "", BLUESKY_CAPTION_MAX);
+      const facets = buildBlueskyLinkFacets(text);
       const sensitive = Boolean(
         post.labels &&
           typeof post.labels === "object" &&
@@ -281,6 +283,7 @@ export function createBlueskyAdapter(opts: BlueskyAdapterOptions): SocialAdapter
           images,
         },
       };
+      if (facets.length) record.facets = facets;
       if (sensitive) {
         record.labels = {
           $type: "com.atproto.label.defs#selfLabels",
