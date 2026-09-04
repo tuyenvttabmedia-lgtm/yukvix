@@ -64,7 +64,9 @@ export default function AdminSocial() {
   const dryRun = trpc.social.dryRun.useMutation();
   const share = trpc.social.createManualShare.useMutation();
   const saveKey = trpc.social.saveCredentialsKey.useMutation();
+  const removeAccount = trpc.social.deleteAccount.useMutation();
   const [pasteKey, setPasteKey] = useState("");
+  const [testedAccountId, setTestedAccountId] = useState<number | null>(null);
 
   const telegramAccounts = (accounts ?? []).filter(a => a.platform === "telegram");
 
@@ -132,14 +134,48 @@ export default function AdminSocial() {
 
   const runValidate = async (id: number) => {
     setValidateResult(null);
+    setTestedAccountId(id);
     try {
       const result = await validate.mutateAsync({ accountId: id });
       setValidateResult(result);
+      if (result.ok) {
+        toast.success(
+          `Kết nối OK · Bot ${result.info?.handle || result.info?.displayName || ""} · Target ${result.info?.targetChat || ""}`
+        );
+      } else {
+        toast.error(result.reason || "Test kết nối thất bại");
+      }
     } catch (err) {
       setValidateResult({
         ok: false,
-        reason: err instanceof Error ? err.message : "Validate failed",
+        reason: err instanceof Error ? err.message : "Test kết nối thất bại",
       });
+      toast.error(err instanceof Error ? err.message : "Test kết nối thất bại");
+    }
+  };
+
+  const runDelete = async (id: number, label: string) => {
+    if (
+      !window.confirm(
+        `Xóa tài khoản "${label}"? Token đã mã hóa sẽ bị xóa. Album không bị đụng.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await removeAccount.mutateAsync({ id });
+      toast.success("Đã xóa tài khoản Telegram");
+      if (form.id === id) {
+        setForm(f => ({ ...f, id: undefined, botToken: "", chatId: "" }));
+      }
+      if (accountId === id) setAccountId("");
+      if (testedAccountId === id) {
+        setTestedAccountId(null);
+        setValidateResult(null);
+      }
+      await utils.social.listAccounts.invalidate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không xóa được tài khoản");
     }
   };
 
@@ -339,7 +375,7 @@ export default function AdminSocial() {
                         Target: {cfg.chatId || "—"} · {account.hasCredentials ? "token đã mã hóa" : "chưa có token"}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -364,7 +400,20 @@ export default function AdminSocial() {
                         disabled={validate.isPending}
                         onClick={() => runValidate(account.id)}
                       >
-                        Validate
+                        {validate.isPending && testedAccountId === account.id ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : null}
+                        Test kết nối
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={removeAccount.isPending}
+                        onClick={() =>
+                          runDelete(account.id, `${account.displayName} · ${cfg.chatId || "no target"}`)
+                        }
+                      >
+                        Xóa
                       </Button>
                     </div>
                   </li>
@@ -372,13 +421,41 @@ export default function AdminSocial() {
               })}
             </ul>
           )}
-          {validateResult && (
-            <p className={validateResult.ok ? "text-sm text-emerald-500" : "text-sm text-destructive"}>
-              {validateResult.ok
-                ? `Connected · Bot: ${validateResult.info?.handle || validateResult.info?.displayName || "ok"} · Target: ${validateResult.info?.targetChat || "ok"}`
-                : `Failed · ${validateResult.reason}`}
+          <div className="rounded-lg border border-border bg-secondary/30 p-3 space-y-1">
+            <p className="text-sm font-medium">Kết quả test kết nối</p>
+            <p className="text-xs text-muted-foreground">
+              Gọi Telegram getMe + getChat. Token không bao giờ được trả về trình duyệt.
             </p>
-          )}
+            {validate.isPending ? (
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Đang gọi Telegram Bot API…
+              </p>
+            ) : validateResult ? (
+              <div
+                className={
+                  validateResult.ok
+                    ? "text-sm text-emerald-500 space-y-0.5"
+                    : "text-sm text-destructive space-y-0.5"
+                }
+              >
+                {validateResult.ok ? (
+                  <>
+                    <p>Connected</p>
+                    <p>
+                      Bot: {validateResult.info?.handle || validateResult.info?.displayName || "ok"}
+                    </p>
+                    <p>Target: {validateResult.info?.targetChat || "ok"}</p>
+                  </>
+                ) : (
+                  <p>Failed · {validateResult.reason}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Bấm <span className="text-foreground">Test kết nối</span> trên tài khoản cần kiểm tra.
+              </p>
+            )}
+          </div>
         </section>
 
         <section className="rounded-xl border border-border p-4 space-y-4">

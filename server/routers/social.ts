@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { socialAccounts, socialPosts } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
@@ -98,6 +98,34 @@ export const socialRouter = router({
     const rows = await db.select().from(socialAccounts);
     return rows.map(publicAccount);
   }),
+
+  deleteAccount: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const [row] = await db
+        .select({ id: socialAccounts.id })
+        .from(socialAccounts)
+        .where(eq(socialAccounts.id, input.id))
+        .limit(1);
+      if (!row) throw new Error("Account not found");
+      await db
+        .update(socialPosts)
+        .set({ status: "cancelled", processedAt: new Date() })
+        .where(
+          and(
+            eq(socialPosts.accountId, input.id),
+            inArray(socialPosts.status, [
+              "pending",
+              "awaiting_approval",
+              "processing",
+            ])
+          )
+        );
+      await db.delete(socialAccounts).where(eq(socialAccounts.id, input.id));
+      return { ok: true as const };
+    }),
 
   upsertAccount: adminProcedure
     .input(
