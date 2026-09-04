@@ -27,7 +27,7 @@ import {
   clearSocialAdapterOverrides,
   setSocialAdapterOverride,
 } from "./adapters";
-import { stubCapabilities } from "./adapters/stub";
+import { stubCapabilities, createStubAdapter } from "./adapters/stub";
 import { SOCIAL_STUCK_MS, processClaimedPost, runSocialWorkerTick } from "./worker";
 import type {
   PolicyInputAlbum,
@@ -121,12 +121,27 @@ describe("policy", () => {
     ).toMatch(/Archived/);
   });
 
-  it("rejects disabled platform X", () => {
-    const enabledX = { ...xAccount, isEnabled: true };
-    const decision = evaluateSocialPolicy(policyInput(enabledX));
+  it("rejects disabled platform in config", () => {
+    const enabledX = { ...xAccount, isEnabled: true, requireApproval: false };
+    const decision = evaluateSocialPolicy({
+      ...policyInput(enabledX),
+      config: {
+        ...DEFAULT_SOCIAL_CONFIG,
+        platforms: {
+          ...DEFAULT_SOCIAL_CONFIG.platforms,
+          x: { ...DEFAULT_SOCIAL_CONFIG.platforms.x, enabled: false },
+        },
+      },
+    });
     expect(decision.allowed).toBe(false);
     expect(decision.reason).toMatch(/disabled/);
-    expect(decision.requiresApproval).toBe(true);
+  });
+
+  it("allows enabled X with a sensitive label", () => {
+    const enabledX = { ...xAccount, isEnabled: true, requireApproval: false };
+    const decision = evaluateSocialPolicy(policyInput(enabledX));
+    expect(decision.allowed).toBe(true);
+    expect(decision.requiresSensitive).toBe(true);
   });
 
   it("rejects disabled accounts", () => {
@@ -522,6 +537,7 @@ describe("worker + stub adapter", () => {
   it("does not call a real network API; stub fails closed", async () => {
     const store = new MemorySocialQueue();
     setSocialQueueForTests(store);
+    setSocialAdapterOverride("x", createStubAdapter("x"));
     const { id } = await store.insert({
       albumId: 42,
       accountId: 1,

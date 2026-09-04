@@ -36,6 +36,12 @@ import {
   parseBlueskyCredentials,
   blueskyConfigForStorage,
 } from "../social/bluesky-config";
+import {
+  parseXConfig,
+  parseXCredentials,
+  xConfigForStorage,
+} from "../social/x-config";
+import { createXAdapter } from "../social/adapters/x";
 import { sanitizeSocialErrorMessage } from "../social/sanitize";
 import {
   SocialAccountDisabledError,
@@ -46,7 +52,7 @@ import {
 } from "../social/types";
 
 const platformEnum = z.enum(["telegram", "mastodon", "bluesky", "x"]);
-const LIVE_PLATFORMS = ["telegram", "mastodon", "bluesky"] as const;
+const LIVE_PLATFORMS = ["telegram", "mastodon", "bluesky", "x"] as const;
 const schedulePlatformEnum = z.enum(LIVE_PLATFORMS);
 
 function publicAccount(row: {
@@ -160,6 +166,22 @@ async function prepareAccountPayload(input: {
         : undefined,
     };
   }
+  if (input.platform === "x") {
+    const incoming = input.credentials ? parseXCredentials(input.credentials) : null;
+    const configJson = xConfigForStorage(input.configJson);
+    parseXConfig(configJson);
+    return {
+      configJson,
+      encrypted: incoming
+        ? await encryptSocialCredentialsAsync({
+            apiKey: incoming.apiKey,
+            apiSecret: incoming.apiSecret,
+            accessToken: incoming.accessToken,
+            accessTokenSecret: incoming.accessTokenSecret,
+          })
+        : undefined,
+    };
+  }
   throw new Error("Unsupported platform");
 }
 
@@ -183,6 +205,11 @@ async function adapterForAccountRow(row: {
     const credentials = parseBlueskyCredentials(raw);
     const config = parseBlueskyConfig(row.configJson, credentials);
     return createBlueskyAdapter({ credentials, config });
+  }
+  if (row.platform === "x") {
+    const credentials = parseXCredentials(raw);
+    const config = parseXConfig(row.configJson);
+    return createXAdapter({ credentials, config });
   }
   throw new Error("Unsupported platform");
 }
@@ -311,9 +338,6 @@ export const socialRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      if (input.platform === "x") {
-        throw new Error("X is disabled until owner enables the official API");
-      }
       if (input.autoShare) {
         throw new Error("Auto-share lúc publish album chưa bật — dùng lịch random");
       }
@@ -366,9 +390,6 @@ export const socialRouter = router({
     .mutation(async ({ input }) => {
       const account = await loadSocialAccount(input.accountId);
       if (!account) throw new Error("Account not found");
-      if (account.platform === "x") {
-        throw new Error("X is disabled until owner enables the official API");
-      }
       try {
         return await runSocialDryRun({ albumId: input.albumId, account });
       } catch (err) {
@@ -388,9 +409,6 @@ export const socialRouter = router({
         .where(eq(socialAccounts.id, input.accountId))
         .limit(1);
       if (!row) throw new Error("Account not found");
-      if (row.platform === "x") {
-        return { ok: false as const, reason: "X is not enabled" };
-      }
       try {
         const adapter = await adapterForAccountRow(row);
         await adapter.validateConnection();
@@ -418,9 +436,6 @@ export const socialRouter = router({
     .mutation(async ({ input, ctx }) => {
       const account = await loadSocialAccount(input.accountId);
       if (!account) throw new Error("Account not found");
-      if (account.platform === "x") {
-        throw new Error("X is disabled until owner enables the official API");
-      }
       return createManualShare({
         albumId: input.albumId,
         account,

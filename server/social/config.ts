@@ -13,6 +13,7 @@ export const DEFAULT_SOCIAL_CONFIG: SocialDistributionConfig = {
   schedules: {
     mastodon: { enabled: false, intervalMinutes: 240 },
     bluesky: { enabled: false, intervalMinutes: 240 },
+    x: { enabled: false, intervalMinutes: 240 },
   },
   platforms: {
     telegram: {
@@ -34,11 +35,11 @@ export const DEFAULT_SOCIAL_CONFIG: SocialDistributionConfig = {
       delayMinutes: 20,
     },
     x: {
-      enabled: false,
+      enabled: true,
       defaultAutoShare: false,
       maxImages: 4,
       delayMinutes: 30,
-      requireApproval: true,
+      requireApproval: false,
     },
   },
 };
@@ -119,10 +120,11 @@ function parsePlatformSchedules(
   return {
     mastodon: parseOneSchedule(o.mastodon ?? DEFAULT_SOCIAL_CONFIG.schedules.mastodon),
     bluesky: parseOneSchedule(o.bluesky ?? DEFAULT_SOCIAL_CONFIG.schedules.bluesky),
+    x: parseOneSchedule(o.x ?? DEFAULT_SOCIAL_CONFIG.schedules.x),
   };
 }
 
-export type SocialSchedulePlatform = "telegram" | "mastodon" | "bluesky";
+export type SocialSchedulePlatform = "telegram" | "mastodon" | "bluesky" | "x";
 
 export function scheduleFor(
   config: SocialDistributionConfig,
@@ -234,6 +236,13 @@ export async function saveSocialConfig(
             current.schedules.bluesky.intervalMinutes
         ),
       },
+      x: {
+        ...current.schedules.x,
+        ...(patch.schedules?.x ?? {}),
+        intervalMinutes: normalizeScheduleIntervalMinutes(
+          patch.schedules?.x?.intervalMinutes ?? current.schedules.x.intervalMinutes
+        ),
+      },
     },
     platforms: patch.platforms ?? current.platforms,
   };
@@ -283,16 +292,23 @@ function parseScheduleStateMap(raw: string | null | undefined): ScheduleStateMap
     telegram: emptyScheduleState(),
     mastodon: emptyScheduleState(),
     bluesky: emptyScheduleState(),
+    x: emptyScheduleState(),
   };
   if (!raw) return empty;
   try {
     const parsed = asObject(JSON.parse(raw));
     if (!parsed) return empty;
-    if (asObject(parsed.telegram) || asObject(parsed.mastodon) || asObject(parsed.bluesky)) {
+    if (
+      asObject(parsed.telegram) ||
+      asObject(parsed.mastodon) ||
+      asObject(parsed.bluesky) ||
+      asObject(parsed.x)
+    ) {
       return {
         telegram: parseOneScheduleState(parsed.telegram),
         mastodon: parseOneScheduleState(parsed.mastodon),
         bluesky: parseOneScheduleState(parsed.bluesky),
+        x: parseOneScheduleState(parsed.x),
       };
     }
     return { ...empty, telegram: parseOneScheduleState(parsed) };
@@ -311,6 +327,7 @@ async function loadScheduleStateMap(): Promise<ScheduleStateMap> {
       telegram: emptyScheduleState(),
       mastodon: emptyScheduleState(),
       bluesky: emptyScheduleState(),
+      x: emptyScheduleState(),
     };
   }
   const rows = await db

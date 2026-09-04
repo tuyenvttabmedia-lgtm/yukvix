@@ -60,7 +60,7 @@ export function describeScheduleLastRun(opts: {
     case "pending":
       return "Đã xếp hàng, đang gửi";
     case "processing":
-      return "Đang gửi lên Telegram";
+      return "Đang gửi";
     case "sent":
       return "Đã lên kênh";
     case "failed":
@@ -74,7 +74,10 @@ export function describeScheduleLastRun(opts: {
     case "enabled":
       return "Đã bật lịch (chờ chu kỳ đầu)";
     case "no-telegram-account":
-      return "Chưa có tài khoản Telegram";
+    case "no-mastodon-account":
+    case "no-bluesky-account":
+    case "no-x-account":
+      return "Chưa có tài khoản";
     case "duplicate skipped":
       return "Bỏ qua (trùng album)";
     default:
@@ -261,7 +264,12 @@ export async function runTelegramScheduleTick(opts?: {
 export async function runAllScheduleTicks(opts?: {
   force?: boolean;
 }): Promise<ScheduleTickResult[]> {
-  const platforms: SocialSchedulePlatform[] = ["telegram", "mastodon", "bluesky"];
+  const platforms: SocialSchedulePlatform[] = [
+    "telegram",
+    "mastodon",
+    "bluesky",
+    "x",
+  ];
   const results: ScheduleTickResult[] = [];
   for (const platform of platforms) {
     results.push(await runPlatformScheduleTick(platform, opts));

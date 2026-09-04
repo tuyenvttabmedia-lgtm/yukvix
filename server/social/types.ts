@@ -163,6 +163,7 @@ export interface SocialDistributionConfig {
   schedules: {
     mastodon: { enabled: boolean; intervalMinutes: number };
     bluesky: { enabled: boolean; intervalMinutes: number };
+    x: { enabled: boolean; intervalMinutes: number };
   };
 }
 

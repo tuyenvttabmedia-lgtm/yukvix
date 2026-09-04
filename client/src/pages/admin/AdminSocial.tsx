@@ -27,8 +27,15 @@ const PLATFORM_TABS: Array<{ id: SocialPlatformTab; label: string; ready: boolea
   { id: "telegram", label: "Telegram", ready: true },
   { id: "mastodon", label: "Mastodon", ready: true },
   { id: "bluesky", label: "Bluesky", ready: true },
-  { id: "x", label: "X", ready: false },
+  { id: "x", label: "X", ready: true },
 ];
+
+function defaultDisplayName(platform: SocialPlatformTab): string {
+  if (platform === "telegram") return "Yukvix Telegram";
+  if (platform === "mastodon") return "Yukvix Mastodon";
+  if (platform === "bluesky") return "Yukvix Bluesky";
+  return "Yukvix X";
+}
 
 const RECENT_POSTS_DEFAULT = 10;
 const RECENT_POSTS_MORE = 30;
@@ -151,7 +158,7 @@ function SocialScheduleCard({
   platform,
   label,
 }: {
-  platform: "telegram" | "mastodon" | "bluesky";
+  platform: "telegram" | "mastodon" | "bluesky" | "x";
   label: string;
 }) {
   const utils = trpc.useUtils();
@@ -333,7 +340,7 @@ function SocialScheduleCard({
                 rel="noreferrer"
                 className="text-foreground underline"
               >
-                Telegram
+                {label}
               </a>
             </>
           ) : null}
@@ -345,18 +352,6 @@ function SocialScheduleCard({
             : "—"}
         </dd>
       </dl>
-    </section>
-  );
-}
-
-function ComingSoonPlatform({ name }: { name: string }) {
-  return (
-    <section className="rounded-xl border border-dashed border-border p-6 space-y-2">
-      <h2 className="font-medium">{name} chưa bật</h2>
-      <p className="text-sm text-muted-foreground">
-        Khi làm {name}, dùng cùng bố cục Telegram: tài khoản bên trái, lịch random bên phải, share
-        thủ công thu gọn, và 10 lần share gần nhất bên dưới.
-      </p>
     </section>
   );
 }
@@ -404,6 +399,9 @@ export default function AdminSocial() {
     identifier: "",
     appPassword: "",
     pdsUrl: "https://bsky.social",
+    apiKey: "",
+    apiSecret: "",
+    accessTokenSecret: "",
     maxImages: 10,
     isEnabled: true,
     disableNotification: false,
@@ -466,14 +464,7 @@ export default function AdminSocial() {
     setValidateResult(null);
     setForm({
       id: undefined,
-      displayName:
-        platform === "telegram"
-          ? "Yukvix Telegram"
-          : platform === "mastodon"
-            ? "Yukvix Mastodon"
-            : platform === "bluesky"
-              ? "Yukvix Bluesky"
-              : "Yukvix",
+      displayName: defaultDisplayName(platform),
       botToken: "",
       chatId: "",
       instanceUrl: "",
@@ -481,6 +472,9 @@ export default function AdminSocial() {
       identifier: "",
       appPassword: "",
       pdsUrl: "https://bsky.social",
+      apiKey: "",
+      apiSecret: "",
+      accessTokenSecret: "",
       maxImages: platform === "telegram" ? 10 : 4,
       isEnabled: true,
       disableNotification: false,
@@ -494,7 +488,6 @@ export default function AdminSocial() {
   );
 
   const saveAccount = async () => {
-    if (platform === "x") return;
     try {
       const credentials =
         platform === "telegram"
@@ -509,19 +502,35 @@ export default function AdminSocial() {
               : form.id
                 ? undefined
                 : { instanceUrl: form.instanceUrl, accessToken: form.accessToken }
-            : form.appPassword
-              ? {
-                  identifier: form.identifier,
-                  appPassword: form.appPassword,
-                  pdsUrl: form.pdsUrl,
-                }
-              : form.id
-                ? undefined
-                : {
+            : platform === "bluesky"
+              ? form.appPassword
+                ? {
                     identifier: form.identifier,
                     appPassword: form.appPassword,
                     pdsUrl: form.pdsUrl,
-                  };
+                  }
+                : form.id
+                  ? undefined
+                  : {
+                      identifier: form.identifier,
+                      appPassword: form.appPassword,
+                      pdsUrl: form.pdsUrl,
+                    }
+              : form.apiKey && form.apiSecret && form.accessToken && form.accessTokenSecret
+                ? {
+                    apiKey: form.apiKey,
+                    apiSecret: form.apiSecret,
+                    accessToken: form.accessToken,
+                    accessTokenSecret: form.accessTokenSecret,
+                  }
+                : form.id
+                  ? undefined
+                  : {
+                      apiKey: form.apiKey,
+                      apiSecret: form.apiSecret,
+                      accessToken: form.accessToken,
+                      accessTokenSecret: form.accessTokenSecret,
+                    };
       const configJson =
         platform === "telegram"
           ? JSON.stringify({
@@ -536,11 +545,13 @@ export default function AdminSocial() {
                 maxImages: form.maxImages,
                 visibility: "public",
               })
-            : JSON.stringify({
-                identifier: form.identifier,
-                pdsUrl: form.pdsUrl,
-                maxImages: form.maxImages,
-              });
+            : platform === "bluesky"
+              ? JSON.stringify({
+                  identifier: form.identifier,
+                  pdsUrl: form.pdsUrl,
+                  maxImages: form.maxImages,
+                })
+              : JSON.stringify({ maxImages: form.maxImages });
       await upsert.mutateAsync({
         id: form.id,
         platform,
@@ -550,7 +561,15 @@ export default function AdminSocial() {
         configJson,
         credentials,
       });
-      setForm(f => ({ ...f, botToken: "", accessToken: "", appPassword: "" }));
+      setForm(f => ({
+        ...f,
+        botToken: "",
+        accessToken: "",
+        appPassword: "",
+        apiKey: "",
+        apiSecret: "",
+        accessTokenSecret: "",
+      }));
       setAccountFormOpen(false);
       toast.success(`Đã lưu tài khoản ${platform}`);
       await utils.social.listAccounts.invalidate();
@@ -768,12 +787,7 @@ export default function AdminSocial() {
                     onClick={() => {
                       setForm({
                         id: undefined,
-                        displayName:
-                          platform === "mastodon"
-                            ? "Yukvix Mastodon"
-                            : platform === "bluesky"
-                              ? "Yukvix Bluesky"
-                              : "Yukvix Telegram",
+                        displayName: defaultDisplayName(platform),
                         botToken: "",
                         chatId: "",
                         instanceUrl: "",
@@ -781,6 +795,9 @@ export default function AdminSocial() {
                         identifier: "",
                         appPassword: "",
                         pdsUrl: "https://bsky.social",
+                        apiKey: "",
+                        apiSecret: "",
+                        accessTokenSecret: "",
                         maxImages: platform === "telegram" ? 10 : 4,
                         isEnabled: true,
                         disableNotification: false,
@@ -807,7 +824,11 @@ export default function AdminSocial() {
                           <div className="min-w-0">
                             <p className="font-medium truncate">{account.displayName}</p>
                             <p className="text-xs text-muted-foreground truncate">
-                              {cfg.chatId || cfg.instanceUrl || cfg.identifier || "—"} ·{" "}
+                              {cfg.chatId ||
+                                cfg.instanceUrl ||
+                                cfg.identifier ||
+                                (platform === "x" ? "OAuth 1.0a" : "—")}{" "}
+                              ·{" "}
                               {account.hasCredentials ? "credential đã mã hóa" : "chưa có credential"}
                               {account.isEnabled ? "" : " · tắt"}
                             </p>
@@ -827,6 +848,9 @@ export default function AdminSocial() {
                                   identifier: cfg.identifier,
                                   appPassword: "",
                                   pdsUrl: cfg.pdsUrl,
+                                  apiKey: "",
+                                  apiSecret: "",
+                                  accessTokenSecret: "",
                                   maxImages: cfg.maxImages,
                                   isEnabled: account.isEnabled,
                                   disableNotification: cfg.disableNotification,
@@ -965,6 +989,54 @@ export default function AdminSocial() {
                           </div>
                         </>
                       ) : null}
+                      {platform === "x" ? (
+                        <>
+                          <div className="sm:col-span-2 text-xs text-muted-foreground">
+                            Developer Portal → Project → Keys and tokens. App permission Read and
+                            Write. Cần gói API trả phí (Basic+). Không dùng password tài khoản X.
+                          </div>
+                          <div>
+                            <Label>API Key</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={form.apiKey}
+                              placeholder={form.id ? "•••••••• (để trống nếu giữ key cũ)" : "API Key"}
+                              onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>API Secret</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={form.apiSecret}
+                              placeholder={form.id ? "••••••••" : "API Key Secret"}
+                              onChange={e => setForm(f => ({ ...f, apiSecret: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Access Token</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={form.accessToken}
+                              placeholder={form.id ? "••••••••" : "Access Token"}
+                              onChange={e => setForm(f => ({ ...f, accessToken: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Access Token Secret</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={form.accessTokenSecret}
+                              placeholder={form.id ? "••••••••" : "Access Token Secret"}
+                              onChange={e => setForm(f => ({ ...f, accessTokenSecret: e.target.value }))}
+                            />
+                          </div>
+                        </>
+                      ) : null}
                       <div>
                         <Label>Max images</Label>
                         <Input
@@ -1012,7 +1084,7 @@ export default function AdminSocial() {
               </section>
 
               <SocialScheduleCard
-                platform={platform === "x" ? "telegram" : platform}
+                platform={platform}
                 label={PLATFORM_TABS.find(t => t.id === platform)?.label || platform}
               />
             </div>
@@ -1237,12 +1309,6 @@ export default function AdminSocial() {
               </div>
             </section>
           </TabsContent>
-          ))}
-
-          {PLATFORM_TABS.filter(tab => !tab.ready).map(tab => (
-            <TabsContent key={tab.id} value={tab.id} className="mt-4">
-              <ComingSoonPlatform name={tab.label} />
-            </TabsContent>
           ))}
         </Tabs>
       </AdminPageShell>

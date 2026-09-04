@@ -4,7 +4,7 @@ import {
   createTelegramAdapterForAccount,
   telegramAdapter,
 } from "./telegram";
-import { xAdapter } from "./x";
+import { createXAdapterForAccount, xAdapter } from "./x";
 import type { SocialAdapter, SocialPlatform } from "../types";
 
 const registry: Record<SocialPlatform, SocialAdapter> = {
@@ -33,6 +33,9 @@ export async function resolveSocialAdapter(post: {
   }
   if (post.platform === "bluesky") {
     return createBlueskyAdapterForAccount(post.accountId);
+  }
+  if (post.platform === "x") {
+    return createXAdapterForAccount(post.accountId);
   }
   return getSocialAdapter(post.platform);
 }

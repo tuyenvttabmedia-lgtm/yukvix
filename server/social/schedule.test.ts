@@ -77,6 +77,7 @@ describe("telegram random schedule", () => {
     expect(parseSocialConfig(null).schedules).toEqual({
       mastodon: { enabled: false, intervalMinutes: 240 },
       bluesky: { enabled: false, intervalMinutes: 240 },
+      x: { enabled: false, intervalMinutes: 240 },
     });
     expect(
       parseSocialConfig(
