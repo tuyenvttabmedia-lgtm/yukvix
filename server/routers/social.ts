@@ -89,7 +89,7 @@ export const socialRouter = router({
     .input(
       z.object({
         enabled: z.boolean(),
-        intervalHours: z.union([z.literal(2), z.literal(4)]),
+        intervalMinutes: z.number().finite(),
       })
     )
     .mutation(async ({ input }) => {
@@ -97,7 +97,7 @@ export const socialRouter = router({
       const next = await saveSocialConfig({
         schedule: {
           enabled: input.enabled,
-          intervalHours: input.intervalHours,
+          intervalMinutes: input.intervalMinutes,
         },
       });
       if (input.enabled && !before.schedule.enabled) {
@@ -105,6 +105,7 @@ export const socialRouter = router({
           lastRunAt: new Date().toISOString(),
           lastAlbumId: null,
           lastStatus: "enabled",
+          lastPostId: null,
         });
       }
       return next.schedule;

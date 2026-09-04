@@ -8,7 +8,7 @@ export const DEFAULT_SOCIAL_CONFIG: SocialDistributionConfig = {
   defaultDelayMinutes: 15,
   schedule: {
     enabled: false,
-    intervalHours: 4,
+    intervalMinutes: 240,
   },
   platforms: {
     telegram: {
@@ -73,15 +73,31 @@ function mergePlatform(
 
 export const SOCIAL_SCHEDULE_STATE_KEY = "social_schedule_state";
 
-export function normalizeScheduleIntervalHours(value: unknown): 2 | 4 {
-  return value === 2 ? 2 : 4;
+export const MIN_SCHEDULE_INTERVAL_MINUTES = 5;
+export const MAX_SCHEDULE_INTERVAL_MINUTES = 7 * 24 * 60;
+
+export function normalizeScheduleIntervalMinutes(
+  minutes: unknown,
+  hoursFallback?: unknown
+): number {
+  const fromMinutes =
+    typeof minutes === "number" && Number.isFinite(minutes) ? minutes : null;
+  const fromHours =
+    typeof hoursFallback === "number" && Number.isFinite(hoursFallback)
+      ? hoursFallback * 60
+      : null;
+  const raw = fromMinutes ?? fromHours ?? 240;
+  const rounded = Math.round(raw);
+  if (rounded < MIN_SCHEDULE_INTERVAL_MINUTES) return MIN_SCHEDULE_INTERVAL_MINUTES;
+  if (rounded > MAX_SCHEDULE_INTERVAL_MINUTES) return MAX_SCHEDULE_INTERVAL_MINUTES;
+  return rounded;
 }
 
 function parseSchedule(raw: unknown): SocialDistributionConfig["schedule"] {
   const o = asObject(raw) ?? {};
   return {
     enabled: o.enabled === true,
-    intervalHours: normalizeScheduleIntervalHours(o.intervalHours),
+    intervalMinutes: normalizeScheduleIntervalMinutes(o.intervalMinutes, o.intervalHours),
   };
 }
 
@@ -162,8 +178,11 @@ export async function saveSocialConfig(
     schedule: {
       ...current.schedule,
       ...(patch.schedule ?? {}),
-      intervalHours: normalizeScheduleIntervalHours(
-        patch.schedule?.intervalHours ?? current.schedule.intervalHours
+      intervalMinutes: normalizeScheduleIntervalMinutes(
+        patch.schedule?.intervalMinutes ?? current.schedule.intervalMinutes,
+        patch.schedule && "intervalHours" in (patch.schedule as object)
+          ? (patch.schedule as { intervalHours?: unknown }).intervalHours
+          : undefined
       ),
     },
     platforms: patch.platforms ?? current.platforms,
@@ -184,6 +203,7 @@ export type SocialScheduleState = {
   lastRunAt: string | null;
   lastAlbumId: number | null;
   lastStatus: string | null;
+  lastPostId: number | null;
 };
 
 export async function loadScheduleState(): Promise<SocialScheduleState> {
@@ -195,6 +215,7 @@ export async function loadScheduleState(): Promise<SocialScheduleState> {
     lastRunAt: null,
     lastAlbumId: null,
     lastStatus: null,
+    lastPostId: null,
   };
   if (!db) return empty;
   const rows = await db
@@ -210,6 +231,7 @@ export async function loadScheduleState(): Promise<SocialScheduleState> {
       lastAlbumId:
         typeof parsed.lastAlbumId === "number" ? parsed.lastAlbumId : null,
       lastStatus: typeof parsed.lastStatus === "string" ? parsed.lastStatus : null,
+      lastPostId: typeof parsed.lastPostId === "number" ? parsed.lastPostId : null,
     };
   } catch {
     return empty;

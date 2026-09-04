@@ -1,4 +1,4 @@
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { albums, socialAccounts, socialPosts } from "../../drizzle/schema";
 import { getDb } from "../db";
 import {
@@ -7,6 +7,7 @@ import {
   saveScheduleState,
   type SocialScheduleState,
 } from "./config";
+import { getSocialQueue } from "./queue";
 import { createAutoSharePosts } from "./share";
 import type { SocialAccountFlags } from "./types";
 
@@ -21,7 +22,7 @@ const BLOCKING_STATUSES = [
 export function shouldRunSchedule(opts: {
   moduleEnabled: boolean;
   scheduleEnabled: boolean;
-  intervalHours: 2 | 4;
+  intervalMinutes: number;
   lastRunAt: string | null;
   now?: Date;
 }): boolean {
@@ -30,18 +31,54 @@ export function shouldRunSchedule(opts: {
   const last = Date.parse(opts.lastRunAt);
   if (!Number.isFinite(last)) return true;
   const now = opts.now ?? new Date();
-  return now.getTime() - last >= opts.intervalHours * 60 * 60 * 1000;
+  const minutes = Math.max(1, opts.intervalMinutes);
+  return now.getTime() - last >= minutes * 60 * 1000;
 }
 
 export function nextRunAt(
   lastRunAt: string | null,
-  intervalHours: 2 | 4,
+  intervalMinutes: number,
   now = new Date()
 ): Date {
   if (!lastRunAt) return now;
   const last = Date.parse(lastRunAt);
   if (!Number.isFinite(last)) return now;
-  return new Date(last + intervalHours * 60 * 60 * 1000);
+  const minutes = Math.max(1, intervalMinutes);
+  return new Date(last + minutes * 60 * 1000);
+}
+
+export function describeScheduleLastRun(opts: {
+  lastPostStatus: string | null;
+  lastStatus: string | null;
+  lastError: string | null;
+}): string {
+  const status = opts.lastPostStatus || opts.lastStatus;
+  if (!status) return "";
+  switch (status) {
+    case "pending":
+      return "Đã xếp hàng, đang gửi";
+    case "processing":
+      return "Đang gửi lên Telegram";
+    case "sent":
+      return "Đã lên kênh";
+    case "failed":
+      return opts.lastError
+        ? `Gửi thất bại: ${opts.lastError}`
+        : "Gửi thất bại";
+    case "skipped":
+      return "Đã bỏ qua";
+    case "awaiting_approval":
+      return "Chờ duyệt";
+    case "enabled":
+      return "Đã bật lịch (chờ chu kỳ đầu)";
+    case "no-telegram-account":
+      return "Chưa có tài khoản Telegram";
+    case "duplicate skipped":
+      return "Bỏ qua (trùng album)";
+    default:
+      if (status.includes("no unpublished")) return "Hết album chưa share";
+      return status;
+  }
 }
 
 export async function listEnabledTelegramAccounts(): Promise<SocialAccountFlags[]> {
@@ -170,7 +207,7 @@ export async function runTelegramScheduleTick(opts?: {
     !shouldRunSchedule({
       moduleEnabled: config.enabled,
       scheduleEnabled: config.schedule.enabled,
-      intervalHours: config.schedule.intervalHours,
+      intervalMinutes: config.schedule.intervalMinutes,
       lastRunAt: state.lastRunAt,
     })
   ) {
@@ -186,6 +223,7 @@ export async function runTelegramScheduleTick(opts?: {
       lastRunAt: new Date().toISOString(),
       lastAlbumId: null,
       lastStatus: "no-telegram-account",
+      lastPostId: null,
     };
     await saveScheduleState(nextState);
     return { ran: false, reason: "no enabled Telegram account" };
@@ -196,8 +234,32 @@ export async function runTelegramScheduleTick(opts?: {
     lastRunAt: new Date().toISOString(),
     lastAlbumId: outcome.albumId ?? null,
     lastStatus: outcome.status || outcome.reason || "ok",
+    lastPostId: outcome.postId ?? null,
   });
   return outcome;
+}
+
+async function loadLastSchedulePost(
+  lastPostId: number | null,
+  lastAlbumId: number | null,
+  accountId: number | null
+) {
+  if (lastPostId) {
+    const post = await getSocialQueue().getById(lastPostId);
+    if (post) return post;
+  }
+  if (!lastAlbumId || !accountId) return null;
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(socialPosts)
+    .where(
+      and(eq(socialPosts.albumId, lastAlbumId), eq(socialPosts.accountId, accountId))
+    )
+    .orderBy(desc(socialPosts.id))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getTelegramScheduleStatus() {
@@ -208,14 +270,30 @@ export async function getTelegramScheduleStatus() {
   const remaining = account
     ? await countUnsharedPublishedAlbums(account.id)
     : 0;
+  const lastPost = await loadLastSchedulePost(
+    state.lastPostId,
+    state.lastAlbumId,
+    account?.id ?? null
+  );
+  const lastPostStatus = lastPost?.status ?? null;
+  const lastError = lastPost?.lastError ?? null;
   return {
     enabled: config.enabled && config.schedule.enabled,
-    intervalHours: config.schedule.intervalHours,
+    intervalMinutes: config.schedule.intervalMinutes,
     lastRunAt: state.lastRunAt,
     lastAlbumId: state.lastAlbumId,
+    lastPostId: lastPost?.id ?? state.lastPostId,
     lastStatus: state.lastStatus,
+    lastPostStatus,
+    lastPostUrl: lastPost?.externalUrl ?? null,
+    lastError,
+    lastStatusLabel: describeScheduleLastRun({
+      lastPostStatus,
+      lastStatus: state.lastStatus,
+      lastError,
+    }),
     nextRunAt: config.schedule.enabled
-      ? nextRunAt(state.lastRunAt, config.schedule.intervalHours).toISOString()
+      ? nextRunAt(state.lastRunAt, config.schedule.intervalMinutes).toISOString()
       : null,
     remaining,
     accountId: account?.id ?? null,

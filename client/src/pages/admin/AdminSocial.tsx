@@ -52,31 +52,113 @@ function parseConfig(raw: string | null | undefined) {
   }
 }
 
+function formatIntervalMinutes(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h > 0 && m > 0) return `${h} giờ ${m} phút`;
+  if (h > 0) return `${h} giờ`;
+  return `${m} phút`;
+}
+
+function formatSocialQueueStatus(
+  status: string | null | undefined,
+  lastError?: string | null
+): string {
+  switch (status) {
+    case "pending":
+      return "Đã xếp hàng, đang gửi";
+    case "processing":
+      return "Đang gửi";
+    case "sent":
+      return "Đã lên kênh";
+    case "failed":
+      return lastError ? `Gửi thất bại: ${formatSocialPostError(lastError)}` : "Gửi thất bại";
+    case "skipped":
+      return "Đã bỏ qua";
+    case "awaiting_approval":
+      return "Chờ duyệt";
+    default:
+      return status || "";
+  }
+}
+
+const MIN_SCHEDULE_MINUTES = 5;
+const MAX_SCHEDULE_MINUTES = 7 * 24 * 60;
+
 function TelegramScheduleCard() {
   const utils = trpc.useUtils();
-  const { data: status } = trpc.social.getScheduleStatus.useQuery();
+  const { data: status } = trpc.social.getScheduleStatus.useQuery(undefined, {
+    refetchInterval: query => {
+      const s = query.state.data?.lastPostStatus;
+      return s === "pending" || s === "processing" ? 3000 : false;
+    },
+  });
   const saveSchedule = trpc.social.saveSchedule.useMutation();
   const runNow = trpc.social.runScheduleNow.useMutation();
   const [enabled, setEnabled] = useState(false);
-  const [intervalHours, setIntervalHours] = useState<2 | 4>(4);
+  const [hours, setHours] = useState(4);
+  const [minutes, setMinutes] = useState(0);
 
   useEffect(() => {
     if (!status) return;
     setEnabled(status.enabled);
-    setIntervalHours(status.intervalHours === 2 ? 2 : 4);
-  }, [status]);
+  }, [status?.enabled]);
 
-  const persist = async (nextEnabled: boolean, nextHours: 2 | 4) => {
+  useEffect(() => {
+    if (!status) return;
+    setHours(Math.floor(status.intervalMinutes / 60));
+    setMinutes(status.intervalMinutes % 60);
+  }, [status?.intervalMinutes]);
+
+  const totalMinutes = hours * 60 + minutes;
+
+  const persist = async (nextEnabled: boolean, nextMinutes = totalMinutes) => {
+    if (nextEnabled) {
+      if (nextMinutes < MIN_SCHEDULE_MINUTES) {
+        toast.error(`Chu kỳ tối thiểu ${MIN_SCHEDULE_MINUTES} phút`);
+        return false;
+      }
+      if (nextMinutes > MAX_SCHEDULE_MINUTES) {
+        toast.error("Chu kỳ tối đa 7 ngày");
+        return false;
+      }
+    }
     try {
-      await saveSchedule.mutateAsync({ enabled: nextEnabled, intervalHours: nextHours });
+      const saved = await saveSchedule.mutateAsync({
+        enabled: nextEnabled,
+        intervalMinutes: nextMinutes,
+      });
       toast.success(
         nextEnabled
-          ? `Đã bật lịch: mỗi ${nextHours} giờ random 1 album chưa lên kênh`
+          ? `Đã bật lịch: mỗi ${formatIntervalMinutes(saved.intervalMinutes)} random 1 album chưa lên kênh`
           : "Đã tắt lịch tự share"
       );
       await utils.social.getScheduleStatus.invalidate();
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Không lưu được lịch");
+      return false;
+    }
+  };
+
+  const saveInterval = async () => {
+    if (totalMinutes < MIN_SCHEDULE_MINUTES) {
+      toast.error(`Chu kỳ tối thiểu ${MIN_SCHEDULE_MINUTES} phút`);
+      return;
+    }
+    if (totalMinutes > MAX_SCHEDULE_MINUTES) {
+      toast.error("Chu kỳ tối đa 7 ngày");
+      return;
+    }
+    try {
+      const saved = await saveSchedule.mutateAsync({
+        enabled,
+        intervalMinutes: totalMinutes,
+      });
+      toast.success(`Đã lưu chu kỳ: mỗi ${formatIntervalMinutes(saved.intervalMinutes)}`);
+      await utils.social.getScheduleStatus.invalidate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không lưu được chu kỳ");
     }
   };
 
@@ -84,37 +166,56 @@ function TelegramScheduleCard() {
     <section className="rounded-xl border border-border p-4 space-y-4">
       <h2 className="font-medium">Lịch random Telegram</h2>
       <p className="text-sm text-muted-foreground">
-        Không share khi publish album. Cứ 2 hoặc 4 giờ hệ thống chọn ngẫu nhiên 1 album
-        <span className="text-foreground"> published</span> chưa từng lên kênh này (trùng album + kênh bị chặn).
-        Bật lịch xong bài đầu tiên chạy sau đúng 1 chu kỳ — dùng “Chạy 1 bài ngay” để test.
+        Không share khi publish album. Hệ thống chọn ngẫu nhiên 1 album
+        <span className="text-foreground"> published</span> chưa từng lên kênh này theo chu kỳ bạn đặt
+        (tối thiểu {MIN_SCHEDULE_MINUTES} phút, tối đa 7 ngày). Bật lịch xong bài đầu tiên chạy sau đúng
+        1 chu kỳ — dùng “Chạy 1 bài ngay” để test.
       </p>
-      <div className="flex flex-wrap gap-4 items-center">
-        <label className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap gap-4 items-end">
+        <label className="flex items-center gap-2 text-sm h-9">
           <Switch
             checked={enabled}
             disabled={saveSchedule.isPending}
             onCheckedChange={v => {
+              const prev = enabled;
               setEnabled(v);
-              void persist(v, intervalHours);
+              void persist(v).then(ok => {
+                if (!ok) setEnabled(prev);
+              });
             }}
           />
           Bật lịch tự share
         </label>
         <div className="flex items-center gap-2 text-sm">
-          <Label className="m-0">Chu kỳ</Label>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={intervalHours}
+          <Label className="m-0">Mỗi</Label>
+          <Input
+            type="number"
+            min={0}
+            max={168}
+            className="w-16 h-9"
+            value={hours}
             disabled={saveSchedule.isPending}
-            onChange={e => {
-              const hours = Number(e.target.value) === 2 ? 2 : 4;
-              setIntervalHours(hours);
-              void persist(enabled, hours);
-            }}
+            onChange={e => setHours(Math.max(0, Math.min(168, Number(e.target.value) || 0)))}
+          />
+          <span>giờ</span>
+          <Input
+            type="number"
+            min={0}
+            max={59}
+            className="w-16 h-9"
+            value={minutes}
+            disabled={saveSchedule.isPending}
+            onChange={e => setMinutes(Math.max(0, Math.min(59, Number(e.target.value) || 0)))}
+          />
+          <span>phút</span>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={saveSchedule.isPending}
+            onClick={() => void saveInterval()}
           >
-            <option value={2}>Mỗi 2 giờ</option>
-            <option value={4}>Mỗi 4 giờ</option>
-          </select>
+            Lưu chu kỳ
+          </Button>
         </div>
         <Button
           type="button"
@@ -125,10 +226,12 @@ function TelegramScheduleCard() {
               const result = await runNow.mutateAsync();
               if (!result.ran) {
                 toast.message(result.reason || "Không có bài để share");
-              } else if (result.status === "duplicate") {
+              } else if (result.reason === "duplicate skipped") {
                 toast.message("Album trùng — đã bỏ qua");
               } else {
-                toast.success(`Đã xếp album #${result.albumId} lên hàng đợi`);
+                toast.success(
+                  `Đã xếp album #${result.albumId} — worker đang gửi lên Telegram`
+                );
               }
               await utils.social.getScheduleStatus.invalidate();
               await utils.social.listPosts.invalidate();
@@ -148,7 +251,20 @@ function TelegramScheduleCard() {
           Lần chạy gần nhất:{" "}
           {status?.lastRunAt ? new Date(status.lastRunAt).toLocaleString() : "chưa có"}
           {status?.lastAlbumId ? ` · album #${status.lastAlbumId}` : ""}
-          {status?.lastStatus ? ` · ${status.lastStatus}` : ""}
+          {status?.lastStatusLabel ? ` · ${status.lastStatusLabel}` : ""}
+          {status?.lastPostUrl ? (
+            <>
+              {" · "}
+              <a
+                href={status.lastPostUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-foreground underline"
+              >
+                mở trên Telegram
+              </a>
+            </>
+          ) : null}
         </p>
         <p>
           Lần tới:{" "}
@@ -166,7 +282,17 @@ export default function AdminSocial() {
   const albumFromQuery = Number(new URLSearchParams(search).get("albumId") || "") || 0;
   const utils = trpc.useUtils();
   const { data: accounts, isLoading } = trpc.social.listAccounts.useQuery();
-  const { data: posts } = trpc.social.listPosts.useQuery({ limit: 30 });
+  const { data: posts } = trpc.social.listPosts.useQuery(
+    { limit: 30 },
+    {
+      refetchInterval: query => {
+        const rows = query.state.data ?? [];
+        return rows.some(p => p.status === "pending" || p.status === "processing")
+          ? 3000
+          : false;
+      },
+    }
+  );
   const { data: keyStatus } = trpc.social.getCredentialsKeyStatus.useQuery();
   const upsert = trpc.social.upsertAccount.useMutation();
   const validate = trpc.social.validateAccount.useMutation();
@@ -349,7 +475,7 @@ export default function AdminSocial() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Telegram Manual Share</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manual share khi bạn chọn album. Lịch tự động random 1 bài / 2–4 giờ, không share lúc publish album.
+            Manual share khi bạn chọn album. Lịch tự động random 1 bài theo chu kỳ tùy chọn, không share lúc publish album.
             Token không bao giờ được hiển thị lại sau khi lưu.
           </p>
         </div>
@@ -727,10 +853,7 @@ export default function AdminSocial() {
                     <td className="py-1">{post.id}</td>
                     <td>{post.albumId}</td>
                     <td>
-                      {post.status}
-                      {/ambiguous publish/i.test(post.lastError || "")
-                        ? " / unknown"
-                        : ""}
+                      {formatSocialQueueStatus(post.status, post.lastError)}
                     </td>
                     <td className="truncate max-w-[12rem]">
                       {post.externalUrl || post.externalPostId || "—"}

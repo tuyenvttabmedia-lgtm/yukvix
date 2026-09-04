@@ -157,7 +157,8 @@ export interface SocialDistributionConfig {
   /** Random 1 album per interval. Not tied to album publish. */
   schedule: {
     enabled: boolean;
-    intervalHours: 2 | 4;
+    /** Minutes between random posts. 5–10080 (7 days). */
+    intervalMinutes: number;
   };
 }
 
