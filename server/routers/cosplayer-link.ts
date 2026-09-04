@@ -61,7 +61,7 @@ export const cosplayerLinkRouter = router({
     .input(
       z.object({
         name: z.string().min(1).max(128),
-        albumIds: z.array(z.number()).min(1).max(100),
+        albumIds: z.array(z.number()).max(100).default([]),
       })
     )
     .mutation(({ input }) =>

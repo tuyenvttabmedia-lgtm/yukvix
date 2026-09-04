@@ -329,7 +329,7 @@ export async function linkExactMatches(albumIds?: number[]): Promise<{
 
 export async function createQuickFromName(opts: {
   name: string;
-  albumIds: number[];
+  albumIds?: number[];
 }): Promise<{
   creatorId: number;
   created: boolean;
@@ -338,11 +338,15 @@ export async function createQuickFromName(opts: {
 }> {
   const name = opts.name.trim();
   if (!name) throw new Error("Nhập tên cosplayer");
-  const ids = Array.from(new Set(opts.albumIds)).filter(id => id > 0);
-  if (!ids.length) throw new Error("Chọn ít nhất một album để gắn");
+  const ids = Array.from(new Set(opts.albumIds ?? [])).filter(id => id > 0);
 
   const result = await findOrCreateCreator({ name });
-  const { linked } = await linkAlbumsToCreator(ids, result.creatorId);
+  let linked = 0;
+  if (ids.length) {
+    linked = (await linkAlbumsToCreator(ids, result.creatorId)).linked;
+  } else {
+    await enrichCreatorAfterLink(result.creatorId);
+  }
   return {
     creatorId: result.creatorId,
     created: result.isNew,
