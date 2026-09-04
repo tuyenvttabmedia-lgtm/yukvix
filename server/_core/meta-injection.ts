@@ -172,6 +172,9 @@ export async function resolveSpaHtml(
     const rows = await db.select().from(creators).where(eq(creators.slug, slug)).limit(1);
     const creator = rows[0];
     if (!creator) return { html: out, status: 404 };
+    if ((creator.albumCount ?? 0) <= 0 || !creator.avatarUrl) {
+      return { html: injectNoIndex(out, base), status: 404 };
+    }
 
     const title = creator.seoTitle || `${creator.name} — Yukvix`;
     const desc = creator.seoDescription || creator.bio || `Browse ${creator.name}'s cosplay gallery on Yukvix.`;

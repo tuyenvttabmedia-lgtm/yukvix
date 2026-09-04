@@ -377,8 +377,8 @@ function buildCopySource(bucket: string, key: string): string {
   return encodeURIComponent(`${bucket}/${key}`);
 }
 
-export async function copyObject(sourceKey: string, destKey: string): Promise<void> {
-  if (!hasWasabi) return;
+export async function copyObject(sourceKey: string, destKey: string): Promise<boolean> {
+  if (!hasWasabi) return false;
   const client = getS3Client();
   console.log(`[Wasabi] copyObject: ${sourceKey} → ${destKey}`);
   await client.send(
@@ -388,6 +388,7 @@ export async function copyObject(sourceKey: string, destKey: string): Promise<vo
       Key: destKey,
     })
   );
+  return true;
 }
 
 /**

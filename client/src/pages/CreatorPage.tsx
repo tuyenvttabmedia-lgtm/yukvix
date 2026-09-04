@@ -85,11 +85,15 @@ export default function CreatorPage({ params }: CreatorPageProps) {
 
       <div>
         {/* Banner */}
-        <div className="relative h-48 sm:h-64 bg-gradient-to-br from-primary/20 to-secondary/20 overflow-hidden">
+        <div className="relative h-52 sm:h-72 md:h-80 bg-muted overflow-hidden">
           {creator?.bannerUrl && (
-            <img src={creator.bannerUrl} alt="" className="w-full h-full object-cover" />
+            <img
+              src={creator.bannerUrl}
+              alt=""
+              className="w-full h-full object-cover object-center"
+            />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/55 via-background/10 to-transparent" />
         </div>
 
         <div className="container">

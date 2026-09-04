@@ -14,8 +14,13 @@ import { albums, creators, photos } from "../../drizzle/schema";
 import { desc, eq, or, sql } from "drizzle-orm";
 import type { YukvixCategory } from "./seo-generator";
 import { generateSlug } from "./seo-generator";
-import { getPublicUrl } from "../storage-wasabi";
-import { extractStorageObjectKey, toPublicCreatorImageUrl, toPublicThumbKey } from "../public-media-url";
+import { copyObject, getPublicUrl } from "../storage-wasabi";
+import {
+  extractStorageObjectKey,
+  preferredBannerSourceKey,
+  toPublicCreatorImageUrl,
+  toPublicThumbKey,
+} from "../public-media-url";
 
 // Known collection names — do NOT create creators for these
 export const KNOWN_COLLECTIONS = new Set([
@@ -201,16 +206,17 @@ export async function updateCreatorBannerIfEmpty(
     .limit(1);
 
   if (existing.length > 0 && !existing[0].bannerUrl) {
-    const publicKey = toPublicThumbKey(mediumKey);
+    const published = await publishCreatorImage(creatorId, "banner", mediumKey);
+    if (!published) return;
     await db
       .update(creators)
       .set({
-        bannerKey: publicKey,
-        bannerUrl: getPublicUrl(publicKey),
+        bannerKey: published.key,
+        bannerUrl: published.url,
         updatedAt: new Date(),
       })
       .where(eq(creators.id, creatorId));
-    console.log(`[Creator] Updated banner for creator ${creatorId}: ${publicKey}`);
+    console.log(`[Creator] Updated banner for creator ${creatorId}: ${published.key}`);
   }
 }
 
@@ -235,6 +241,27 @@ function imageFromThumb(thumbKey: string | null | undefined, thumbUrl: string | 
   if (!url) return null;
   const extracted = thumbUrl ? extractStorageObjectKey(thumbUrl) : null;
   return { url, key: extracted ? toPublicThumbKey(extracted) : "auto-picked" };
+}
+
+/** Copy a private album variant into the public creators/ prefix (bucket policy allows GetObject). */
+export async function publishCreatorImage(
+  creatorId: number,
+  type: "avatar" | "banner",
+  sourceKey: string
+): Promise<PickedCreatorImage | null> {
+  if (!sourceKey) return null;
+  if (sourceKey.startsWith("creators/")) {
+    return { url: getPublicUrl(sourceKey), key: sourceKey };
+  }
+  const destKey = `creators/${type}/${creatorId}-${Date.now()}.webp`;
+  try {
+    const copied = await copyObject(sourceKey, destKey);
+    if (copied) return { url: getPublicUrl(destKey), key: destKey };
+  } catch (err) {
+    console.warn(`[Creator] Failed to copy ${type} from ${sourceKey}:`, err);
+  }
+  const thumbKey = toPublicThumbKey(sourceKey);
+  return { url: getPublicUrl(thumbKey), key: thumbKey };
 }
 
 export async function listCreatorAlbumIds(creatorId: number, creatorName: string, limit = 20): Promise<number[]> {
@@ -285,6 +312,8 @@ export async function pickCreatorImagesFromAlbums(
       .select({
         thumbKey: photos.thumbKey,
         thumbUrl: photos.thumbUrl,
+        mediumKey: photos.mediumKey,
+        webpKey: photos.webpKey,
         width: photos.width,
         height: photos.height,
       })
@@ -304,10 +333,11 @@ export async function pickCreatorImagesFromAlbums(
     }
     if (!banner) {
       const landscape = photoRows.find((p) => p.width && p.height && p.width > p.height * 1.3);
-      banner =
-        (landscape && imageFromThumb(landscape.thumbKey, landscape.thumbUrl)) ||
-        (photoRows[0] && imageFromThumb(photoRows[0].thumbKey, photoRows[0].thumbUrl)) ||
-        coverImage;
+      const bannerPhoto = landscape || photoRows[0];
+      const sourceKey = bannerPhoto ? preferredBannerSourceKey(bannerPhoto) : null;
+      banner = sourceKey
+        ? await publishCreatorImage(creatorId, "banner", sourceKey)
+        : coverImage;
     }
     if (avatar && banner) break;
   }
@@ -343,6 +373,43 @@ export async function applyCreatorImagesFromAlbums(
     bannerUrl: applyBanner ? picked.banner?.url ?? null : null,
     applied,
   };
+}
+
+export async function applyCreatorImageFromPhoto(
+  creatorId: number,
+  photoId: number,
+  type: "avatar" | "banner"
+): Promise<{ url: string; key: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const [photo] = await db
+    .select({
+      thumbKey: photos.thumbKey,
+      thumbUrl: photos.thumbUrl,
+      mediumKey: photos.mediumKey,
+      webpKey: photos.webpKey,
+    })
+    .from(photos)
+    .where(eq(photos.id, photoId))
+    .limit(1);
+  if (!photo) throw new Error("Photo not found");
+
+  let picked: PickedCreatorImage | null = null;
+  if (type === "banner") {
+    const sourceKey = preferredBannerSourceKey(photo);
+    picked = sourceKey ? await publishCreatorImage(creatorId, "banner", sourceKey) : null;
+  } else {
+    picked = imageFromThumb(photo.thumbKey, photo.thumbUrl);
+  }
+  if (!picked) throw new Error("Photo has no usable image");
+
+  const updates: Partial<typeof creators.$inferInsert> =
+    type === "avatar"
+      ? { avatarUrl: picked.url, avatarKey: picked.key, updatedAt: new Date() }
+      : { bannerUrl: picked.url, bannerKey: picked.key, updatedAt: new Date() };
+  await db.update(creators).set(updates).where(eq(creators.id, creatorId));
+  return picked;
 }
 
 /**

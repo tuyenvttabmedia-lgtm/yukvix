@@ -61,14 +61,54 @@ export function toPublicThumbKey(key: string): string {
 }
 
 /**
- * Creator avatars/banners must be public thumbs/covers — never private webp/medium.
+ * Creator avatars must be public thumbs/covers — never private webp/medium.
  */
 export function toPublicCreatorImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const key = extractStorageObjectKey(url);
   if (!key) return url;
   if (key.startsWith("vip-zips/") || key.startsWith("download-zips/")) return url;
+  if (key.startsWith("creators/")) return getPublicUrl(key);
   return getPublicUrl(toPublicThumbKey(key));
+}
+
+/**
+ * Banners copied under creators/ are already public and high-res.
+ * Album thumbs stay public thumbs until upgraded; private medium/webp map to thumb to avoid 403.
+ */
+export function toPublicCreatorBannerUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const key = extractStorageObjectKey(url);
+  if (!key) return url;
+  if (key.startsWith("vip-zips/") || key.startsWith("download-zips/")) return url;
+  if (key.startsWith("creators/")) return getPublicUrl(key);
+  if (isPrivateObjectKey(key)) return getPublicUrl(toPublicThumbKey(key));
+  return getPublicUrl(key);
+}
+
+export function preferredBannerSourceKey(photo: {
+  mediumKey?: string | null;
+  webpKey?: string | null;
+  thumbKey?: string | null;
+}): string | null {
+  return photo.mediumKey || photo.webpKey || photo.thumbKey || null;
+}
+
+/** True when the stored banner is still an album thumb (~400px) stretched across the hero. */
+export function isLowResCreatorBanner(url: string | null | undefined): boolean {
+  if (!url?.trim()) return true;
+  const key = extractStorageObjectKey(url) || url;
+  if (key.startsWith("creators/")) return false;
+  return /\/thumb\//.test(key);
+}
+
+/** Public frontend only lists creators that have albums and an avatar. */
+export function isCreatorPubliclyVisible(creator: {
+  albumCount?: number | null;
+  avatarUrl?: string | null;
+  bannerUrl?: string | null;
+}): boolean {
+  return (creator.albumCount ?? 0) > 0 && Boolean(creator.avatarUrl?.trim());
 }
 
 export function withRewrittenCover<T extends { coverUrl?: string | null }>(album: T): T {
@@ -83,7 +123,7 @@ export function withRewrittenCreatorMedia<T extends {
   return {
     ...creator,
     avatarUrl: toPublicCreatorImageUrl(creator.avatarUrl ?? null),
-    bannerUrl: toPublicCreatorImageUrl(creator.bannerUrl ?? null),
-    ogImage: creator.ogImage != null ? toPublicCreatorImageUrl(creator.ogImage) : creator.ogImage,
+    bannerUrl: toPublicCreatorBannerUrl(creator.bannerUrl ?? null),
+    ogImage: creator.ogImage != null ? toPublicCreatorBannerUrl(creator.ogImage) : creator.ogImage,
   };
 }

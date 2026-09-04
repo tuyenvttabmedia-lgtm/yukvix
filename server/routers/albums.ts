@@ -21,7 +21,7 @@ import {
 } from "../db";
 import { albums as albumsTable } from "../../drizzle/schema";
 import { assertAlbumPubliclyReadable, resolveFreePreviewCount, viewerFlags } from "../photo-access";
-import { withRewrittenCover } from "../public-media-url";
+import { isCreatorPubliclyVisible, withRewrittenCover } from "../public-media-url";
 import { isAdmin } from '@shared/const';
 
 function slugify(text: string): string {
@@ -88,7 +88,10 @@ export const albumsRouter = router({
       if (album.creatorId) {
         const { getCreatorById } = await import("../db");
         const creator = await getCreatorById(album.creatorId);
-        if (creator) { creatorName = creator.name; creatorSlug = creator.slug; }
+        if (creator) {
+          creatorName = creator.name;
+          if (isCreatorPubliclyVisible(creator)) creatorSlug = creator.slug;
+        }
       }
 
       return {

@@ -13,8 +13,8 @@ import {
 } from "../db";
 import { getPublicUrl, uploadToStorage } from "../storage-wasabi";
 import { isAdmin, isVipOrAdmin } from '@shared/const';
-import { applyCreatorImagesFromAlbums, listCreatorAlbumIds } from "../services/creator-service";
-import { toPublicCreatorImageUrl } from "../public-media-url";
+import { applyCreatorImageFromPhoto, applyCreatorImagesFromAlbums, listCreatorAlbumIds } from "../services/creator-service";
+import { isCreatorPubliclyVisible, isLowResCreatorBanner, toPublicCreatorBannerUrl, toPublicCreatorImageUrl } from "../public-media-url";
 
 function slugify(text: string): string {
   return text
@@ -36,7 +36,7 @@ export const creatorsRouter = router({
       hasAlbums: z.boolean().optional(),
     }).optional())
     .query(async ({ input }) => {
-      return listCreators(input ?? {});
+      return listCreators({ ...(input ?? {}), publicOnly: true });
     }),
 
   // --- Public: get creator by slug + their albums -----------------------------
@@ -54,6 +54,28 @@ export const creatorsRouter = router({
         creatorId: creator.id,
       });
 
+      if (!isCreatorPubliclyVisible(creator)) {
+        if (albumsResult.total > 0) {
+          await applyCreatorImagesFromAlbums(creator.id, {
+            applyAvatar: !creator.avatarUrl,
+            applyBanner: !creator.bannerUrl || isLowResCreatorBanner(creator.bannerUrl),
+          });
+          const refreshed = await getCreatorBySlug(input.slug);
+          if (refreshed && isCreatorPubliclyVisible(refreshed)) {
+            return { creator: refreshed, albums: albumsResult.items, totalAlbums: albumsResult.total };
+          }
+        }
+        throw new TRPCError({ code: "NOT_FOUND", message: "Creator not found" });
+      }
+
+      if (isLowResCreatorBanner(creator.bannerUrl)) {
+        await applyCreatorImagesFromAlbums(creator.id, { applyAvatar: false, applyBanner: true });
+        const refreshed = await getCreatorBySlug(input.slug);
+        if (refreshed) {
+          return { creator: refreshed, albums: albumsResult.items, totalAlbums: albumsResult.total };
+        }
+      }
+
       return { creator, albums: albumsResult.items, totalAlbums: albumsResult.total };
     }),
 
@@ -63,11 +85,16 @@ export const creatorsRouter = router({
     .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const result = await listCreators(input ?? {});
-      const missing = result.items.filter((c) => !c.avatarUrl);
+      const missing = result.items.filter(
+        (c) => !c.avatarUrl || !c.bannerUrl || isLowResCreatorBanner(c.bannerUrl)
+      );
       if (missing.length > 0) {
         await Promise.all(
-          missing.slice(0, 8).map((c) =>
-            applyCreatorImagesFromAlbums(c.id, { applyAvatar: true, applyBanner: !c.bannerUrl })
+          missing.slice(0, 12).map((c) =>
+            applyCreatorImagesFromAlbums(c.id, {
+              applyAvatar: !c.avatarUrl,
+              applyBanner: !c.bannerUrl || isLowResCreatorBanner(c.bannerUrl),
+            })
           )
         );
         return listCreators(input ?? {});
@@ -146,7 +173,7 @@ export const creatorsRouter = router({
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const { id, socialLinks, ...rest } = input;
       if (rest.avatarUrl) rest.avatarUrl = toPublicCreatorImageUrl(rest.avatarUrl) ?? rest.avatarUrl;
-      if (rest.bannerUrl) rest.bannerUrl = toPublicCreatorImageUrl(rest.bannerUrl) ?? rest.bannerUrl;
+      if (rest.bannerUrl) rest.bannerUrl = toPublicCreatorBannerUrl(rest.bannerUrl) ?? rest.bannerUrl;
       await updateCreator(id, {
         ...rest,
         ...(socialLinks !== undefined ? { socialLinks: JSON.stringify(socialLinks) } : {}),
@@ -214,6 +241,25 @@ export const creatorsRouter = router({
         bannerUrl: result.bannerUrl ?? undefined,
         applied: true,
       };
+    }),
+
+  adminSetImageFromPhoto: protectedProcedure
+    .input(z.object({
+      creatorId: z.number(),
+      photoId: z.number(),
+      type: z.enum(["avatar", "banner"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+      try {
+        const picked = await applyCreatorImageFromPhoto(input.creatorId, input.photoId, input.type);
+        return { success: true, url: picked.url, key: picked.key };
+      } catch (err) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: err instanceof Error ? err.message : "Không thể gán ảnh từ album",
+        });
+      }
     }),
 
   // --- Admin: list photos from creator's albums for manual picker -------------

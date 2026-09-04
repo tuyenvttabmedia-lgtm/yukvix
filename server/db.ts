@@ -32,7 +32,7 @@ import {
   type InsertEmailQueueItem,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { withRewrittenCreatorMedia } from "./public-media-url";
+import { isCreatorPubliclyVisible, withRewrittenCreatorMedia } from "./public-media-url";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: Pool | null = null;
@@ -339,6 +339,9 @@ export async function listAlbums(opts: {
       updatedAt: albums.updatedAt,
       creatorName: creators.name,
       creatorSlug: creators.slug,
+      creatorAlbumCount: creators.albumCount,
+      creatorAvatarUrl: creators.avatarUrl,
+      creatorBannerUrl: creators.bannerUrl,
     })
     .from(albums)
     .leftJoin(creators, eq(albums.creatorId, creators.id))
@@ -352,7 +355,29 @@ export async function listAlbums(opts: {
     .from(albums)
     .where(where);
 
-  return { items: rows, total: Number(count) };
+  return {
+    items: rows.map((row) => {
+      const {
+        creatorAlbumCount,
+        creatorAvatarUrl,
+        creatorBannerUrl,
+        creatorName,
+        creatorSlug,
+        ...album
+      } = row;
+      const visible = isCreatorPubliclyVisible({
+        albumCount: creatorAlbumCount,
+        avatarUrl: creatorAvatarUrl,
+        bannerUrl: creatorBannerUrl,
+      });
+      return {
+        ...album,
+        creatorName: creatorName ?? null,
+        creatorSlug: visible ? creatorSlug ?? null : null,
+      };
+    }),
+    total: Number(count),
+  };
 }
 
 export async function incrementAlbumView(albumId: number) {
@@ -1219,14 +1244,17 @@ export async function getAlbumMediaItems(albumId: number) {
 }
 
 // --- Creators ----------------------------------------------------------------
-export async function listCreators(opts: { page?: number; limit?: number; search?: string; sortBy?: string; hasAlbums?: boolean } = {}) {
+export async function listCreators(opts: { page?: number; limit?: number; search?: string; sortBy?: string; hasAlbums?: boolean; publicOnly?: boolean } = {}) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
-  const { page = 1, limit = 20, search, sortBy = "name", hasAlbums } = opts;
+  const { page = 1, limit = 20, search, sortBy = "name", hasAlbums, publicOnly } = opts;
   const offset = (page - 1) * limit;
   const conditions: any[] = [];
   if (search) conditions.push(or(like(creators.name, `%${search}%`), like(creators.bio ?? sql`''`, `%${search}%`))!);
-  if (hasAlbums) conditions.push(sql`${creators.albumCount} > 0`);
+  if (hasAlbums || publicOnly) conditions.push(sql`${creators.albumCount} > 0`);
+  if (publicOnly) {
+    conditions.push(sql`${creators.avatarUrl} IS NOT NULL AND ${creators.avatarUrl} != ''`);
+  }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   let orderBy;
   if (sortBy === "albumCount") orderBy = desc(creators.albumCount);

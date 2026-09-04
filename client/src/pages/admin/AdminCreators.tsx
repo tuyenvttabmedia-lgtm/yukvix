@@ -91,6 +91,11 @@ export default function AdminCreators() {
     },
     onError: (e) => toast.error(e.message || "Không thể tự động chọn ảnh"),
   });
+  const setImageFromPhotoMutation = trpc.creators.adminSetImageFromPhoto.useMutation({
+    onSuccess: () => { utils.creators.adminList.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const [autoPickLoading, setAutoPickLoading] = useState(false);
 
   // Photo picker modal
@@ -111,18 +116,19 @@ export default function AdminCreators() {
     }
   }
 
-  async function handlePickerSelect(photoUrl: string) {
+  async function handlePickerSelect(photoId: number) {
     if (!editCreator) return;
     setPickerOpen(false);
     const type = pickerTarget;
     try {
-      await updateMutation.mutateAsync({
-        id: editCreator.id,
-        ...(type === "avatar" ? { avatarUrl: photoUrl, avatarKey: "manual-picked" } : { bannerUrl: photoUrl, bannerKey: "manual-picked" }),
+      const res = await setImageFromPhotoMutation.mutateAsync({
+        creatorId: editCreator.id,
+        photoId,
+        type,
       });
       setEditCreator(prev => prev ? {
         ...prev,
-        ...(type === "avatar" ? { avatarUrl: photoUrl } : { bannerUrl: photoUrl }),
+        ...(type === "avatar" ? { avatarUrl: res.url } : { bannerUrl: res.url }),
       } : prev);
       toast.success(`Đã cập nhật ${type === "avatar" ? "ảnh đại diện" : "ảnh bìa"}!`);
     } catch (e: any) {
@@ -443,7 +449,7 @@ export default function AdminCreators() {
                     return (
                       <button
                         key={photo.id}
-                        onClick={() => handlePickerSelect(url)}
+                        onClick={() => handlePickerSelect(photo.id)}
                         className="relative aspect-square rounded overflow-hidden border-2 border-transparent hover:border-primary transition-all group"
                       >
                         <img src={photo.thumbUrl || url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />

@@ -358,12 +358,15 @@ Sitemap: ${base}/sitemap-categories.xml
             updatedAt: creators.updatedAt,
             albumCount: creators.albumCount,
             robotsIndex: creators.robotsIndex,
+            avatarUrl: creators.avatarUrl,
+            bannerUrl: creators.bannerUrl,
           })
           .from(creators)
           .orderBy(desc(creators.updatedAt));
 
         for (const row of rows) {
           if (row.robotsIndex === false) continue;
+          if ((row.albumCount ?? 0) <= 0 || !row.avatarUrl) continue;
           const lastmod = w3cDate(row.updatedAt);
           const changefreq = smartChangefreq(row.updatedAt);
           const priority = creatorPriority(row.albumCount);
