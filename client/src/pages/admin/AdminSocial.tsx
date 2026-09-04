@@ -992,26 +992,27 @@ export default function AdminSocial() {
                       {platform === "x" ? (
                         <>
                           <div className="sm:col-span-2 text-xs text-muted-foreground">
-                            Developer Portal → Project → Keys and tokens. App permission Read and
-                            Write. Cần gói API trả phí (Basic+). Không dùng password tài khoản X.
+                            Keys &amp; Tokens → khối <strong>OAuth 1.0a</strong> (không dùng Bearer
+                            Token, không dùng OAuth 2.0 Client ID). Consumer Secret / Access Token
+                            Secret chỉ hiện khi bấm icon mắt hoặc Regenerate.
                           </div>
                           <div>
-                            <Label>API Key</Label>
+                            <Label>Consumer Key</Label>
                             <Input
                               type="password"
                               autoComplete="off"
                               value={form.apiKey}
-                              placeholder={form.id ? "•••••••• (để trống nếu giữ key cũ)" : "API Key"}
+                              placeholder={form.id ? "•••••••• (để trống nếu giữ key cũ)" : "OAuth 1.0a Consumer Key"}
                               onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
                             />
                           </div>
                           <div>
-                            <Label>API Secret</Label>
+                            <Label>Consumer Secret</Label>
                             <Input
                               type="password"
                               autoComplete="off"
                               value={form.apiSecret}
-                              placeholder={form.id ? "••••••••" : "API Key Secret"}
+                              placeholder={form.id ? "••••••••" : "OAuth 1.0a Consumer Secret"}
                               onChange={e => setForm(f => ({ ...f, apiSecret: e.target.value }))}
                             />
                           </div>
@@ -1021,7 +1022,7 @@ export default function AdminSocial() {
                               type="password"
                               autoComplete="off"
                               value={form.accessToken}
-                              placeholder={form.id ? "••••••••" : "Access Token"}
+                              placeholder={form.id ? "••••••••" : "OAuth 1.0a Access Token"}
                               onChange={e => setForm(f => ({ ...f, accessToken: e.target.value }))}
                             />
                           </div>
@@ -1031,7 +1032,7 @@ export default function AdminSocial() {
                               type="password"
                               autoComplete="off"
                               value={form.accessTokenSecret}
-                              placeholder={form.id ? "••••••••" : "Access Token Secret"}
+                              placeholder={form.id ? "••••••••" : "OAuth 1.0a Access Token Secret"}
                               onChange={e => setForm(f => ({ ...f, accessTokenSecret: e.target.value }))}
                             />
                           </div>
