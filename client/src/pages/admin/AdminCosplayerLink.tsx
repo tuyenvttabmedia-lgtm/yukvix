@@ -29,8 +29,7 @@ export default function AdminCosplayerLink() {
     limit: 30,
     search: search.trim() || undefined,
   });
-  const { data: creatorsData } = trpc.creators.adminList.useQuery({
-    page: 1,
+  const { data: creatorsData } = trpc.creators.adminNameList.useQuery({
     limit: 500,
   });
   const creators = useMemo(() => {
@@ -43,7 +42,7 @@ export default function AdminCosplayerLink() {
   const invalidate = () => {
     utils.cosplayerLink.counts.invalidate();
     utils.cosplayerLink.list.invalidate();
-    utils.creators.adminList.invalidate();
+    utils.creators.adminNameList.invalidate();
     setSelected([]);
   };
 

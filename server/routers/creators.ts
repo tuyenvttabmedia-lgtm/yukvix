@@ -15,6 +15,7 @@ import { getPublicUrl, uploadToStorage } from "../storage-wasabi";
 import { isAdmin, isVipOrAdmin } from '@shared/const';
 import { applyCreatorImageFromPhoto, applyCreatorImagesFromAlbums, listCreatorAlbumIds } from "../services/creator-service";
 import { isCreatorPubliclyVisible, isLowResCreatorBanner, toPublicCreatorBannerUrl, toPublicCreatorImageUrl } from "../public-media-url";
+import { creators } from "../../drizzle/schema";
 
 function slugify(text: string): string {
   return text
@@ -84,22 +85,21 @@ export const creatorsRouter = router({
     .input(z.object({ page: z.number().min(1).default(1), limit: z.number().min(1).max(500).default(20), search: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
-      const result = await listCreators(input ?? {});
-      const missing = result.items.filter(
-        (c) => !c.avatarUrl || !c.bannerUrl || isLowResCreatorBanner(c.bannerUrl)
-      );
-      if (missing.length > 0) {
-        await Promise.all(
-          missing.slice(0, 12).map((c) =>
-            applyCreatorImagesFromAlbums(c.id, {
-              applyAvatar: !c.avatarUrl,
-              applyBanner: !c.bannerUrl || isLowResCreatorBanner(c.bannerUrl),
-            })
-          )
-        );
-        return listCreators(input ?? {});
-      }
-      return result;
+      return listCreators(input ?? {});
+    }),
+
+  adminNameList: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(500).default(500) }).optional())
+    .query(async ({ input, ctx }) => {
+      if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) return { items: [] as Array<{ id: number; name: string }> };
+      const items = await db
+        .select({ id: creators.id, name: creators.name })
+        .from(creators)
+        .orderBy(creators.name)
+        .limit(input?.limit ?? 500);
+      return { items };
     }),
 
   // --- Admin: get creator by ID -----------------------------------------------

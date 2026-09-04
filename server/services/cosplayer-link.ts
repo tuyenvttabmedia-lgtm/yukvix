@@ -6,7 +6,7 @@ import {
   albumCosplayerHint,
   displayCosplayerName,
 } from "./cosplayer-name";
-import { enrichCreatorAfterLink, findExistingCreator, findOrCreateCreator } from "./creator-service";
+import { enrichCreatorAfterLink, findOrCreateCreator, matchCreatorsByHints } from "./creator-service";
 
 export const COSPLAYER_SKIPPED_KEY = "cosplayer_link_skipped_ids";
 
@@ -63,8 +63,8 @@ async function saveSkippedAlbumIds(ids: number[]): Promise<void> {
 const emptyName = or(isNull(albums.cosplayer), eq(albums.cosplayer, ""));
 const emptyCreatorText = or(isNull(albums.creator), eq(albums.creator, ""));
 const hasHint = or(
-  and(sql`${albums.cosplayer} IS NOT NULL`, sql`TRIM(${albums.cosplayer}) <> ''`),
-  and(sql`${albums.creator} IS NOT NULL`, sql`TRIM(${albums.creator}) <> ''`)
+  and(sql`${albums.cosplayer} IS NOT NULL`, sql`${albums.cosplayer} <> ''`),
+  and(sql`${albums.creator} IS NOT NULL`, sql`${albums.creator} <> ''`)
 );
 const noHint = and(emptyName, emptyCreatorText);
 const unlinked = isNull(albums.creatorId);
@@ -110,14 +110,10 @@ export async function countCosplayerQueue(): Promise<{
   const namedWhere = and(...namedParts);
   const emptyWhere = and(...emptyParts);
 
-  const [namedRow] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(albums)
-    .where(namedWhere);
-  const [emptyRow] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(albums)
-    .where(emptyWhere);
+  const [[namedRow], [emptyRow]] = await Promise.all([
+    db.select({ n: sql<number>`count(*)` }).from(albums).where(namedWhere),
+    db.select({ n: sql<number>`count(*)` }).from(albums).where(emptyWhere),
+  ]);
 
   return {
     named: Number(namedRow?.n ?? 0),
@@ -194,13 +190,7 @@ export async function listCosplayerQueue(opts: {
   const uniqueHints = Array.from(
     new Set(Array.from(hintById.values()).filter((h): h is string => Boolean(h)))
   );
-  const suggestedByHint = new Map<string, { id: number; name: string }>();
-  await Promise.all(
-    uniqueHints.map(async hint => {
-      const hit = await findExistingCreator(hint);
-      if (hit) suggestedByHint.set(hint, { id: hit.creatorId, name: hit.creator.name });
-    })
-  );
+  const suggestedByHint = await matchCreatorsByHints(uniqueHints);
 
   return {
     total: Number(countRow?.n ?? 0),
@@ -310,20 +300,20 @@ export async function linkExactMatches(albumIds?: number[]): Promise<{
 
   let linked = 0;
   let unmatched = 0;
-  for (const row of rows) {
-    const hint = albumCosplayerHint(row);
-    if (!hint) {
-      unmatched++;
-      continue;
-    }
-    const hit = await findExistingCreator(hint);
+  const hinted = rows
+    .map(row => ({ id: row.id, hint: albumCosplayerHint(row) }))
+    .filter((row): row is { id: number; hint: string } => Boolean(row.hint));
+  const suggested = await matchCreatorsByHints(hinted.map(row => row.hint));
+  for (const row of hinted) {
+    const hit = suggested.get(row.hint);
     if (!hit) {
       unmatched++;
       continue;
     }
-    const result = await linkAlbumsToCreator([row.id], hit.creatorId);
+    const result = await linkAlbumsToCreator([row.id], hit.id);
     linked += result.linked;
   }
+  unmatched += rows.length - hinted.length;
   return { linked, unmatched };
 }
 

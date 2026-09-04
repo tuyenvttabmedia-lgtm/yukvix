@@ -16,10 +16,7 @@ import {
 const bucketEnum = z.enum(["named", "empty", "skipped"]);
 
 export const cosplayerLinkRouter = router({
-  counts: adminProcedure.query(async () => {
-    await backfillAlbumCosplayerFromCreator();
-    return countCosplayerQueue();
-  }),
+  counts: adminProcedure.query(() => countCosplayerQueue()),
 
   list: adminProcedure
     .input(
@@ -30,15 +27,14 @@ export const cosplayerLinkRouter = router({
         search: z.string().optional(),
       })
     )
-    .query(async ({ input }) => {
-      await backfillAlbumCosplayerFromCreator();
-      return listCosplayerQueue({
+    .query(({ input }) =>
+      listCosplayerQueue({
         bucket: input.bucket as CosplayerQueueBucket,
         page: input.page,
         limit: input.limit,
         search: input.search,
-      });
-    }),
+      })
+    ),
 
   backfill: adminProcedure.mutation(() => backfillAlbumCosplayerFromCreator()),
 

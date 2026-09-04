@@ -95,6 +95,54 @@ export async function findExistingCreator(
   return null;
 }
 
+export async function matchCreatorsByHints(
+  hints: string[]
+): Promise<Map<string, { id: number; name: string }>> {
+  const result = new Map<string, { id: number; name: string }>();
+  const unique = Array.from(new Set(hints.map(h => h.trim()).filter(Boolean)));
+  if (!unique.length) return result;
+  const db = await getDb();
+  if (!db) return result;
+
+  const rows = await db
+    .select({
+      id: creators.id,
+      name: creators.name,
+      normalizedName: creators.normalizedName,
+      aliases: creators.aliases,
+    })
+    .from(creators);
+
+  const byName = new Map<string, { id: number; name: string }>();
+  const byNorm = new Map<string, { id: number; name: string }>();
+  const byAlias = new Map<string, { id: number; name: string }>();
+
+  for (const row of rows) {
+    const ref = { id: row.id, name: row.name };
+    byName.set(row.name.toLowerCase(), ref);
+    if (row.normalizedName) byNorm.set(row.normalizedName, ref);
+    try {
+      const aliases = JSON.parse(row.aliases || "[]") as unknown;
+      if (!Array.isArray(aliases)) continue;
+      for (const alias of aliases) {
+        if (typeof alias !== "string" || !alias.trim()) continue;
+        byAlias.set(alias.trim().toLowerCase(), ref);
+      }
+    } catch {
+      /* ignore bad alias JSON */
+    }
+  }
+
+  for (const hint of unique) {
+    if (KNOWN_COLLECTIONS.has(hint)) continue;
+    const lower = hint.toLowerCase();
+    const hit =
+      byName.get(lower) || byNorm.get(normalizeName(hint)) || byAlias.get(lower);
+    if (hit) result.set(hint, hit);
+  }
+  return result;
+}
+
 /**
  * Find or create a creator.
  * Matching order:
@@ -467,8 +515,7 @@ export async function enrichCreatorAfterLink(
 
   let seo = false;
   if (!creator.seoTitle?.trim() || !creator.seoDescription?.trim()) {
-    const ai = await tryAiCreatorSeo(creator.name, creator.bio);
-    const next = ai ?? fallbackCreatorSeo(creator.name);
+    const next = fallbackCreatorSeo(creator.name);
     await db
       .update(creators)
       .set({
@@ -479,6 +526,33 @@ export async function enrichCreatorAfterLink(
       })
       .where(eq(creators.id, creatorId));
     seo = true;
+    void tryAiCreatorSeo(creator.name, creator.bio)
+      .then(async ai => {
+        if (!ai) return;
+        const [latest] = await db
+          .select({
+            seoTitle: creators.seoTitle,
+            seoDescription: creators.seoDescription,
+            focusKeyword: creators.focusKeyword,
+          })
+          .from(creators)
+          .where(eq(creators.id, creatorId))
+          .limit(1);
+        if (!latest) return;
+        const stillFallback =
+          latest.seoTitle === next.seoTitle && latest.seoDescription === next.seoDescription;
+        if (!stillFallback) return;
+        await db
+          .update(creators)
+          .set({
+            seoTitle: ai.seoTitle,
+            seoDescription: ai.seoDescription,
+            focusKeyword: latest.focusKeyword?.trim() || ai.focusKeyword,
+            updatedAt: new Date(),
+          })
+          .where(eq(creators.id, creatorId));
+      })
+      .catch(() => undefined);
   }
 
   const images = await applyCreatorImagesFromAlbums(creatorId, {
