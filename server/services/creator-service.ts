@@ -367,6 +367,128 @@ export async function applyCreatorImagesFromAlbums(
   };
 }
 
+function clipSeo(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+export function fallbackCreatorSeo(name: string): {
+  focusKeyword: string;
+  seoTitle: string;
+  seoDescription: string;
+} {
+  const n = name.trim() || "Cosplayer";
+  return {
+    focusKeyword: clipSeo(`${n} cosplay`, 200),
+    seoTitle: clipSeo(`${n} Cosplay Photos | Yukvix`, 60),
+    seoDescription: clipSeo(
+      `Browse ${n} cosplay photosets on Yukvix — characters, series, and albums.`,
+      160
+    ),
+  };
+}
+
+async function tryAiCreatorSeo(name: string, bio?: string | null): Promise<{
+  focusKeyword: string;
+  seoTitle: string;
+  seoDescription: string;
+} | null> {
+  try {
+    const { callAi } = await import("./ai-provider");
+    const contextParts = [`Name: ${name}`];
+    if (bio) contextParts.push(`Bio: ${bio}`);
+    const result = await callAi({
+      messages: [
+        {
+          role: "system",
+          content: `You are an SEO expert specializing in cosplay content creators.
+Generate SEO metadata for a cosplay creator/model profile page.
+Rules:
+- focusKeyword: 2-4 words, most important search term (e.g. "Sakura cosplay model")
+- metaTitle: 50-60 characters, include creator name and "cosplay"
+- metaDescription: 140-160 characters, engaging description of the creator
+- Use English for all output
+- Return valid JSON only`,
+        },
+        {
+          role: "user",
+          content: `Generate SEO metadata for this cosplay creator:\n\n${contextParts.join("\n")}`,
+        },
+      ],
+      responseFormat: {
+        type: "json_schema",
+        json_schema: {
+          name: "creator_seo",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              focusKeyword: { type: "string" },
+              metaTitle: { type: "string" },
+              metaDescription: { type: "string" },
+            },
+            required: ["focusKeyword", "metaTitle", "metaDescription"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    if (!result.content) return null;
+    const parsed = JSON.parse(result.content) as {
+      focusKeyword?: string;
+      metaTitle?: string;
+      metaDescription?: string;
+    };
+    if (!parsed.metaTitle || !parsed.metaDescription) return null;
+    return {
+      focusKeyword: clipSeo(parsed.focusKeyword || `${name} cosplay`, 200),
+      seoTitle: clipSeo(parsed.metaTitle, 60),
+      seoDescription: clipSeo(parsed.metaDescription, 160),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Fill empty SEO and pick avatar/banner from a linked album. */
+export async function enrichCreatorAfterLink(
+  creatorId: number,
+  opts?: { albumId?: number }
+): Promise<{ seo: boolean; images: boolean }> {
+  const db = await getDb();
+  if (!db) return { seo: false, images: false };
+  const [creator] = await db
+    .select()
+    .from(creators)
+    .where(eq(creators.id, creatorId))
+    .limit(1);
+  if (!creator) return { seo: false, images: false };
+
+  let seo = false;
+  if (!creator.seoTitle?.trim() || !creator.seoDescription?.trim()) {
+    const ai = await tryAiCreatorSeo(creator.name, creator.bio);
+    const next = ai ?? fallbackCreatorSeo(creator.name);
+    await db
+      .update(creators)
+      .set({
+        seoTitle: creator.seoTitle?.trim() || next.seoTitle,
+        seoDescription: creator.seoDescription?.trim() || next.seoDescription,
+        focusKeyword: creator.focusKeyword?.trim() || next.focusKeyword,
+        updatedAt: new Date(),
+      })
+      .where(eq(creators.id, creatorId));
+    seo = true;
+  }
+
+  const images = await applyCreatorImagesFromAlbums(creatorId, {
+    albumId: opts?.albumId,
+    applyAvatar: !creator.avatarUrl,
+    applyBanner: !creator.bannerUrl,
+  });
+  return { seo, images: images.applied };
+}
+
 export async function applyCreatorImageFromPhoto(
   creatorId: number,
   photoId: number,

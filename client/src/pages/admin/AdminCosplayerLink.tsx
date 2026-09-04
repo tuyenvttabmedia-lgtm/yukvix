@@ -17,6 +17,7 @@ export default function AdminCosplayerLink() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
+  const [quickName, setQuickName] = useState("");
   const [linkCreatorId, setLinkCreatorId] = useState("");
 
   const { data: counts } = trpc.cosplayerLink.counts.useQuery();
@@ -35,6 +36,7 @@ export default function AdminCosplayerLink() {
   const invalidate = () => {
     utils.cosplayerLink.counts.invalidate();
     utils.cosplayerLink.list.invalidate();
+    utils.creators.adminList.invalidate();
     setSelected([]);
   };
 
@@ -51,6 +53,17 @@ export default function AdminCosplayerLink() {
         `Tạo ${res.created} cosplayer, gắn ${res.linked} album` +
           (res.skipped ? ` (bỏ ${res.skipped} album không có tên)` : "")
       );
+      invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+  const createQuick = trpc.cosplayerLink.createQuick.useMutation({
+    onSuccess: res => {
+      toast.success(
+        (res.created ? `Đã tạo ${res.name}` : `Đã dùng ${res.name}`) +
+          ` — gắn ${res.linked} album, SEO + ảnh`
+      );
+      setQuickName("");
       invalidate();
     },
     onError: e => toast.error(e.message),
@@ -96,6 +109,7 @@ export default function AdminCosplayerLink() {
   const busy =
     linkMatches.isPending ||
     createAndLink.isPending ||
+    createQuick.isPending ||
     link.isPending ||
     skip.isPending ||
     unskip.isPending;
@@ -106,13 +120,55 @@ export default function AdminCosplayerLink() {
         <AdminPageHeader
           icon={Link2}
           title="Gắn Cosplayer"
-          subtitle="Khớp album chưa có trong quản lý Cosplayer. Tạo mới chỉ khi bạn duyệt."
+          subtitle="Album không tên thì không tự tạo. Dán tên, chọn album — hệ thống viết SEO và lấy avatar/banner từ album."
           metrics={[
             { label: "Có tên, chưa gắn", value: counts?.named ?? "—" },
             { label: "Không tên", value: counts?.empty ?? "—" },
             { label: "Bỏ qua", value: counts?.skipped ?? "—" },
           ]}
         />
+
+        {bucket !== "skipped" && (
+          <div className="mt-4 rounded-md border bg-muted/20 p-3">
+            <p className="text-sm font-medium">Tạo nhanh</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Album không tên thì không tự tạo. Dán tên, tick album bên dưới — tạo hồ sơ
+              (hoặc khớp nếu đã có), viết tiêu đề/mô tả SEO, lấy avatar và banner từ album.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Input
+                value={quickName}
+                onChange={e => setQuickName(e.target.value)}
+                placeholder="Dán tên cosplayer…"
+                className="max-w-xs"
+                onKeyDown={e => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const name = quickName.trim();
+                  if (!name || selected.length === 0 || busy) return;
+                  createQuick.mutate({ name, albumIds: selected });
+                }}
+              />
+              <Button
+                size="sm"
+                disabled={busy || selected.length === 0 || !quickName.trim()}
+                onClick={() =>
+                  createQuick.mutate({
+                    name: quickName.trim(),
+                    albumIds: selected,
+                  })
+                }
+              >
+                Tạo / gắn + SEO + ảnh
+              </Button>
+              {selected.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {selected.length} album đã chọn
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         <Tabs
           value={bucket}
@@ -152,16 +208,18 @@ export default function AdminCosplayerLink() {
               Gắn các album khớp tên sẵn có
             </Button>
           )}
+          {bucket === "named" && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || selected.length === 0}
+              onClick={() => createAndLink.mutate({ albumIds: selected })}
+            >
+              Tạo từ tên trên album + gắn
+            </Button>
+          )}
           {bucket !== "skipped" && (
             <>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={busy || selected.length === 0}
-                onClick={() => createAndLink.mutate({ albumIds: selected })}
-              >
-                Tạo Cosplayer mới và gắn
-              </Button>
               <select
                 className="h-9 rounded-md border bg-background px-2 text-sm"
                 value={linkCreatorId}

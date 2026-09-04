@@ -6,7 +6,7 @@ import {
   albumCosplayerHint,
   displayCosplayerName,
 } from "./cosplayer-name";
-import { findExistingCreator, findOrCreateCreator } from "./creator-service";
+import { enrichCreatorAfterLink, findExistingCreator, findOrCreateCreator } from "./creator-service";
 
 export const COSPLAYER_SKIPPED_KEY = "cosplayer_link_skipped_ids";
 
@@ -246,6 +246,7 @@ export async function linkAlbumsToCreator(
   await saveSkippedAlbumIds(Array.from(skipSet));
 
   await updateCreatorAlbumCount(creatorId);
+  await enrichCreatorAfterLink(creatorId);
   return { linked: mysqlAffectedRows(result) };
 }
 
@@ -324,6 +325,30 @@ export async function linkExactMatches(albumIds?: number[]): Promise<{
     linked += result.linked;
   }
   return { linked, unmatched };
+}
+
+export async function createQuickFromName(opts: {
+  name: string;
+  albumIds: number[];
+}): Promise<{
+  creatorId: number;
+  created: boolean;
+  linked: number;
+  name: string;
+}> {
+  const name = opts.name.trim();
+  if (!name) throw new Error("Nhập tên cosplayer");
+  const ids = Array.from(new Set(opts.albumIds)).filter(id => id > 0);
+  if (!ids.length) throw new Error("Chọn ít nhất một album để gắn");
+
+  const result = await findOrCreateCreator({ name });
+  const { linked } = await linkAlbumsToCreator(ids, result.creatorId);
+  return {
+    creatorId: result.creatorId,
+    created: result.isNew,
+    linked,
+    name: result.creator.name,
+  };
 }
 
 export async function skipAlbums(albumIds: number[]): Promise<number> {

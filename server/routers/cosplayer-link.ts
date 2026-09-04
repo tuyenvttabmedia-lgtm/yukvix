@@ -4,6 +4,7 @@ import {
   backfillAlbumCosplayerFromCreator,
   countCosplayerQueue,
   createAndLinkAlbums,
+  createQuickFromName,
   linkAlbumsToCreator,
   linkExactMatches,
   listCosplayerQueue,
@@ -55,6 +56,17 @@ export const cosplayerLinkRouter = router({
   createAndLink: adminProcedure
     .input(z.object({ albumIds: z.array(z.number()).min(1).max(100) }))
     .mutation(({ input }) => createAndLinkAlbums(input.albumIds)),
+
+  createQuick: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(128),
+        albumIds: z.array(z.number()).min(1).max(100),
+      })
+    )
+    .mutation(({ input }) =>
+      createQuickFromName({ name: input.name, albumIds: input.albumIds })
+    ),
 
   linkMatches: adminProcedure
     .input(z.object({ albumIds: z.array(z.number()).max(100).optional() }))
