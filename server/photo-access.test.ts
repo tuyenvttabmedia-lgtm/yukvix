@@ -10,6 +10,7 @@ vi.mock("./storage-wasabi", () => ({
 const photo = {
   id: 1,
   albumId: 10,
+  mediumKey: "albums/a/medium/1.webp",
   webpKey: "albums/a/webp/1.webp",
   webpUrl: "https://cdn.example/albums/a/webp/1.webp",
   thumbUrl: "https://cdn.example/albums/a/thumb/1.webp",
@@ -19,7 +20,7 @@ const photo = {
 describe("presentPhotoForClient", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("signs full-size for free albums instead of returning the public CDN URL", async () => {
+  it("signs the 1200px medium for lightbox instead of 4K webp", async () => {
     const { presentPhotoForClient } = await import("./photo-access");
     const { getSignedMediaUrl } = await import("./storage-wasabi");
     const result = await presentPhotoForClient(photo, {
@@ -29,7 +30,9 @@ describe("presentPhotoForClient", () => {
     });
     expect(result.displayUrl).toBe("https://signed.example/full.webp");
     expect(result.thumbUrl).toBe(photo.thumbUrl);
-    expect(getSignedMediaUrl).toHaveBeenCalledWith(photo.webpKey, 3600);
+    expect(result.originalUrl).toBeUndefined();
+    expect(getSignedMediaUrl).toHaveBeenCalledWith(photo.mediumKey, 3600);
+    expect(getSignedMediaUrl).not.toHaveBeenCalledWith(photo.webpKey, 3600);
     expect("webpKey" in result).toBe(false);
   });
 
@@ -55,6 +58,32 @@ describe("presentPhotoForClient", () => {
     expect(result.isLocked).toBe(false);
     expect(result.displayUrl).toBe("https://signed.example/full.webp");
     expect(result.thumbUrl).toBe(photo.thumbUrl);
+    expect(result.originalUrl).toBeUndefined();
+  });
+
+  it("gives VIP viewers a medium lightbox plus a 4K original for zoom", async () => {
+    const { presentPhotoForClient } = await import("./photo-access");
+    const { getSignedMediaUrl } = await import("./storage-wasabi");
+    const result = await presentPhotoForClient(photo, {
+      albumIsVip: true,
+      userIsVip: true,
+      isAdminUser: false,
+    });
+    expect(result.isLocked).toBe(false);
+    expect(getSignedMediaUrl).toHaveBeenCalledWith(photo.mediumKey, 3600);
+    expect(getSignedMediaUrl).toHaveBeenCalledWith(photo.webpKey, 3600);
+    expect(result.originalUrl).toBe("https://signed.example/full.webp");
+  });
+
+  it("uses the public thumb for lightbox when medium is missing instead of 4K webp", async () => {
+    const { presentPhotoForClient } = await import("./photo-access");
+    const { getSignedMediaUrl } = await import("./storage-wasabi");
+    const result = await presentPhotoForClient(
+      { ...photo, mediumKey: null },
+      { albumIsVip: false, userIsVip: false, isAdminUser: false }
+    );
+    expect(result.displayUrl).toBe(photo.thumbUrl);
+    expect(getSignedMediaUrl).not.toHaveBeenCalled();
   });
 });
 

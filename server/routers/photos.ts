@@ -115,7 +115,7 @@ export const photosRouter = router({
         }
       }
 
-      const key = photo.webpKey || photo.mediumKey || photo.originalKey;
+      const key = photo.mediumKey || photo.webpKey || photo.originalKey;
       if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "Photo file not found" });
       const signedUrl = await getSignedMediaUrl(key, 3600);
       return { url: signedUrl, expiresIn: 3600 };

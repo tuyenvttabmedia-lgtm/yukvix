@@ -3,6 +3,7 @@ import {
   createTelegramAdapter,
   createTelegramApiCaller,
   TELEGRAM_CAPABILITIES,
+  type TelegramApiCaller,
 } from "./adapters/telegram";
 import { assertTelegramSnapshotUrl } from "./telegram-config";
 import { SocialApiError } from "./types";
@@ -52,7 +53,7 @@ function photo(n: number): SnapshotMediaItem {
   };
 }
 
-function adapterWith(callApi: (method: string, body: Record<string, unknown>) => Promise<unknown>) {
+function adapterWith(callApi: TelegramApiCaller) {
   return createTelegramAdapter({
     credentials: creds,
     config,
@@ -161,6 +162,7 @@ describe("telegram publish", () => {
   it("sends a single photo with caption and spoiler for mature content", async () => {
     const bodies: Array<{ method: string; body: Record<string, unknown> }> = [];
     const adapter = adapterWith(async (method, body) => {
+      if (body instanceof FormData) throw new Error("expected json");
       bodies.push({ method, body });
       return {
         message_id: 77,
@@ -183,6 +185,7 @@ describe("telegram publish", () => {
   it("sends a media group with caption only on the first item", async () => {
     const adapter = adapterWith(async (method, body) => {
       expect(method).toBe("sendMediaGroup");
+      if (body instanceof FormData) throw new Error("expected json");
       const media = body.media as Array<{ caption?: string }>;
       expect(media).toHaveLength(3);
       expect(media[0].caption).toContain("Album");
@@ -229,10 +232,69 @@ describe("telegram publish", () => {
     });
     expect(result.externalPostId).toBe("1");
     const sent = await adapterWith(async (_method, body) => {
+      if (body instanceof FormData) throw new Error("expected json");
       expect(body.caption).toBe(caption);
       return { message_id: 2, chat: { username: "yukvix_test" } };
     }).publishPost({ caption, media: [photo(1)] });
     expect(sent.externalPostId).toBe("2");
+  });
+
+  it("uploads a JPEG file instead of a thumb URL when uploadFiles is on", async () => {
+    const jpeg = Buffer.from("fake-jpeg");
+    let form: FormData | null = null;
+    const adapter = createTelegramAdapter({
+      credentials: creds,
+      config,
+      uploadFiles: true,
+      loadUpload: async () => jpeg,
+      callApi: async (method, body) => {
+        expect(method).toBe("sendPhoto");
+        expect(body).toBeInstanceOf(FormData);
+        form = body as FormData;
+        return { message_id: 88, chat: { username: "yukvix_test" } };
+      },
+    });
+    const result = await adapter.publishPost({
+      caption: "Hello",
+      media: [photo(1)],
+    });
+    expect(result.externalPostId).toBe("88");
+    expect(form).toBeTruthy();
+    expect(form!.get("caption")).toBe("Hello");
+    expect(form!.get("photo")).toBeTruthy();
+    expect(form!.get("chat_id")).toBe(creds.chatId);
+  });
+
+  it("attaches JPEG files on sendMediaGroup", async () => {
+    const jpeg = Buffer.from("fake-jpeg");
+    const adapter = createTelegramAdapter({
+      credentials: creds,
+      config,
+      uploadFiles: true,
+      loadUpload: async () => jpeg,
+      callApi: async (method, body) => {
+        expect(method).toBe("sendMediaGroup");
+        expect(body).toBeInstanceOf(FormData);
+        const form = body as FormData;
+        const media = JSON.parse(String(form.get("media")));
+        expect(media).toHaveLength(3);
+        expect(media[0].media).toBe("attach://file0");
+        expect(media[1].media).toBe("attach://file1");
+        expect(media[0].caption).toBe("Album");
+        expect(form.get("file0")).toBeTruthy();
+        expect(form.get("file2")).toBeTruthy();
+        return [
+          { message_id: 10, chat: { username: "yukvix_test" } },
+          { message_id: 11 },
+          { message_id: 12 },
+        ];
+      },
+    });
+    const result = await adapter.publishPost({
+      caption: "Album",
+      media: [photo(1), photo(2), photo(3)],
+    });
+    expect(result.externalPostId).toBe("10,11,12");
   });
 });
 

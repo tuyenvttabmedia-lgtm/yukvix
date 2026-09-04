@@ -36,6 +36,23 @@ describe("social media security", () => {
     expect(result.items.some(i => i.type === "free_preview")).toBe(true);
   });
 
+  it("attaches photoId on the cover when it matches a photo thumb", () => {
+    const result = selectSocialMedia({
+      album,
+      photos: [
+        {
+          id: 10,
+          thumbUrl: album.coverUrl,
+          isFreePreview: true,
+          sortOrder: 0,
+        },
+      ],
+      capabilities: stubCapabilities("telegram"),
+    });
+    expect(result.items[0]).toMatchObject({ type: "cover", photoId: 10 });
+    expect(result.items.filter(i => i.url === album.coverUrl)).toHaveLength(1);
+  });
+
   it("reports truncation instead of hiding extra eligible images", () => {
     const photos = Array.from({ length: 12 }, (_, i) => ({
       id: i + 1,

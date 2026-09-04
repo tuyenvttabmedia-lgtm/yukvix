@@ -137,9 +137,8 @@ export default function PhotoSwipeViewer({
 
   const getDataSource = useCallback(() => {
     return items.map((item) => {
-      // For ZIP import photos: prefer webpUrl (4K) over mediumUrl (1200px)
-      // displayUrl is signed URL for VIP content, use it when available
-      const src = item.displayUrl || item.webpUrl || item.mediumUrl || item.originalUrl || "";
+      // Lightbox starts on 1200px medium (displayUrl). Never use 4K webp as src.
+      const src = item.displayUrl || item.mediumUrl || item.thumbUrl || "";
       const w = item.width || 0;
       const h = item.height || 0;
       // When width/height are unknown (ZIP import), use 0 to let PhotoSwipe

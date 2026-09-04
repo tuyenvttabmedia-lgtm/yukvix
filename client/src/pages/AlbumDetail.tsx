@@ -165,8 +165,8 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
   const photoSwipeItems: PhotoSwipeItem[] = allPhotos.map((p) => ({
     id: p.id,
     thumbUrl: p.thumbUrl,
-    mediumUrl: p.mediumUrl || p.displayUrl || p.webpUrl,
-    webpUrl: p.webpUrl,
+    mediumUrl: p.displayUrl || p.mediumUrl,
+    webpUrl: undefined,
     originalUrl: p.originalUrl,
     displayUrl: p.displayUrl,
     width: p.width,
@@ -249,7 +249,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
     datePublished: album.createdAt ? new Date(album.createdAt).toISOString() : undefined,
     dateModified: album.updatedAt ? new Date(album.updatedAt).toISOString() : undefined,
     images: allPhotos.slice(0, 10).map((p: any) => ({
-      url: p.webpUrl || p.originalUrl || p.thumbUrl || "",
+      url: p.thumbUrl || p.displayUrl || "",
       caption: p.altText || `${album.title} cosplay photo`,
       width: p.width || undefined,
       height: p.height || undefined,
@@ -484,8 +484,9 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
                 src={photo.thumbUrl || photo.displayUrl || ""}
                 alt={photo.altText || `${album.title} — photo ${index + 1}`}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                loading={index < 8 ? "eager" : "lazy"}
+                loading={index < 4 ? "eager" : "lazy"}
                 decoding="async"
+                fetchPriority={index === 0 ? "high" : "low"}
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
             </button>

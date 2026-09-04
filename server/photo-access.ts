@@ -42,20 +42,37 @@ export function assertAlbumPubliclyReadable(
   }
 }
 
-async function signedFullSizeUrl(photo: PhotoLike): Promise<string | null> {
-  const signKey = photo.webpKey || photo.mediumKey || photo.originalKey;
-  if (signKey) {
+async function signedVariantUrl(
+  photo: PhotoLike,
+  keys: Array<string | null | undefined>
+): Promise<string | null> {
+  for (const signKey of keys) {
+    if (!signKey) continue;
     try {
       return await getSignedMediaUrl(signKey, 3600);
     } catch (err) {
-      console.warn(`[photo-access] signed URL failed for photo ${photo.id}:`, (err as Error).message);
+      console.warn(
+        `[photo-access] signed URL failed for photo ${photo.id}:`,
+        (err as Error).message
+      );
     }
   }
   return photo.thumbUrl || photo.displayUrl || photo.mediumUrl || photo.webpUrl || null;
 }
 
+/** Lightbox default: 1200px medium only. Never start the viewer on 4K webp/original. */
+async function signedDisplayUrl(photo: PhotoLike): Promise<string | null> {
+  return signedVariantUrl(photo, [photo.mediumKey]);
+}
+
+/** VIP zoom only. */
+async function signedOriginalUrl(photo: PhotoLike): Promise<string | null> {
+  return signedVariantUrl(photo, [photo.webpKey, photo.originalKey]);
+}
+
 export type PhotoClient = PhotoLike & {
   displayUrl: string | null;
+  originalUrl?: string | null;
   isLocked: boolean;
 };
 
@@ -73,7 +90,8 @@ export async function presentPhotoForClient(
     return {
       ...photo,
       thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
-      displayUrl: await signedFullSizeUrl(photo),
+      displayUrl: await signedDisplayUrl(photo),
+      originalUrl: await signedOriginalUrl(photo),
       isLocked: false,
     };
   }
@@ -89,7 +107,7 @@ export async function presentPhotoForClient(
       filename: photo.filename,
       altText: photo.altText,
       thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
-      displayUrl: await signedFullSizeUrl(photo),
+      displayUrl: await signedDisplayUrl(photo),
       isLocked: false,
     };
   }
@@ -116,7 +134,8 @@ export async function presentPhotoForClient(
     filename: undefined,
     altText: photo.altText,
     thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
-    displayUrl: await signedFullSizeUrl(photo),
+    displayUrl: await signedDisplayUrl(photo),
+    originalUrl: canSeeFull ? await signedOriginalUrl(photo) : undefined,
     isLocked: false,
   };
 }

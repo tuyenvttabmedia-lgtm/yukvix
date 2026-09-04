@@ -19,9 +19,11 @@ import {
   type SnapshotMediaItem,
   type SocialAdapter,
 } from "../types";
+import { loadTelegramUploadBytes } from "../telegram-media";
 
 const TELEGRAM_API = "https://api.telegram.org";
 const REQUEST_TIMEOUT_MS = 30_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
 const TELEGRAM_CAPTION_MAX = 1024;
 const TELEGRAM_MEDIA_GROUP_MIN = 2;
 const TELEGRAM_MEDIA_GROUP_MAX = 10;
@@ -38,15 +40,20 @@ export const TELEGRAM_CAPABILITIES: PlatformCapabilities = {
   supportsScheduling: false,
 };
 
+export type TelegramApiBody = Record<string, unknown> | FormData;
+
 export type TelegramApiCaller = (
   method: string,
-  body: Record<string, unknown>
+  body: TelegramApiBody
 ) => Promise<unknown>;
 
 export type TelegramAdapterOptions = {
   credentials: TelegramCredentials;
   config: TelegramAccountConfig;
   callApi?: TelegramApiCaller;
+  /** Default: live Bot API uploads JPEG bytes. Injected callApi stays URL/JSON. */
+  uploadFiles?: boolean;
+  loadUpload?: (item: SnapshotMediaItem) => Promise<Buffer | null>;
 };
 
 type TelegramUser = {
@@ -155,16 +162,41 @@ function classifyTelegramError(
   });
 }
 
+function isFormDataBody(body: TelegramApiBody): body is FormData {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
+function jpegBlob(bytes: Buffer): Blob {
+  return new Blob([new Uint8Array(bytes)], { type: "image/jpeg" });
+}
+
+function appendTelegramFlags(
+  form: FormData,
+  chatId: string,
+  opts: { disableNotification?: boolean; protectContent?: boolean }
+): void {
+  form.append("chat_id", chatId);
+  if (opts.disableNotification) form.append("disable_notification", "true");
+  if (opts.protectContent) form.append("protect_content", "true");
+}
+
 export function createTelegramApiCaller(botToken: string): TelegramApiCaller {
   return async (method, body) => {
     const url = `${TELEGRAM_API}/bot${botToken}/${method}`;
+    const sendMethod = method === "sendPhoto" || method === "sendMediaGroup";
+    const timeout = sendMethod ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+    const form = isFormDataBody(body);
     let response: Response;
     try {
       response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        ...(form
+          ? { body }
+          : {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }),
+        signal: AbortSignal.timeout(timeout),
       });
     } catch (err) {
       const aborted =
@@ -289,11 +321,28 @@ export function createTelegramAdapter(
 ): SocialAdapter {
   const callApi =
     opts.callApi ?? createTelegramApiCaller(opts.credentials.botToken);
+  const uploadFiles = opts.uploadFiles ?? !opts.callApi;
+  const loadUpload = opts.loadUpload ?? loadTelegramUploadBytes;
   const chatId = opts.config.chatId;
   const maxImages = Math.min(
     TELEGRAM_MEDIA_GROUP_MAX,
     Math.max(1, opts.config.maxImages)
   );
+
+  async function resolveUploads(
+    items: SnapshotMediaItem[]
+  ): Promise<Array<Buffer | null>> {
+    if (!uploadFiles) return items.map(() => null);
+    const out: Array<Buffer | null> = [];
+    for (const item of items) {
+      try {
+        out.push(await loadUpload(item));
+      } catch {
+        out.push(null);
+      }
+    }
+    return out;
+  }
 
   return {
     getCapabilities: () => ({ ...TELEGRAM_CAPABILITIES, maxImages }),
@@ -334,6 +383,7 @@ export function createTelegramAdapter(
     async publishPost(post) {
       assertBound(opts);
       const items = validateSnapshot(post.media, maxImages);
+      const uploads = await resolveUploads(items);
       const caption = captionForTelegram(post.caption || "");
       const sensitive = Boolean(
         post.labels &&
@@ -347,12 +397,23 @@ export function createTelegramAdapter(
       };
 
       if (items.length === 1) {
-        const result = (await callApi("sendPhoto", {
-          ...common,
-          photo: items[0].url,
-          caption: caption || undefined,
-          has_spoiler: sensitive || undefined,
-        })) as TelegramMessage;
+        const bytes = uploads[0];
+        let result: TelegramMessage;
+        if (bytes) {
+          const form = new FormData();
+          appendTelegramFlags(form, String(chatId), opts.config);
+          form.append("photo", jpegBlob(bytes), "photo.jpg");
+          if (caption) form.append("caption", caption);
+          if (sensitive) form.append("has_spoiler", "true");
+          result = (await callApi("sendPhoto", form)) as TelegramMessage;
+        } else {
+          result = (await callApi("sendPhoto", {
+            ...common,
+            photo: items[0].url,
+            caption: caption || undefined,
+            has_spoiler: sensitive || undefined,
+          })) as TelegramMessage;
+        }
         const messageId = Number(result.message_id);
         if (!Number.isFinite(messageId)) {
           throw new SocialApiError({
@@ -379,6 +440,46 @@ export function createTelegramAdapter(
           code: "INVALID_MEDIA",
           retryable: false,
         });
+      }
+
+      const useMultipart = uploads.some(Boolean);
+      if (useMultipart) {
+        const form = new FormData();
+        appendTelegramFlags(form, String(chatId), opts.config);
+        const media = items.map((item, index) => {
+          const bytes = uploads[index];
+          if (bytes) {
+            form.append(`file${index}`, jpegBlob(bytes), `photo${index}.jpg`);
+          }
+          return {
+            type: "photo",
+            media: bytes ? `attach://file${index}` : item.url,
+            caption: index === 0 && caption ? caption : undefined,
+            has_spoiler: sensitive || undefined,
+          };
+        });
+        form.append("media", JSON.stringify(media));
+        const results = (await callApi("sendMediaGroup", form)) as TelegramMessage[];
+        const messages = Array.isArray(results) ? results : [];
+        const ids = messages
+          .map(row => Number(row.message_id))
+          .filter(id => Number.isFinite(id));
+        if (!ids.length) {
+          throw new SocialApiError({
+            message: "Telegram did not return message_id",
+            httpStatus: 500,
+            code: "TELEGRAM_UNAVAILABLE",
+            retryable: true,
+          });
+        }
+        return {
+          externalPostId: ids.join(","),
+          externalUrl: publicMessageUrl(
+            messages[0]?.chat,
+            ids[0],
+            opts.config.channelUsername
+          ),
+        };
       }
 
       const media = items.map((item, index) => ({

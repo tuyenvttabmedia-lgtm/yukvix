@@ -70,12 +70,15 @@ export function selectSocialMedia(opts: {
   const seen = new Set<string>();
 
   const cover = toPublicThumb(opts.album.coverUrl);
+  const coverPhoto = cover
+    ? opts.photos.find(p => toPublicThumb(p.thumbUrl) === cover)
+    : undefined;
   if (cover) {
     pushItem(
       items,
       seen,
       {
-        photoId: null,
+        photoId: coverPhoto?.id ?? null,
         mediaItemId: null,
         type: "cover",
         url: cover,
