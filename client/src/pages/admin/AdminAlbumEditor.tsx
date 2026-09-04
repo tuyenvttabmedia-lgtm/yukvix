@@ -65,6 +65,7 @@ import {
   Calendar,
   Filter,
   SlidersHorizontal,
+  Share2,
   Sparkles,
   FileImage,
 } from "lucide-react";
@@ -1235,7 +1236,7 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-semibold text-foreground truncate">{album.title}</h1>
           <p className="text-sm text-muted-foreground">
-            {photoList.length} photo{photoList.length !== 1 ? "s" : ""}
+            ID {album.id} · {photoList.length} photo{photoList.length !== 1 ? "s" : ""}
             {(album as any).isVip && (
               <span className="ml-2 inline-flex items-center gap-1 text-primary">
                 <Crown className="w-3 h-3" /> VIP
@@ -1243,6 +1244,16 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
             )}
           </p>
         </div>
+        {album.status === "published" && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/admin/social?albumId=${album.id}`)}
+          >
+            <Share2 className="w-4 h-4 mr-1" />
+            Share Telegram
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

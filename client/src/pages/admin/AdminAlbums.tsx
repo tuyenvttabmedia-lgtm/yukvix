@@ -274,6 +274,7 @@ export default function AdminAlbums() {
                             <Crown className="w-2 h-2" />VIP
                           </span>
                         )}
+                        <span className="text-xs text-muted-foreground tabular-nums">#{album.id}</span>
                         <span className="text-xs text-muted-foreground truncate max-w-[20rem]">{album.slug}</span>
                       </div>
                     </div>

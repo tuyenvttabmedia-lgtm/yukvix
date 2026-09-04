@@ -81,6 +81,8 @@ export default function AdminSocial() {
     protectContent: false,
   });
   const [albumId, setAlbumId] = useState(albumFromQuery || "");
+  const [albumSearch, setAlbumSearch] = useState("");
+  const [debouncedAlbumSearch, setDebouncedAlbumSearch] = useState("");
   const [accountId, setAccountId] = useState<number | "">("");
   const [force, setForce] = useState(false);
   const [sendNow, setSendNow] = useState(true);
@@ -94,6 +96,24 @@ export default function AdminSocial() {
   useEffect(() => {
     if (albumFromQuery) setAlbumId(albumFromQuery);
   }, [albumFromQuery]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAlbumSearch(albumSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [albumSearch]);
+
+  const selectedAlbumId = Number(albumId) || 0;
+  const { data: selectedAlbum } = trpc.albums.byId.useQuery(
+    { id: selectedAlbumId },
+    { enabled: selectedAlbumId > 0 }
+  );
+  const { data: albumChoices } = trpc.albums.adminList.useQuery({
+    page: 1,
+    limit: 15,
+    status: "published",
+    search: debouncedAlbumSearch || undefined,
+    sortBy: "newest",
+  });
 
   useEffect(() => {
     if (accountId === "" && telegramAccounts[0]) setAccountId(telegramAccounts[0].id);
@@ -462,14 +482,51 @@ export default function AdminSocial() {
           <h2 className="font-medium flex items-center gap-2">
             <Share2 className="w-4 h-4" /> Manual Share
           </h2>
+          <p className="text-sm text-muted-foreground">
+            Chọn album đã xuất bản ở đây, hoặc vào <span className="text-foreground">Album</span> bấm icon Share.
+            Trang album public không hiện ID — không cần copy từ URL.
+          </p>
           <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <Label>Album ID</Label>
+            <div className="space-y-2">
+              <Label>Album đã xuất bản</Label>
               <Input
-                value={albumId}
-                onChange={e => setAlbumId(e.target.value)}
-                placeholder="ID album đã published"
+                value={albumSearch}
+                onChange={e => setAlbumSearch(e.target.value)}
+                placeholder="Tìm theo tên hoặc slug…"
               />
+              <div className="max-h-48 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                {(albumChoices?.items ?? []).map(album => (
+                  <button
+                    key={album.id}
+                    type="button"
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-secondary/60 ${
+                      Number(albumId) === album.id ? "bg-secondary" : ""
+                    }`}
+                    onClick={() => {
+                      setAlbumId(album.id);
+                      setPreview(null);
+                    }}
+                  >
+                    <span className="font-medium">{album.title}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      #{album.id} · {album.slug} · {album.photoCount} ảnh
+                      {album.isVip ? " · VIP" : ""}
+                    </span>
+                  </button>
+                ))}
+                {(albumChoices?.items ?? []).length === 0 && (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Không có album published khớp tìm kiếm.</p>
+                )}
+              </div>
+              {selectedAlbum ? (
+                <p className="text-xs text-muted-foreground">
+                  Đang chọn: #{selectedAlbum.id} · {selectedAlbum.title} ({selectedAlbum.status})
+                </p>
+              ) : selectedAlbumId ? (
+                <p className="text-xs text-muted-foreground">Album ID {selectedAlbumId}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Chưa chọn album.</p>
+              )}
             </div>
             <div>
               <Label>Telegram account</Label>
