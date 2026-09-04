@@ -154,11 +154,15 @@ export interface SocialDistributionConfig {
   contentRating: string;
   defaultDelayMinutes: number;
   platforms: Record<SocialPlatform, PlatformConfig>;
-  /** Random 1 album per interval. Not tied to album publish. */
+  /** Random 1 album per interval. Not tied to album publish. Telegram uses `schedule`. */
   schedule: {
     enabled: boolean;
     /** Minutes between random posts. 5–10080 (7 days). */
     intervalMinutes: number;
+  };
+  schedules: {
+    mastodon: { enabled: boolean; intervalMinutes: number };
+    bluesky: { enabled: boolean; intervalMinutes: number };
   };
 }
 

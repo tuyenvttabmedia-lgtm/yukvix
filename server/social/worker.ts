@@ -1,5 +1,5 @@
 import { resolveSocialAdapter } from "./adapters";
-import { runTelegramScheduleTick } from "./schedule";
+import { runAllScheduleTicks } from "./schedule";
 import {
   claimSocialPost,
   getSocialQueue,
@@ -228,10 +228,10 @@ export function startSocialWorker(): void {
     runSocialWorkerTick().catch(logTickError);
   }, POLL_MS);
   setTimeout(() => {
-    runTelegramScheduleTick().catch(logTickError);
+    runAllScheduleTicks().catch(logTickError);
   }, 15_000);
   scheduleIntervalId = setInterval(() => {
-    runTelegramScheduleTick().catch(logTickError);
+    runAllScheduleTicks().catch(logTickError);
   }, SCHEDULE_POLL_MS);
 }
 

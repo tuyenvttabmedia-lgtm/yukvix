@@ -5,6 +5,8 @@ import {
   loadScheduleState,
   loadSocialConfig,
   saveScheduleState,
+  scheduleFor,
+  type SocialSchedulePlatform,
   type SocialScheduleState,
 } from "./config";
 import { getSocialQueue } from "./queue";
@@ -81,14 +83,16 @@ export function describeScheduleLastRun(opts: {
   }
 }
 
-export async function listEnabledTelegramAccounts(): Promise<SocialAccountFlags[]> {
+export async function listEnabledAccounts(
+  platform: SocialSchedulePlatform
+): Promise<SocialAccountFlags[]> {
   const db = await getDb();
   if (!db) return [];
   const rows = await db
     .select()
     .from(socialAccounts)
     .where(
-      and(eq(socialAccounts.platform, "telegram"), eq(socialAccounts.isEnabled, true))
+      and(eq(socialAccounts.platform, platform), eq(socialAccounts.isEnabled, true))
     );
   return rows.map(row => ({
     id: row.id,
@@ -99,6 +103,10 @@ export async function listEnabledTelegramAccounts(): Promise<SocialAccountFlags[
     requireApproval: row.requireApproval,
     configJson: row.configJson,
   }));
+}
+
+export async function listEnabledTelegramAccounts(): Promise<SocialAccountFlags[]> {
+  return listEnabledAccounts("telegram");
 }
 
 export async function countUnsharedPublishedAlbums(
@@ -197,46 +205,68 @@ async function shareOneForAccount(
   };
 }
 
-export async function runTelegramScheduleTick(opts?: {
-  force?: boolean;
-}): Promise<ScheduleTickResult> {
+export async function runPlatformScheduleTick(
+  platform: SocialSchedulePlatform,
+  opts?: { force?: boolean }
+): Promise<ScheduleTickResult> {
   const config = await loadSocialConfig();
-  const state = await loadScheduleState();
+  const state = await loadScheduleState(platform);
+  const schedule = scheduleFor(config, platform);
   if (
     !opts?.force &&
     !shouldRunSchedule({
       moduleEnabled: config.enabled,
-      scheduleEnabled: config.schedule.enabled,
-      intervalMinutes: config.schedule.intervalMinutes,
+      scheduleEnabled: schedule.enabled,
+      intervalMinutes: schedule.intervalMinutes,
       lastRunAt: state.lastRunAt,
     })
   ) {
     return { ran: false, reason: "not due" };
   }
-  if (!config.enabled || (!config.schedule.enabled && !opts?.force)) {
+  if (!config.enabled || (!schedule.enabled && !opts?.force)) {
     return { ran: false, reason: "schedule disabled" };
   }
 
-  const accounts = await listEnabledTelegramAccounts();
+  const accounts = await listEnabledAccounts(platform);
   if (accounts.length === 0) {
     const nextState: SocialScheduleState = {
       lastRunAt: new Date().toISOString(),
       lastAlbumId: null,
-      lastStatus: "no-telegram-account",
+      lastStatus: `no-${platform}-account`,
       lastPostId: null,
     };
-    await saveScheduleState(nextState);
-    return { ran: false, reason: "no enabled Telegram account" };
+    await saveScheduleState(nextState, platform);
+    return { ran: false, reason: `no enabled ${platform} account` };
   }
 
   const outcome = await shareOneForAccount(accounts[0]);
-  await saveScheduleState({
-    lastRunAt: new Date().toISOString(),
-    lastAlbumId: outcome.albumId ?? null,
-    lastStatus: outcome.status || outcome.reason || "ok",
-    lastPostId: outcome.postId ?? null,
-  });
+  await saveScheduleState(
+    {
+      lastRunAt: new Date().toISOString(),
+      lastAlbumId: outcome.albumId ?? null,
+      lastStatus: outcome.status || outcome.reason || "ok",
+      lastPostId: outcome.postId ?? null,
+    },
+    platform
+  );
   return outcome;
+}
+
+export async function runTelegramScheduleTick(opts?: {
+  force?: boolean;
+}): Promise<ScheduleTickResult> {
+  return runPlatformScheduleTick("telegram", opts);
+}
+
+export async function runAllScheduleTicks(opts?: {
+  force?: boolean;
+}): Promise<ScheduleTickResult[]> {
+  const platforms: SocialSchedulePlatform[] = ["telegram", "mastodon", "bluesky"];
+  const results: ScheduleTickResult[] = [];
+  for (const platform of platforms) {
+    results.push(await runPlatformScheduleTick(platform, opts));
+  }
+  return results;
 }
 
 async function loadLastSchedulePost(
@@ -262,10 +292,13 @@ async function loadLastSchedulePost(
   return rows[0] ?? null;
 }
 
-export async function getTelegramScheduleStatus() {
+export async function getPlatformScheduleStatus(
+  platform: SocialSchedulePlatform
+) {
   const config = await loadSocialConfig();
-  const state = await loadScheduleState();
-  const accounts = await listEnabledTelegramAccounts();
+  const state = await loadScheduleState(platform);
+  const schedule = scheduleFor(config, platform);
+  const accounts = await listEnabledAccounts(platform);
   const account = accounts[0] ?? null;
   const remaining = account
     ? await countUnsharedPublishedAlbums(account.id)
@@ -278,8 +311,9 @@ export async function getTelegramScheduleStatus() {
   const lastPostStatus = lastPost?.status ?? null;
   const lastError = lastPost?.lastError ?? null;
   return {
-    enabled: config.enabled && config.schedule.enabled,
-    intervalMinutes: config.schedule.intervalMinutes,
+    platform,
+    enabled: config.enabled && schedule.enabled,
+    intervalMinutes: schedule.intervalMinutes,
     lastRunAt: state.lastRunAt,
     lastAlbumId: state.lastAlbumId,
     lastPostId: lastPost?.id ?? state.lastPostId,
@@ -292,11 +326,15 @@ export async function getTelegramScheduleStatus() {
       lastStatus: state.lastStatus,
       lastError,
     }),
-    nextRunAt: config.schedule.enabled
-      ? nextRunAt(state.lastRunAt, config.schedule.intervalMinutes).toISOString()
+    nextRunAt: schedule.enabled
+      ? nextRunAt(state.lastRunAt, schedule.intervalMinutes).toISOString()
       : null,
     remaining,
     accountId: account?.id ?? null,
     accountName: account?.displayName ?? null,
   };
+}
+
+export async function getTelegramScheduleStatus() {
+  return getPlatformScheduleStatus("telegram");
 }

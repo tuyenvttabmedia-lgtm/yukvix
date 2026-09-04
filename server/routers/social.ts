@@ -15,24 +15,39 @@ import { runSocialDryRun } from "../social/dry-run";
 import { cancelSocialPost, retrySocialPost } from "../social/queue";
 import { createManualShare, loadSocialAccount } from "../social/share";
 import {
-  getTelegramScheduleStatus,
-  runTelegramScheduleTick,
+  getPlatformScheduleStatus,
+  runPlatformScheduleTick,
 } from "../social/schedule";
 import { createTelegramAdapter } from "../social/adapters/telegram";
+import { createMastodonAdapter } from "../social/adapters/mastodon";
+import { createBlueskyAdapter } from "../social/adapters/bluesky";
 import {
   parseTelegramConfig,
   parseTelegramCredentials,
   telegramConfigForStorage,
 } from "../social/telegram-config";
+import {
+  parseMastodonConfig,
+  parseMastodonCredentials,
+  mastodonConfigForStorage,
+} from "../social/mastodon-config";
+import {
+  parseBlueskyConfig,
+  parseBlueskyCredentials,
+  blueskyConfigForStorage,
+} from "../social/bluesky-config";
 import { sanitizeSocialErrorMessage } from "../social/sanitize";
 import {
   SocialAccountDisabledError,
   SocialApiError,
   type SocialAccountFlags,
+  type SocialAdapter,
   type SocialPlatform,
 } from "../social/types";
 
 const platformEnum = z.enum(["telegram", "mastodon", "bluesky", "x"]);
+const LIVE_PLATFORMS = ["telegram", "mastodon", "bluesky"] as const;
+const schedulePlatformEnum = z.enum(LIVE_PLATFORMS);
 
 function publicAccount(row: {
   id: number;
@@ -80,40 +95,157 @@ function redactAccountConfigJson(raw: string | null): string | null {
   }
 }
 
+async function prepareAccountPayload(input: {
+  platform: SocialPlatform;
+  configJson?: string;
+  credentials?: Record<string, unknown>;
+}): Promise<{ configJson: string; encrypted?: string }> {
+  if (input.platform === "telegram") {
+    const incoming = input.credentials
+      ? parseTelegramCredentials(input.credentials)
+      : null;
+    const configJson = telegramConfigForStorage(input.configJson, incoming?.chatId);
+    const parsed = parseTelegramConfig(configJson, incoming ?? undefined);
+    if (!parsed.chatId) throw new Error("Telegram chatId is required");
+    return {
+      configJson,
+      encrypted: incoming
+        ? await encryptSocialCredentialsAsync({
+            botToken: incoming.botToken,
+            chatId: incoming.chatId ?? parsed.chatId,
+          })
+        : undefined,
+    };
+  }
+  if (input.platform === "mastodon") {
+    const incoming = input.credentials
+      ? parseMastodonCredentials(input.credentials)
+      : null;
+    const configJson = mastodonConfigForStorage(
+      input.configJson,
+      incoming?.instanceUrl
+    );
+    const parsed = parseMastodonConfig(configJson, incoming ?? undefined);
+    if (!parsed.instanceUrl) throw new Error("Mastodon instance URL is required");
+    return {
+      configJson,
+      encrypted: incoming
+        ? await encryptSocialCredentialsAsync({
+            instanceUrl: incoming.instanceUrl,
+            accessToken: incoming.accessToken,
+          })
+        : undefined,
+    };
+  }
+  if (input.platform === "bluesky") {
+    const incoming = input.credentials
+      ? parseBlueskyCredentials(input.credentials)
+      : null;
+    const configJson = blueskyConfigForStorage(input.configJson, {
+      identifier: incoming?.identifier,
+      pdsUrl: incoming?.pdsUrl,
+    });
+    const parsed = parseBlueskyConfig(configJson, incoming ?? undefined);
+    if (!parsed.identifier && !incoming) {
+      throw new Error("Bluesky handle is required");
+    }
+    return {
+      configJson,
+      encrypted: incoming
+        ? await encryptSocialCredentialsAsync({
+            identifier: incoming.identifier,
+            appPassword: incoming.appPassword,
+            pdsUrl: incoming.pdsUrl,
+          })
+        : undefined,
+    };
+  }
+  throw new Error("Unsupported platform");
+}
+
+async function adapterForAccountRow(row: {
+  platform: string;
+  encryptedCredentials: string | null;
+  configJson: string | null;
+}): Promise<SocialAdapter> {
+  const raw = await decryptSocialCredentialsAsync(row.encryptedCredentials);
+  if (row.platform === "telegram") {
+    const credentials = parseTelegramCredentials(raw);
+    const config = parseTelegramConfig(row.configJson, credentials);
+    return createTelegramAdapter({ credentials, config });
+  }
+  if (row.platform === "mastodon") {
+    const credentials = parseMastodonCredentials(raw);
+    const config = parseMastodonConfig(row.configJson, credentials);
+    return createMastodonAdapter({ credentials, config });
+  }
+  if (row.platform === "bluesky") {
+    const credentials = parseBlueskyCredentials(raw);
+    const config = parseBlueskyConfig(row.configJson, credentials);
+    return createBlueskyAdapter({ credentials, config });
+  }
+  throw new Error("Unsupported platform");
+}
+
 export const socialRouter = router({
   getConfig: adminProcedure.query(async () => loadSocialConfig()),
 
-  getScheduleStatus: adminProcedure.query(async () => getTelegramScheduleStatus()),
+  getScheduleStatus: adminProcedure
+    .input(z.object({ platform: schedulePlatformEnum.default("telegram") }).optional())
+    .query(async ({ input }) => getPlatformScheduleStatus(input?.platform ?? "telegram")),
 
   saveSchedule: adminProcedure
     .input(
       z.object({
+        platform: schedulePlatformEnum.default("telegram"),
         enabled: z.boolean(),
         intervalMinutes: z.number().finite(),
       })
     )
     .mutation(async ({ input }) => {
+      const platform = input.platform;
       const before = await loadSocialConfig();
-      const next = await saveSocialConfig({
-        schedule: {
-          enabled: input.enabled,
-          intervalMinutes: input.intervalMinutes,
-        },
-      });
-      if (input.enabled && !before.schedule.enabled) {
-        await saveScheduleState({
-          lastRunAt: new Date().toISOString(),
-          lastAlbumId: null,
-          lastStatus: "enabled",
-          lastPostId: null,
-        });
+      const patch =
+        platform === "telegram"
+          ? {
+              schedule: {
+                enabled: input.enabled,
+                intervalMinutes: input.intervalMinutes,
+              },
+            }
+          : {
+              schedules: {
+                ...before.schedules,
+                [platform]: {
+                  enabled: input.enabled,
+                  intervalMinutes: input.intervalMinutes,
+                },
+              },
+            };
+      const next = await saveSocialConfig(patch);
+      const wasEnabled =
+        platform === "telegram"
+          ? before.schedule.enabled
+          : before.schedules[platform].enabled;
+      if (input.enabled && !wasEnabled) {
+        await saveScheduleState(
+          {
+            lastRunAt: new Date().toISOString(),
+            lastAlbumId: null,
+            lastStatus: "enabled",
+            lastPostId: null,
+          },
+          platform
+        );
       }
-      return next.schedule;
+      return platform === "telegram" ? next.schedule : next.schedules[platform];
     }),
 
-  runScheduleNow: adminProcedure.mutation(async () => {
-    return runTelegramScheduleTick({ force: true });
-  }),
+  runScheduleNow: adminProcedure
+    .input(z.object({ platform: schedulePlatformEnum.default("telegram") }).optional())
+    .mutation(async ({ input }) => {
+      return runPlatformScheduleTick(input?.platform ?? "telegram", { force: true });
+    }),
 
   getCredentialsKeyStatus: adminProcedure.query(async () => peekSocialCredentialsKey()),
 
@@ -179,24 +311,14 @@ export const socialRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      if (input.platform !== "telegram") {
-        throw new Error("Only Telegram accounts can be saved in this phase");
+      if (input.platform === "x") {
+        throw new Error("X is disabled until owner enables the official API");
       }
       if (input.autoShare) {
-        throw new Error("Telegram auto-share is not enabled yet");
+        throw new Error("Auto-share lúc publish album chưa bật — dùng lịch random");
       }
       const requireApproval = input.requireApproval ?? false;
-      const incomingCreds = input.credentials
-        ? parseTelegramCredentials(input.credentials)
-        : null;
-      const configJson = telegramConfigForStorage(
-        input.configJson,
-        incomingCreds?.chatId
-      );
-      const parsedConfig = parseTelegramConfig(configJson, incomingCreds ?? undefined);
-      if (!parsedConfig.chatId) {
-        throw new Error("Telegram chatId is required");
-      }
+      const prepared = await prepareAccountPayload(input);
 
       if (input.id) {
         const [existing] = await db
@@ -205,19 +327,18 @@ export const socialRouter = router({
           .where(eq(socialAccounts.id, input.id))
           .limit(1);
         if (!existing) throw new Error("Account not found");
+        if (existing.platform !== input.platform) {
+          throw new Error("Cannot change account platform");
+        }
         const patch: Record<string, unknown> = {
-          platform: "telegram",
           displayName: input.displayName,
           isEnabled: input.isEnabled,
           autoShare: false,
           requireApproval,
-          configJson,
+          configJson: prepared.configJson,
         };
-        if (incomingCreds) {
-          patch.encryptedCredentials = await encryptSocialCredentialsAsync({
-            botToken: incomingCreds.botToken,
-            chatId: incomingCreds.chatId ?? parsedConfig.chatId,
-          });
+        if (prepared.encrypted) {
+          patch.encryptedCredentials = prepared.encrypted;
         }
         await db
           .update(socialAccounts)
@@ -226,19 +347,16 @@ export const socialRouter = router({
         return { id: input.id };
       }
 
-      if (!incomingCreds)
+      if (!prepared.encrypted)
         throw new Error("credentials are required for a new account");
       const [result] = await db.insert(socialAccounts).values({
-        platform: "telegram",
+        platform: input.platform,
         displayName: input.displayName,
         isEnabled: input.isEnabled,
         autoShare: false,
         requireApproval,
-        configJson,
-        encryptedCredentials: await encryptSocialCredentialsAsync({
-          botToken: incomingCreds.botToken,
-          chatId: incomingCreds.chatId ?? parsedConfig.chatId,
-        }),
+        configJson: prepared.configJson,
+        encryptedCredentials: prepared.encrypted,
       });
       return { id: Number((result as { insertId?: number }).insertId ?? 0) };
     }),
@@ -248,8 +366,8 @@ export const socialRouter = router({
     .mutation(async ({ input }) => {
       const account = await loadSocialAccount(input.accountId);
       if (!account) throw new Error("Account not found");
-      if (account.platform !== "telegram") {
-        throw new Error("Only Telegram dry-run is implemented");
+      if (account.platform === "x") {
+        throw new Error("X is disabled until owner enables the official API");
       }
       try {
         return await runSocialDryRun({ albumId: input.albumId, account });
@@ -270,15 +388,11 @@ export const socialRouter = router({
         .where(eq(socialAccounts.id, input.accountId))
         .limit(1);
       if (!row) throw new Error("Account not found");
-      if (row.platform !== "telegram") {
-        throw new Error("Only Telegram validation is implemented");
+      if (row.platform === "x") {
+        return { ok: false as const, reason: "X is not enabled" };
       }
       try {
-        const credentials = parseTelegramCredentials(
-          await decryptSocialCredentialsAsync(row.encryptedCredentials)
-        );
-        const config = parseTelegramConfig(row.configJson, credentials);
-        const adapter = createTelegramAdapter({ credentials, config });
+        const adapter = await adapterForAccountRow(row);
         await adapter.validateConnection();
         const info = await adapter.getAccountInfo();
         return { ok: true as const, info };
@@ -304,8 +418,8 @@ export const socialRouter = router({
     .mutation(async ({ input, ctx }) => {
       const account = await loadSocialAccount(input.accountId);
       if (!account) throw new Error("Account not found");
-      if (account.platform !== "telegram") {
-        throw new Error("Only Telegram manual share is implemented");
+      if (account.platform === "x") {
+        throw new Error("X is disabled until owner enables the official API");
       }
       return createManualShare({
         albumId: input.albumId,

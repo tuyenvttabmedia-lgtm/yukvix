@@ -10,6 +10,10 @@ export const DEFAULT_SOCIAL_CONFIG: SocialDistributionConfig = {
     enabled: false,
     intervalMinutes: 240,
   },
+  schedules: {
+    mastodon: { enabled: false, intervalMinutes: 240 },
+    bluesky: { enabled: false, intervalMinutes: 240 },
+  },
   platforms: {
     telegram: {
       enabled: true,
@@ -93,12 +97,39 @@ export function normalizeScheduleIntervalMinutes(
   return rounded;
 }
 
-function parseSchedule(raw: unknown): SocialDistributionConfig["schedule"] {
+function parseOneSchedule(raw: unknown): {
+  enabled: boolean;
+  intervalMinutes: number;
+} {
   const o = asObject(raw) ?? {};
   return {
     enabled: o.enabled === true,
     intervalMinutes: normalizeScheduleIntervalMinutes(o.intervalMinutes, o.intervalHours),
   };
+}
+
+function parseSchedule(raw: unknown): SocialDistributionConfig["schedule"] {
+  return parseOneSchedule(raw);
+}
+
+function parsePlatformSchedules(
+  raw: unknown
+): SocialDistributionConfig["schedules"] {
+  const o = asObject(raw) ?? {};
+  return {
+    mastodon: parseOneSchedule(o.mastodon ?? DEFAULT_SOCIAL_CONFIG.schedules.mastodon),
+    bluesky: parseOneSchedule(o.bluesky ?? DEFAULT_SOCIAL_CONFIG.schedules.bluesky),
+  };
+}
+
+export type SocialSchedulePlatform = "telegram" | "mastodon" | "bluesky";
+
+export function scheduleFor(
+  config: SocialDistributionConfig,
+  platform: SocialSchedulePlatform
+): { enabled: boolean; intervalMinutes: number } {
+  if (platform === "telegram") return config.schedule;
+  return config.schedules[platform];
 }
 
 export function parseSocialConfig(
@@ -124,6 +155,7 @@ export function parseSocialConfig(
           ? parsed.defaultDelayMinutes
           : DEFAULT_SOCIAL_CONFIG.defaultDelayMinutes,
       schedule: parseSchedule(parsed.schedule),
+      schedules: parsePlatformSchedules(parsed.schedules),
       platforms: {
         telegram: mergePlatform(
           DEFAULT_SOCIAL_CONFIG.platforms.telegram,
@@ -185,6 +217,24 @@ export async function saveSocialConfig(
           : undefined
       ),
     },
+    schedules: {
+      mastodon: {
+        ...current.schedules.mastodon,
+        ...(patch.schedules?.mastodon ?? {}),
+        intervalMinutes: normalizeScheduleIntervalMinutes(
+          patch.schedules?.mastodon?.intervalMinutes ??
+            current.schedules.mastodon.intervalMinutes
+        ),
+      },
+      bluesky: {
+        ...current.schedules.bluesky,
+        ...(patch.schedules?.bluesky ?? {}),
+        intervalMinutes: normalizeScheduleIntervalMinutes(
+          patch.schedules?.bluesky?.intervalMinutes ??
+            current.schedules.bluesky.intervalMinutes
+        ),
+      },
+    },
     platforms: patch.platforms ?? current.platforms,
   };
   const { getDb } = await import("../db");
@@ -206,46 +256,89 @@ export type SocialScheduleState = {
   lastPostId: number | null;
 };
 
-export async function loadScheduleState(): Promise<SocialScheduleState> {
-  const { getDb } = await import("../db");
-  const { adminSettings } = await import("../../drizzle/schema");
-  const { eq } = await import("drizzle-orm");
-  const db = await getDb();
-  const empty: SocialScheduleState = {
+function emptyScheduleState(): SocialScheduleState {
+  return {
     lastRunAt: null,
     lastAlbumId: null,
     lastStatus: null,
     lastPostId: null,
   };
-  if (!db) return empty;
-  const rows = await db
-    .select({ value: adminSettings.value })
-    .from(adminSettings)
-    .where(eq(adminSettings.key, SOCIAL_SCHEDULE_STATE_KEY))
-    .limit(1);
-  if (!rows[0]?.value) return empty;
+}
+
+function parseOneScheduleState(raw: unknown): SocialScheduleState {
+  const o = asObject(raw);
+  if (!o) return emptyScheduleState();
+  return {
+    lastRunAt: typeof o.lastRunAt === "string" ? o.lastRunAt : null,
+    lastAlbumId: typeof o.lastAlbumId === "number" ? o.lastAlbumId : null,
+    lastStatus: typeof o.lastStatus === "string" ? o.lastStatus : null,
+    lastPostId: typeof o.lastPostId === "number" ? o.lastPostId : null,
+  };
+}
+
+type ScheduleStateMap = Record<SocialSchedulePlatform, SocialScheduleState>;
+
+function parseScheduleStateMap(raw: string | null | undefined): ScheduleStateMap {
+  const empty: ScheduleStateMap = {
+    telegram: emptyScheduleState(),
+    mastodon: emptyScheduleState(),
+    bluesky: emptyScheduleState(),
+  };
+  if (!raw) return empty;
   try {
-    const parsed = JSON.parse(rows[0].value) as SocialScheduleState;
-    return {
-      lastRunAt: typeof parsed.lastRunAt === "string" ? parsed.lastRunAt : null,
-      lastAlbumId:
-        typeof parsed.lastAlbumId === "number" ? parsed.lastAlbumId : null,
-      lastStatus: typeof parsed.lastStatus === "string" ? parsed.lastStatus : null,
-      lastPostId: typeof parsed.lastPostId === "number" ? parsed.lastPostId : null,
-    };
+    const parsed = asObject(JSON.parse(raw));
+    if (!parsed) return empty;
+    if (asObject(parsed.telegram) || asObject(parsed.mastodon) || asObject(parsed.bluesky)) {
+      return {
+        telegram: parseOneScheduleState(parsed.telegram),
+        mastodon: parseOneScheduleState(parsed.mastodon),
+        bluesky: parseOneScheduleState(parsed.bluesky),
+      };
+    }
+    return { ...empty, telegram: parseOneScheduleState(parsed) };
   } catch {
     return empty;
   }
 }
 
+async function loadScheduleStateMap(): Promise<ScheduleStateMap> {
+  const { getDb } = await import("../db");
+  const { adminSettings } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) {
+    return {
+      telegram: emptyScheduleState(),
+      mastodon: emptyScheduleState(),
+      bluesky: emptyScheduleState(),
+    };
+  }
+  const rows = await db
+    .select({ value: adminSettings.value })
+    .from(adminSettings)
+    .where(eq(adminSettings.key, SOCIAL_SCHEDULE_STATE_KEY))
+    .limit(1);
+  return parseScheduleStateMap(rows[0]?.value);
+}
+
+export async function loadScheduleState(
+  platform: SocialSchedulePlatform = "telegram"
+): Promise<SocialScheduleState> {
+  const map = await loadScheduleStateMap();
+  return map[platform];
+}
+
 export async function saveScheduleState(
-  state: SocialScheduleState
+  state: SocialScheduleState,
+  platform: SocialSchedulePlatform = "telegram"
 ): Promise<void> {
   const { getDb } = await import("../db");
   const { adminSettings } = await import("../../drizzle/schema");
   const db = await getDb();
   if (!db) return;
-  const value = JSON.stringify(state);
+  const map = await loadScheduleStateMap();
+  map[platform] = state;
+  const value = JSON.stringify(map);
   await db
     .insert(adminSettings)
     .values({ key: SOCIAL_SCHEDULE_STATE_KEY, value })

@@ -525,7 +525,7 @@ describe("worker + stub adapter", () => {
     const { id } = await store.insert({
       albumId: 42,
       accountId: 1,
-      platform: "mastodon",
+      platform: "x",
       trigger: "manual",
       status: "pending",
       scheduledAt: new Date(Date.now() - 1000),

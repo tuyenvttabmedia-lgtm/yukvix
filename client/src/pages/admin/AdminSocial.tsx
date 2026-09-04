@@ -25,8 +25,8 @@ type SocialPlatformTab = "telegram" | "mastodon" | "bluesky" | "x";
 
 const PLATFORM_TABS: Array<{ id: SocialPlatformTab; label: string; ready: boolean }> = [
   { id: "telegram", label: "Telegram", ready: true },
-  { id: "mastodon", label: "Mastodon", ready: false },
-  { id: "bluesky", label: "Bluesky", ready: false },
+  { id: "mastodon", label: "Mastodon", ready: true },
+  { id: "bluesky", label: "Bluesky", ready: true },
   { id: "x", label: "X", ready: false },
 ];
 
@@ -62,7 +62,17 @@ function formatSocialPostError(lastError: string | null | undefined): string {
 }
 
 function parseConfig(raw: string | null | undefined) {
-  if (!raw) return { chatId: "", maxImages: 10, disableNotification: false, protectContent: false };
+  if (!raw) {
+    return {
+      chatId: "",
+      maxImages: 10,
+      disableNotification: false,
+      protectContent: false,
+      instanceUrl: "",
+      identifier: "",
+      pdsUrl: "https://bsky.social",
+    };
+  }
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return {
@@ -70,9 +80,20 @@ function parseConfig(raw: string | null | undefined) {
       maxImages: Number(parsed.maxImages ?? 10) || 10,
       disableNotification: Boolean(parsed.disableNotification),
       protectContent: Boolean(parsed.protectContent),
+      instanceUrl: String(parsed.instanceUrl ?? parsed.instance_url ?? ""),
+      identifier: String(parsed.identifier ?? parsed.handle ?? ""),
+      pdsUrl: String(parsed.pdsUrl ?? parsed.pds_url ?? "https://bsky.social"),
     };
   } catch {
-    return { chatId: "", maxImages: 10, disableNotification: false, protectContent: false };
+    return {
+      chatId: "",
+      maxImages: 10,
+      disableNotification: false,
+      protectContent: false,
+      instanceUrl: "",
+      identifier: "",
+      pdsUrl: "https://bsky.social",
+    };
   }
 }
 
@@ -126,14 +147,23 @@ function queueStatusForBadge(status: string): AdminStatus {
 const MIN_SCHEDULE_MINUTES = 5;
 const MAX_SCHEDULE_MINUTES = 7 * 24 * 60;
 
-function TelegramScheduleCard() {
+function SocialScheduleCard({
+  platform,
+  label,
+}: {
+  platform: "telegram" | "mastodon" | "bluesky";
+  label: string;
+}) {
   const utils = trpc.useUtils();
-  const { data: status } = trpc.social.getScheduleStatus.useQuery(undefined, {
-    refetchInterval: query => {
-      const s = query.state.data?.lastPostStatus;
-      return s === "pending" || s === "processing" ? 3000 : false;
-    },
-  });
+  const { data: status } = trpc.social.getScheduleStatus.useQuery(
+    { platform },
+    {
+      refetchInterval: query => {
+        const s = query.state.data?.lastPostStatus;
+        return s === "pending" || s === "processing" ? 3000 : false;
+      },
+    }
+  );
   const saveSchedule = trpc.social.saveSchedule.useMutation();
   const runNow = trpc.social.runScheduleNow.useMutation();
   const [enabled, setEnabled] = useState(false);
@@ -166,6 +196,7 @@ function TelegramScheduleCard() {
     }
     try {
       const saved = await saveSchedule.mutateAsync({
+        platform,
         enabled: nextEnabled,
         intervalMinutes: nextMinutes,
       });
@@ -193,6 +224,7 @@ function TelegramScheduleCard() {
     }
     try {
       const saved = await saveSchedule.mutateAsync({
+        platform,
         enabled,
         intervalMinutes: totalMinutes,
       });
@@ -206,7 +238,7 @@ function TelegramScheduleCard() {
   return (
     <section className="rounded-xl border border-border p-4 space-y-3 h-full">
       <div>
-        <h2 className="font-medium">Lịch random</h2>
+        <h2 className="font-medium">Lịch random {label}</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           Không share lúc publish. Random 1 album chưa lên kênh · tối thiểu {MIN_SCHEDULE_MINUTES} phút.
         </p>
@@ -264,7 +296,7 @@ function TelegramScheduleCard() {
         disabled={runNow.isPending}
         onClick={async () => {
           try {
-            const result = await runNow.mutateAsync();
+              const result = await runNow.mutateAsync({ platform });
             if (!result.ran) {
               toast.message(result.reason || "Không có bài để share");
             } else if (result.reason === "duplicate skipped") {
@@ -360,13 +392,18 @@ export default function AdminSocial() {
   const [accountFormOpen, setAccountFormOpen] = useState(true);
   const [shareOpen, setShareOpen] = useState(Boolean(albumFromQuery));
 
-  const telegramAccounts = (accounts ?? []).filter(a => a.platform === "telegram");
+  const platformAccounts = (accounts ?? []).filter(a => a.platform === platform);
 
   const [form, setForm] = useState({
     id: undefined as number | undefined,
     displayName: "Yukvix Telegram",
     botToken: "",
     chatId: "",
+    instanceUrl: "",
+    accessToken: "",
+    identifier: "",
+    appPassword: "",
+    pdsUrl: "https://bsky.social",
     maxImages: 10,
     isEnabled: true,
     disableNotification: false,
@@ -403,8 +440,8 @@ export default function AdminSocial() {
 
   useEffect(() => {
     if (!accounts) return;
-    setAccountFormOpen(telegramAccounts.length === 0);
-  }, [accounts, telegramAccounts.length]);
+    setAccountFormOpen(platformAccounts.length === 0);
+  }, [accounts, platformAccounts.length]);
 
   const selectedAlbumId = Number(albumId) || 0;
   const { data: selectedAlbum } = trpc.albums.byId.useQuery(
@@ -420,37 +457,102 @@ export default function AdminSocial() {
   });
 
   useEffect(() => {
-    if (accountId === "" && telegramAccounts[0]) setAccountId(telegramAccounts[0].id);
-  }, [accountId, telegramAccounts]);
+    if (accountId === "" && platformAccounts[0]) setAccountId(platformAccounts[0].id);
+  }, [accountId, platformAccounts]);
+
+  useEffect(() => {
+    setAccountId("");
+    setPreview(null);
+    setValidateResult(null);
+    setForm({
+      id: undefined,
+      displayName:
+        platform === "telegram"
+          ? "Yukvix Telegram"
+          : platform === "mastodon"
+            ? "Yukvix Mastodon"
+            : platform === "bluesky"
+              ? "Yukvix Bluesky"
+              : "Yukvix",
+      botToken: "",
+      chatId: "",
+      instanceUrl: "",
+      accessToken: "",
+      identifier: "",
+      appPassword: "",
+      pdsUrl: "https://bsky.social",
+      maxImages: platform === "telegram" ? 10 : 4,
+      isEnabled: true,
+      disableNotification: false,
+      protectContent: false,
+    });
+  }, [platform]);
 
   const selectedAccount = useMemo(
-    () => telegramAccounts.find(a => a.id === accountId),
-    [telegramAccounts, accountId]
+    () => platformAccounts.find(a => a.id === accountId),
+    [platformAccounts, accountId]
   );
 
   const saveAccount = async () => {
+    if (platform === "x") return;
     try {
+      const credentials =
+        platform === "telegram"
+          ? form.botToken
+            ? { botToken: form.botToken, chatId: form.chatId }
+            : form.id
+              ? undefined
+              : { botToken: form.botToken, chatId: form.chatId }
+          : platform === "mastodon"
+            ? form.accessToken
+              ? { instanceUrl: form.instanceUrl, accessToken: form.accessToken }
+              : form.id
+                ? undefined
+                : { instanceUrl: form.instanceUrl, accessToken: form.accessToken }
+            : form.appPassword
+              ? {
+                  identifier: form.identifier,
+                  appPassword: form.appPassword,
+                  pdsUrl: form.pdsUrl,
+                }
+              : form.id
+                ? undefined
+                : {
+                    identifier: form.identifier,
+                    appPassword: form.appPassword,
+                    pdsUrl: form.pdsUrl,
+                  };
+      const configJson =
+        platform === "telegram"
+          ? JSON.stringify({
+              chatId: form.chatId,
+              maxImages: form.maxImages,
+              disableNotification: form.disableNotification,
+              protectContent: form.protectContent,
+            })
+          : platform === "mastodon"
+            ? JSON.stringify({
+                instanceUrl: form.instanceUrl,
+                maxImages: form.maxImages,
+                visibility: "public",
+              })
+            : JSON.stringify({
+                identifier: form.identifier,
+                pdsUrl: form.pdsUrl,
+                maxImages: form.maxImages,
+              });
       await upsert.mutateAsync({
         id: form.id,
-        platform: "telegram",
+        platform,
         displayName: form.displayName,
         isEnabled: form.isEnabled,
         autoShare: false,
-        configJson: JSON.stringify({
-          chatId: form.chatId,
-          maxImages: form.maxImages,
-          disableNotification: form.disableNotification,
-          protectContent: form.protectContent,
-        }),
-        credentials: form.botToken
-          ? { botToken: form.botToken, chatId: form.chatId }
-          : form.id
-            ? undefined
-            : { botToken: form.botToken, chatId: form.chatId },
+        configJson,
+        credentials,
       });
-      setForm(f => ({ ...f, botToken: "", id: form.id }));
+      setForm(f => ({ ...f, botToken: "", accessToken: "", appPassword: "" }));
       setAccountFormOpen(false);
-      toast.success("Đã lưu tài khoản Telegram");
+      toast.success(`Đã lưu tài khoản ${platform}`);
       await utils.social.listAccounts.invalidate();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Không lưu được tài khoản");
@@ -489,7 +591,7 @@ export default function AdminSocial() {
     }
     try {
       await removeAccount.mutateAsync({ id });
-      toast.success("Đã xóa tài khoản Telegram");
+      toast.success(`Đã xóa tài khoản ${platform}`);
       if (form.id === id) {
         setForm(f => ({ ...f, id: undefined, botToken: "", chatId: "" }));
       }
@@ -648,7 +750,8 @@ export default function AdminSocial() {
             ))}
           </TabsList>
 
-          <TabsContent value="telegram" className="mt-4 space-y-4">
+          {PLATFORM_TABS.filter(tab => tab.ready).map(tab => (
+          <TabsContent key={tab.id} value={tab.id} className="mt-4 space-y-4">
             <div className="grid gap-4 xl:grid-cols-2 items-start">
               <section className="rounded-xl border border-border p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
@@ -665,10 +768,20 @@ export default function AdminSocial() {
                     onClick={() => {
                       setForm({
                         id: undefined,
-                        displayName: "Yukvix Telegram",
+                        displayName:
+                          platform === "mastodon"
+                            ? "Yukvix Mastodon"
+                            : platform === "bluesky"
+                              ? "Yukvix Bluesky"
+                              : "Yukvix Telegram",
                         botToken: "",
                         chatId: "",
-                        maxImages: 10,
+                        instanceUrl: "",
+                        accessToken: "",
+                        identifier: "",
+                        appPassword: "",
+                        pdsUrl: "https://bsky.social",
+                        maxImages: platform === "telegram" ? 10 : 4,
                         isEnabled: true,
                         disableNotification: false,
                         protectContent: false,
@@ -684,7 +797,7 @@ export default function AdminSocial() {
                   <p className="text-sm text-muted-foreground">Đang tải…</p>
                 ) : (
                   <ul className="space-y-2">
-                    {telegramAccounts.map(account => {
+                    {platformAccounts.map(account => {
                       const cfg = parseConfig(account.configJson);
                       return (
                         <li
@@ -694,7 +807,8 @@ export default function AdminSocial() {
                           <div className="min-w-0">
                             <p className="font-medium truncate">{account.displayName}</p>
                             <p className="text-xs text-muted-foreground truncate">
-                              {cfg.chatId || "—"} · {account.hasCredentials ? "token đã mã hóa" : "chưa có token"}
+                              {cfg.chatId || cfg.instanceUrl || cfg.identifier || "—"} ·{" "}
+                              {account.hasCredentials ? "credential đã mã hóa" : "chưa có credential"}
                               {account.isEnabled ? "" : " · tắt"}
                             </p>
                           </div>
@@ -708,6 +822,11 @@ export default function AdminSocial() {
                                   displayName: account.displayName,
                                   botToken: "",
                                   chatId: cfg.chatId,
+                                  instanceUrl: cfg.instanceUrl,
+                                  accessToken: "",
+                                  identifier: cfg.identifier,
+                                  appPassword: "",
+                                  pdsUrl: cfg.pdsUrl,
                                   maxImages: cfg.maxImages,
                                   isEnabled: account.isEnabled,
                                   disableNotification: cfg.disableNotification,
@@ -746,8 +865,8 @@ export default function AdminSocial() {
                         </li>
                       );
                     })}
-                    {telegramAccounts.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Chưa có tài khoản Telegram.</p>
+                    {platformAccounts.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Chưa có tài khoản {platform}.</p>
                     ) : null}
                   </ul>
                 )}
@@ -772,33 +891,92 @@ export default function AdminSocial() {
                           onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
                         />
                       </div>
-                      <div>
-                        <Label>Chat / Channel ID</Label>
-                        <Input
-                          value={form.chatId}
-                          placeholder="@channel hoặc -100..."
-                          onChange={e => setForm(f => ({ ...f, chatId: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label>Bot token</Label>
-                        <Input
-                          type="password"
-                          autoComplete="off"
-                          value={form.botToken}
-                          placeholder={form.id ? "•••••••• (để trống nếu giữ token cũ)" : "123456:ABC..."}
-                          onChange={e => setForm(f => ({ ...f, botToken: e.target.value }))}
-                        />
-                      </div>
+                      {platform === "telegram" ? (
+                        <>
+                          <div>
+                            <Label>Chat / Channel ID</Label>
+                            <Input
+                              value={form.chatId}
+                              placeholder="@channel hoặc -100..."
+                              onChange={e => setForm(f => ({ ...f, chatId: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Bot token</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={form.botToken}
+                              placeholder={form.id ? "•••••••• (để trống nếu giữ token cũ)" : "123456:ABC..."}
+                              onChange={e => setForm(f => ({ ...f, botToken: e.target.value }))}
+                            />
+                          </div>
+                        </>
+                      ) : null}
+                      {platform === "mastodon" ? (
+                        <>
+                          <div>
+                            <Label>Instance URL</Label>
+                            <Input
+                              value={form.instanceUrl}
+                              placeholder="https://mastodon.social"
+                              onChange={e => setForm(f => ({ ...f, instanceUrl: e.target.value }))}
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <Label>Access token</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={form.accessToken}
+                              placeholder={form.id ? "•••••••• (để trống nếu giữ token cũ)" : "Token từ Mastodon → Development"}
+                              onChange={e => setForm(f => ({ ...f, accessToken: e.target.value }))}
+                            />
+                          </div>
+                        </>
+                      ) : null}
+                      {platform === "bluesky" ? (
+                        <>
+                          <div>
+                            <Label>Handle / email</Label>
+                            <Input
+                              value={form.identifier}
+                              placeholder="yukvix.bsky.social"
+                              onChange={e => setForm(f => ({ ...f, identifier: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>App password</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={form.appPassword}
+                              placeholder={form.id ? "•••••••• (để trống nếu giữ mật khẩu cũ)" : "bsky.app → App passwords"}
+                              onChange={e => setForm(f => ({ ...f, appPassword: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>PDS (tuỳ chọn)</Label>
+                            <Input
+                              value={form.pdsUrl}
+                              placeholder="https://bsky.social"
+                              onChange={e => setForm(f => ({ ...f, pdsUrl: e.target.value }))}
+                            />
+                          </div>
+                        </>
+                      ) : null}
                       <div>
                         <Label>Max images</Label>
                         <Input
                           type="number"
                           min={1}
-                          max={10}
+                          max={platform === "telegram" ? 10 : 4}
                           value={form.maxImages}
                           onChange={e =>
-                            setForm(f => ({ ...f, maxImages: Number(e.target.value) || 10 }))
+                            setForm(f => ({
+                              ...f,
+                              maxImages: Number(e.target.value) || (platform === "telegram" ? 10 : 4),
+                            }))
                           }
                         />
                       </div>
@@ -811,6 +989,7 @@ export default function AdminSocial() {
                         />
                         Enabled
                       </label>
+                      {platform === "telegram" ? (
                       <label className="flex items-center gap-2 text-sm">
                         <Switch
                           checked={form.disableNotification}
@@ -818,6 +997,7 @@ export default function AdminSocial() {
                         />
                         Silent
                       </label>
+                      ) : null}
                     </div>
                     <Button
                       size="sm"
@@ -831,7 +1011,10 @@ export default function AdminSocial() {
                 </Collapsible>
               </section>
 
-              <TelegramScheduleCard />
+              <SocialScheduleCard
+                platform={platform === "x" ? "telegram" : platform}
+                label={PLATFORM_TABS.find(t => t.id === platform)?.label || platform}
+              />
             </div>
 
             <Collapsible open={shareOpen} onOpenChange={setShareOpen}>
@@ -903,7 +1086,7 @@ export default function AdminSocial() {
                           value={accountId}
                           onChange={e => setAccountId(Number(e.target.value))}
                         >
-                          {telegramAccounts.map(account => (
+                          {platformAccounts.map(account => (
                             <option key={account.id} value={account.id}>
                               {account.displayName}
                             </option>
@@ -964,7 +1147,7 @@ export default function AdminSocial() {
                 <div>
                   <h2 className="font-medium">Lần share gần đây</h2>
                   <p className="text-xs text-muted-foreground">
-                    Mỗi dòng là 1 lần gửi Telegram, không phải danh sách album. Mặc định {RECENT_POSTS_DEFAULT} bài mới nhất.
+                    Mỗi dòng là 1 lần gửi {platform}, không phải danh sách album. Mặc định {RECENT_POSTS_DEFAULT} bài mới nhất.
                   </p>
                 </div>
                 {postLimit === RECENT_POSTS_DEFAULT ? (
@@ -1045,7 +1228,7 @@ export default function AdminSocial() {
                     {(posts ?? []).length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-4 text-muted-foreground text-sm">
-                          Chưa có lần share nào trên Telegram.
+                          Chưa có lần share nào trên {platform}.
                         </td>
                       </tr>
                     ) : null}
@@ -1054,6 +1237,7 @@ export default function AdminSocial() {
               </div>
             </section>
           </TabsContent>
+          ))}
 
           {PLATFORM_TABS.filter(tab => !tab.ready).map(tab => (
             <TabsContent key={tab.id} value={tab.id} className="mt-4">

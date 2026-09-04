@@ -1,5 +1,5 @@
-import { blueskyAdapter } from "./bluesky";
-import { mastodonAdapter } from "./mastodon";
+import { blueskyAdapter, createBlueskyAdapterForAccount } from "./bluesky";
+import { mastodonAdapter, createMastodonAdapterForAccount } from "./mastodon";
 import {
   createTelegramAdapterForAccount,
   telegramAdapter,
@@ -27,6 +27,12 @@ export async function resolveSocialAdapter(post: {
   if (testOverrides[post.platform]) return testOverrides[post.platform]!;
   if (post.platform === "telegram") {
     return createTelegramAdapterForAccount(post.accountId);
+  }
+  if (post.platform === "mastodon") {
+    return createMastodonAdapterForAccount(post.accountId);
+  }
+  if (post.platform === "bluesky") {
+    return createBlueskyAdapterForAccount(post.accountId);
   }
   return getSocialAdapter(post.platform);
 }
