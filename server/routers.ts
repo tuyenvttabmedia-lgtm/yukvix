@@ -22,6 +22,7 @@ import { seoRouter } from "./routers/seo";
 import { zipImportRouter } from "./routers/zip-import";
 import { schedulerRouter } from "./routers/scheduler";
 import { socialRouter } from "./routers/social";
+import { cosplayerLinkRouter } from "./routers/cosplayer-link";
 
 export const appRouter = router({
   system: systemRouter,
@@ -66,6 +67,7 @@ export const appRouter = router({
   zipImport: zipImportRouter,
   scheduler: schedulerRouter,
   social: socialRouter,
+  cosplayerLink: cosplayerLinkRouter,
 });
 
 export type AppRouter = typeof appRouter;

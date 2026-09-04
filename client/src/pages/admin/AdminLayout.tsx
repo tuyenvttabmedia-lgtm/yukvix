@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdmin } from "@shared/const";
 import SeoHead from "@/components/SeoHead";
-import { BarChart3, Crown, Download, FileText, FolderOpen, HardDrive, History, Home, ImageIcon, Layers, Library, Loader2, Mail, Menu, MessageSquare, Package, Palette, Search, Share2, Shield, ShieldAlert, Sparkles, Tag, TrendingUp, Users, UserSquare2, Webhook, Zap, ClipboardList, MoreHorizontal, X } from "lucide-react";
+import { BarChart3, Crown, Download, FileText, FolderOpen, HardDrive, History, Home, ImageIcon, Layers, Library, Link2, Loader2, Mail, Menu, MessageSquare, Package, Palette, Search, Share2, Shield, ShieldAlert, Sparkles, Tag, TrendingUp, Users, UserSquare2, Webhook, Zap, ClipboardList, MoreHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 
@@ -17,6 +17,7 @@ const navSections = [
       { href: "/admin/subscriptions", label: "Đăng ký VIP", icon: <Crown className="w-4 h-4" /> },
       { href: "/admin/tags", label: "Thẻ tag", icon: <Tag className="w-4 h-4" /> },
       { href: "/admin/creators", label: "Cosplayer", icon: <UserSquare2 className="w-4 h-4" /> },
+      { href: "/admin/creators/link", label: "Gắn Cosplayer", icon: <Link2 className="w-4 h-4" /> },
     ],
   },
   {
@@ -100,6 +101,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isActive = (href: string) => {
     if (href === "/admin") return location === "/admin";
+    if (href === "/admin/creators") return location === "/admin/creators";
     // Avoid /admin/analytics matching /admin/albums etc.
     return location === href || location.startsWith(href + "/");
   };

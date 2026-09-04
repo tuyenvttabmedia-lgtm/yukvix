@@ -94,8 +94,11 @@ export const albumsRouter = router({
         }
       }
 
+      const displayName =
+        creatorName || album.cosplayer || (album as { creator?: string | null }).creator || null;
+
       return {
-        album: withRewrittenCover(album),
+        album: withRewrittenCover({ ...album, cosplayer: displayName ?? album.cosplayer }),
         photos: [],
         previewCount: isVipLocked ? preview : total,
         tags: albumTags,
@@ -202,6 +205,7 @@ export const albumsRouter = router({
       }
 
       const { id, tagNames, ...data } = input;
+      const creatorTextPatch: { creator?: string } = {};
 
       const publishSync =
         data.status === "published"
@@ -221,6 +225,9 @@ export const albumsRouter = router({
             if (!currentAlbum?.cosplayer) {
               data.cosplayer = creator.name;
             }
+            if (!currentAlbum?.creator) {
+              creatorTextPatch.creator = creator.name;
+            }
           }
         } else {
           // Remove creator: clear cosplayer if it matches creator name
@@ -235,7 +242,7 @@ export const albumsRouter = router({
         }
       }
 
-      await updateAlbum(id, { ...data, ...publishSync });
+      await updateAlbum(id, { ...data, ...publishSync, ...creatorTextPatch });
 
       if (tagNames !== undefined) {
         const tagIds = await Promise.all(
@@ -363,16 +370,25 @@ export const albumsRouter = router({
       const album = await getAlbumById(input.id);
       if (!album) throw new TRPCError({ code: "NOT_FOUND" });
 
+      let creatorName: string | null = null;
+      if (album.creatorId) {
+        const { getCreatorById } = await import("../db");
+        const creator = await getCreatorById(album.creatorId);
+        creatorName = creator?.name ?? null;
+      }
+      const person =
+        creatorName || album.cosplayer || album.creator || null;
+
       const tags = await getTagsByAlbumId(input.id);
       const tagNames = tags.map((t) => t.name).join(", ");
 
-      const seoTitle = `${album.title}${album.cosplayer ? ` by ${album.cosplayer}` : ""} - Yukvix`;
+      const seoTitle = `${album.title}${person ? ` by ${person}` : ""} - Yukvix`;
       const seoDescription = `${album.description || `Explore ${album.photoCount} stunning photos`} ${
         album.character ? `featuring ${album.character}` : ""
       } ${album.series ? `from ${album.series}` : ""}`.trim();
       const seoKeywords = [
         "cosplay",
-        album.cosplayer,
+        person,
         album.character,
         album.series,
         tagNames,

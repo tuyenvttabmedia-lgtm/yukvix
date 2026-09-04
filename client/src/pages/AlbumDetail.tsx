@@ -217,6 +217,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
   }
 
   const { album, tags, lockedCount, isVipLocked, totalPhotos, creatorName, creatorSlug } = data;
+  const person = album.cosplayer || creatorName || null;
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const canonicalUrl = (album as any).canonicalUrl || `${baseUrl}/album/${album.slug}`;
@@ -224,12 +225,12 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
   const metaTitle = album.seoTitle || album.title;
   const metaDesc =
     album.seoDescription ||
-    `${album.title}${album.cosplayer ? ` by ${album.cosplayer}` : ""}${album.character ? ` — ${album.character}` : ""}${album.series ? ` from ${album.series}` : ""}. ${totalPhotos} photos on Yukvix.`;
+    `${album.title}${person ? ` by ${person}` : ""}${album.character ? ` — ${album.character}` : ""}${album.series ? ` from ${album.series}` : ""}. ${totalPhotos} photos on Yukvix.`;
   const keywords = [
     (album as any).focusKeyword,
     album.seoKeywords,
     album.title,
-    album.cosplayer,
+    person,
     album.character,
     album.series,
     "cosplay",
@@ -245,7 +246,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
     name: album.title,
     description: metaDesc,
     url: canonicalUrl,
-    author: album.cosplayer || undefined,
+    author: person || undefined,
     datePublished: album.createdAt ? new Date(album.createdAt).toISOString() : undefined,
     dateModified: album.updatedAt ? new Date(album.updatedAt).toISOString() : undefined,
     images: allPhotos.slice(0, 10).map((p: any) => ({
@@ -360,9 +361,9 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
             >
               {album.title}
             </h1>
-            {(album.cosplayer || album.character || creatorName) && (
+            {(person || album.character) && (
               <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
-                {creatorName && creatorSlug && (
+                {creatorName && creatorSlug ? (
                   <a
                     href={`/creator/${creatorSlug}`}
                     className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
@@ -370,14 +371,12 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     {creatorName}
                   </a>
-                )}
-                {creatorName && (album.cosplayer || album.character) && <span className="text-border">·</span>}
-                {album.cosplayer && (
+                ) : person ? (
                   <span>
-                    by <strong className="text-foreground">{album.cosplayer}</strong>
+                    by <strong className="text-foreground">{person}</strong>
                   </span>
-                )}
-                {album.cosplayer && album.character && <span className="mx-1">·</span>}
+                ) : null}
+                {album.character && (person || creatorName) && <span className="mx-1">·</span>}
                 {album.character && (
                   <span>
                     as <strong className="text-foreground">{album.character}</strong>

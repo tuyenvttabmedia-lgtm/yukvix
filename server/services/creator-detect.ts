@@ -368,7 +368,11 @@ export async function resolveCreatorFromFilename(
     if (catalogHit) {
       return { name: catalogHit.creator.name, creatorId: catalogHit.creatorId, source: "db" };
     }
-    return { name: null, creatorId: null, source: "none" };
+    return {
+      name: finalName,
+      creatorId: null,
+      source: aiName ? "ai" : regexName ? "regex" : "none",
+    };
   }
 
   try {

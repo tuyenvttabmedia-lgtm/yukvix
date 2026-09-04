@@ -67,6 +67,7 @@ const AdminVipManagement = lazy(() => import("./pages/admin/payments/AdminVipMan
 const AdminWebhookMonitor = lazy(() => import("./pages/admin/payments/AdminWebhookMonitor"));
 const AdminTags = lazy(() => import("./pages/admin/AdminTags"));
 const AdminCreators = lazy(() => import("./pages/admin/AdminCreators"));
+const AdminCosplayerLink = lazy(() => import("./pages/admin/AdminCosplayerLink"));
 const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics"));
 const AdminSmtp = lazy(() => import("./pages/admin/AdminSmtp"));
 const AdminEmailLogs = lazy(() => import("./pages/admin/AdminEmailLogs"));
@@ -184,6 +185,7 @@ function Router() {
 
         {/* Content admin routes */}
         <Route path="/admin/tags" component={AdminTags} />
+        <Route path="/admin/creators/link" component={AdminCosplayerLink} />
         <Route path="/admin/creators" component={AdminCreators} />
 
         {/* Analytics admin route */}

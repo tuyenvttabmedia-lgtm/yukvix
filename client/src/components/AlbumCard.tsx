@@ -117,10 +117,14 @@ export default function AlbumCard({ album, isBookmarked: initialBookmarked = fal
           <h3 className="text-sm font-semibold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
             {album.title}
           </h3>
-          {(album.cosplayer || album.character) && (
+          {((album.cosplayer || album.creatorName) || album.character) && (
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-              {album.cosplayer && <span>{album.cosplayer}</span>}
-              {album.cosplayer && album.character && <span className="mx-1">·</span>}
+              {(album.cosplayer || album.creatorName) && (
+                <span>{album.cosplayer || album.creatorName}</span>
+              )}
+              {(album.cosplayer || album.creatorName) && album.character && (
+                <span className="mx-1">·</span>
+              )}
               {album.character && <span>{album.character}</span>}
             </p>
           )}

@@ -153,27 +153,38 @@ export async function getSocialMediaForAlbum(
   albumId: number,
   platformCapabilities: PlatformCapabilities
 ): Promise<SocialMediaResult & { album?: PolicyInputAlbum }> {
-  const { getAlbumById, getPhotosByAlbumId } = await import("../db");
+  const { getAlbumById, getPhotosByAlbumId, getCreatorById } = await import("../db");
+  const { displayCosplayerName } = await import("../services/cosplayer-name");
   const album = await getAlbumById(albumId);
   if (!album) {
     return { status: "skipped", reason: "Album not found", items: [] };
   }
+  let creatorName: string | null = null;
+  if (album.creatorId) {
+    const creator = await getCreatorById(album.creatorId);
+    creatorName = creator?.name ?? null;
+  }
   const photos = await getPhotosByAlbumId(albumId);
-  const result = selectSocialMedia({
-    album: {
-      id: album.id,
-      status: album.status,
-      isVip: album.isVip,
-      photoCount: album.photoCount,
-      title: album.title,
-      slug: album.slug,
+  const policyAlbum = {
+    id: album.id,
+    status: album.status,
+    isVip: album.isVip,
+    photoCount: album.photoCount,
+    title: album.title,
+    slug: album.slug,
+    cosplayer: displayCosplayerName({
       cosplayer: album.cosplayer,
-      character: album.character,
-      series: album.series,
-      coverUrl: album.coverUrl,
-    },
+      creator: album.creator,
+      creatorName,
+    }),
+    character: album.character,
+    series: album.series,
+    coverUrl: album.coverUrl,
+  };
+  const result = selectSocialMedia({
+    album: policyAlbum,
     photos,
     capabilities: platformCapabilities,
   });
-  return { ...result, album };
+  return { ...result, album: policyAlbum };
 }

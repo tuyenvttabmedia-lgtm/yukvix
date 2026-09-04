@@ -217,6 +217,14 @@ async function startServer() {
     if (getWorkerMode() !== "import") {
       startSocialWorker();
     }
+    void import("../services/cosplayer-link.js")
+      .then(({ backfillAlbumCosplayerFromCreator }) =>
+        backfillAlbumCosplayerFromCreator()
+      )
+      .then(n => {
+        if (n > 0) console.log(`[Startup] Backfilled cosplayer name on ${n} albums`);
+      })
+      .catch(e => console.warn("[Startup] Cosplayer backfill skipped:", e));
     if (getWorkerMode() === "http") {
       console.log("[HTTP] ZIP import runs in WORKER_MODE=import process");
     } else {

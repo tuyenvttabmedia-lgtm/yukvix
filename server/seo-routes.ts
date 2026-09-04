@@ -472,12 +472,15 @@ Sitemap: ${base}/sitemap-categories.xml
             slug: albums.slug,
             title: albums.title,
             cosplayer: albums.cosplayer,
+            creator: albums.creator,
+            creatorName: creators.name,
             character: albums.character,
             series: albums.series,
             robotsIndex: albums.robotsIndex,
             updatedAt: albums.updatedAt,
           })
           .from(albums)
+          .leftJoin(creators, eq(albums.creatorId, creators.id))
           .where(eq(albums.status, "published"))
           .orderBy(desc(albums.updatedAt));
 
@@ -506,7 +509,12 @@ Sitemap: ${base}/sitemap-categories.xml
             const imageUrl = photo.thumbUrl;
             if (!imageUrl) continue;
 
-            const modelPart = album.cosplayer || album.title.split(" ")[0] || "Model";
+            const modelPart =
+              album.creatorName ||
+              album.cosplayer ||
+              album.creator ||
+              album.title.split(" ")[0] ||
+              "Model";
             const seriesPart = album.series || album.character || "";
             const autoAlt = seriesPart
               ? `${modelPart} ${seriesPart} cosplay photo ${i + 1} - yukvix`

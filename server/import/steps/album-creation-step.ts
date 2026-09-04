@@ -92,6 +92,7 @@ export class AlbumCreationStep extends BasePipelineStep {
             title: pending.title,
             creator: pending.creator,
             creatorId: pending.creatorId,
+            cosplayer: pending.creator || null,
             collectionName: pending.collectionName,
             description: pending.description,
             shortDescription: pending.shortDescription,

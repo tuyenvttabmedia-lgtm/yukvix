@@ -101,13 +101,29 @@ export async function resolveSpaHtml(
   if (albumMatch) {
     const slug = decodeURIComponent(albumMatch[1]);
     const { getDb } = await import("../db.js");
-    const { albums, photos } = await import("../../drizzle/schema.js");
+    const { albums, photos, creators } = await import("../../drizzle/schema.js");
     const { eq, and, asc } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return { html: out, status: 404 };
     const rows = await db.select().from(albums).where(eq(albums.slug, slug)).limit(1);
     const album = rows[0];
     if (!album || album.status !== "published") return { html: out, status: 404 };
+
+    let creatorName: string | null = null;
+    if (album.creatorId) {
+      const [creatorRow] = await db
+        .select({ name: creators.name })
+        .from(creators)
+        .where(eq(creators.id, album.creatorId))
+        .limit(1);
+      creatorName = creatorRow?.name ?? null;
+    }
+    const { displayCosplayerName } = await import("../services/cosplayer-name.js");
+    const person = displayCosplayerName({
+      cosplayer: album.cosplayer,
+      creator: album.creator,
+      creatorName,
+    });
 
     const title = album.seoTitle || album.title || "Album";
     const desc = album.seoDescription || album.description || "";
@@ -142,7 +158,7 @@ export async function resolveSpaHtml(
       name: album.title,
       description: desc,
       url: canonical,
-      author: album.cosplayer || undefined,
+      author: person || undefined,
       datePublished: album.createdAt ? new Date(album.createdAt).toISOString() : undefined,
       dateModified: album.updatedAt ? new Date(album.updatedAt).toISOString() : undefined,
       images: photoRows.map((p) => ({

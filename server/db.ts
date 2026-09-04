@@ -33,6 +33,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { isCreatorPubliclyVisible, withRewrittenCreatorMedia } from "./public-media-url";
+import { displayCosplayerName } from "./services/cosplayer-name";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: Pool | null = null;
@@ -421,6 +422,11 @@ export async function listAlbums(opts: {
       });
       return {
         ...album,
+        cosplayer:
+          displayCosplayerName({
+            cosplayer: album.cosplayer,
+            creatorName,
+          }) ?? album.cosplayer,
         creatorName: creatorName ?? null,
         creatorSlug: visible ? creatorSlug ?? null : null,
       };

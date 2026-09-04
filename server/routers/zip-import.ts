@@ -289,6 +289,8 @@ export const zipImportRouter = router({
         if (resolved.creatorId) {
           creatorName = resolved.name;
           creatorId = resolved.creatorId;
+        } else if (resolved.name) {
+          creatorName = resolved.name;
         } else if (!creatorName) {
           creatorName = null;
         }
@@ -1048,7 +1050,7 @@ export const zipImportRouter = router({
           const resolvedCreator = await resolveCreatorFromFilename(item.filename, seo.category, {
             createIfMissing: false,
           });
-          const creatorName = resolvedCreator.creatorId ? resolvedCreator.name : null;
+          const creatorName = resolvedCreator.name;
           const creatorId = resolvedCreator.creatorId;
 
           const importProfile = {
