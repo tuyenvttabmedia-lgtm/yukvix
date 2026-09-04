@@ -1113,3 +1113,92 @@ export const seoGenerationHistory = mysqlTable(
 );
 export type SeoGenerationHistory = typeof seoGenerationHistory.$inferSelect;
 export type InsertSeoGenerationHistory = typeof seoGenerationHistory.$inferInsert;
+
+// ─── Social Distribution (Phase Core) ─────────────────────────────────────────
+export const socialAccounts = mysqlTable(
+  "social_accounts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    platform: mysqlEnum("platform", ["telegram", "mastodon", "bluesky", "x"]).notNull(),
+    displayName: varchar("displayName", { length: 128 }).notNull(),
+    isEnabled: boolean("isEnabled").default(false).notNull(),
+    autoShare: boolean("autoShare").default(false).notNull(),
+    requireApproval: boolean("requireApproval").default(false).notNull(),
+    encryptedCredentials: text("encryptedCredentials").notNull(),
+    configJson: text("configJson"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_social_accounts_platform").on(t.platform),
+    index("idx_social_accounts_isEnabled").on(t.isEnabled),
+  ]
+);
+
+export type SocialAccount = typeof socialAccounts.$inferSelect;
+export type InsertSocialAccount = typeof socialAccounts.$inferInsert;
+
+export const socialPosts = mysqlTable(
+  "social_posts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    albumId: int("albumId").notNull(),
+    accountId: int("accountId").notNull(),
+    platform: mysqlEnum("platform", ["telegram", "mastodon", "bluesky", "x"]).notNull(),
+    trigger: mysqlEnum("trigger", ["auto", "manual"]).notNull(),
+    status: mysqlEnum("status", [
+      "skipped",
+      "awaiting_approval",
+      "pending",
+      "processing",
+      "sent",
+      "failed",
+      "cancelled",
+    ]).notNull(),
+    idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull().unique(),
+    scheduledAt: timestamp("scheduledAt").notNull(),
+    contentRating: varchar("contentRating", { length: 32 }).notNull(),
+    caption: text("caption"),
+    mediaJson: mediumtext("mediaJson").notNull(),
+    policyJson: mediumtext("policyJson").notNull(),
+    externalPostId: varchar("externalPostId", { length: 256 }),
+    externalUrl: varchar("externalUrl", { length: 512 }),
+    attempts: int("attempts").default(0).notNull(),
+    maxAttempts: int("maxAttempts").default(5).notNull(),
+    lastError: text("lastError"),
+    createdBy: int("createdBy"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    processedAt: timestamp("processedAt"),
+  },
+  (t) => [
+    index("idx_social_posts_status_scheduledAt").on(t.status, t.scheduledAt),
+    index("idx_social_posts_albumId").on(t.albumId),
+    index("idx_social_posts_accountId").on(t.accountId),
+    index("idx_social_posts_platform").on(t.platform),
+  ]
+);
+
+export type SocialPost = typeof socialPosts.$inferSelect;
+export type InsertSocialPost = typeof socialPosts.$inferInsert;
+
+export const socialPostAttempts = mysqlTable(
+  "social_post_attempts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    postId: int("postId").notNull(),
+    attempt: int("attempt").notNull(),
+    ok: boolean("ok").default(false).notNull(),
+    httpStatus: int("httpStatus"),
+    error: text("error"),
+    responseJson: text("responseJson"),
+    dryRun: boolean("dryRun").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_social_post_attempts_postId").on(t.postId),
+    index("idx_social_post_attempts_createdAt").on(t.createdAt),
+  ]
+);
+
+export type SocialPostAttempt = typeof socialPostAttempts.$inferSelect;
+export type InsertSocialPostAttempt = typeof socialPostAttempts.$inferInsert;

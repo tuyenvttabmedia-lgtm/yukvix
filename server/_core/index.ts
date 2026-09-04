@@ -19,6 +19,7 @@ import { startImageProcessorWorker } from "../image-processor-worker";
 import { refreshWasabiConfig } from "../storage-wasabi";
 import { startScheduler } from "../import/scheduler";
 import { startEmailQueueWorker } from "../email-queue-worker";
+import { startSocialWorker } from "../social/worker";
 import { startImportScheduler as startZipImportScheduler } from "../services/import-cron";
 import { expirePendingPaymentsHandler } from "../scheduled/expire-pending-payments";
 import { notifyVipExpiryHandler } from "../scheduled/notify-vip-expiry";
@@ -213,6 +214,9 @@ async function startServer() {
     startImageProcessorWorker();
     startScheduler();
     startEmailQueueWorker();
+    if (getWorkerMode() !== "import") {
+      startSocialWorker();
+    }
     if (getWorkerMode() === "http") {
       console.log("[HTTP] ZIP import runs in WORKER_MODE=import process");
     } else {

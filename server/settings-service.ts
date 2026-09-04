@@ -23,6 +23,7 @@
  *   wasabi.access_key_id
  *   wasabi.secret_access_key
  *   wasabi.cdn_base_url
+ *   social.credentials_key   — AES-256-GCM key for social account credentials
  */
 
 import { eq } from "drizzle-orm";

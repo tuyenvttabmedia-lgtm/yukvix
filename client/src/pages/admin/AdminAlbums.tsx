@@ -13,6 +13,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Share2,
   Trash2,
   X,
 } from "lucide-react";
@@ -357,6 +358,15 @@ export default function AdminAlbums() {
                     title="Xuất bản"
                   >
                     <Check className="w-4 h-4" />
+                  </button>
+                )}
+                {album.status === "published" && (
+                  <button
+                    onClick={() => navigate(`/admin/social?albumId=${album.id}`)}
+                    className="p-1.5 rounded-lg hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                    title="Share Telegram"
+                  >
+                    <Share2 className="w-4 h-4" />
                   </button>
                 )}
                 <button

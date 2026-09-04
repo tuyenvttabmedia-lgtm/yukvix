@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdmin } from "@shared/const";
 import SeoHead from "@/components/SeoHead";
-import { BarChart3, Crown, Download, FileText, FolderOpen, HardDrive, History, Home, ImageIcon, Layers, Library, Loader2, Mail, Menu, MessageSquare, Package, Palette, Shield, ShieldAlert, Sparkles, Tag, TrendingUp, Users, UserSquare2, Webhook, Zap, ClipboardList, MoreHorizontal, X, Search } from "lucide-react";
+import { BarChart3, Crown, Download, FileText, FolderOpen, HardDrive, History, Home, ImageIcon, Layers, Library, Loader2, Mail, Menu, MessageSquare, Package, Palette, Search, Share2, Shield, ShieldAlert, Sparkles, Tag, TrendingUp, Users, UserSquare2, Webhook, Zap, ClipboardList, MoreHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 
@@ -58,6 +58,7 @@ const navSections = [
       { href: "/admin/seo", label: "SEO Tracking", icon: <Search className="w-4 h-4" /> },
       { href: "/admin/seo/bulk", label: "Bulk Generate SEO", icon: <Sparkles className="w-4 h-4" /> },
       { href: "/admin/settings/ai", label: "AI Settings", icon: <Shield className="w-4 h-4" /> },
+      { href: "/admin/social", label: "Social Distribution", icon: <Share2 className="w-4 h-4" /> },
     ],
   },
 ];

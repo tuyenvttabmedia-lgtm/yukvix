@@ -77,6 +77,7 @@ const AdminSeoBulk = lazy(() => import("./pages/admin/AdminSeoBulk"));
 const AdminZipImport = lazy(() => import("./pages/admin/AdminZipImport"));
 const AdminAlbumSeoReview = lazy(() => import("./pages/admin/AdminAlbumSeoReview"));
 const AdminAiSettings = lazy(() => import("./pages/admin/AdminAiSettings"));
+const AdminSocial = lazy(() => import("./pages/admin/AdminSocial"));
 const AdminDesignPreview = lazy(() => import("./pages/admin/AdminDesignPreview"));
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
@@ -204,6 +205,7 @@ function Router() {
 
         {/* AI Settings */}
         <Route path="/admin/settings/ai" component={AdminAiSettings} />
+        <Route path="/admin/social" component={AdminSocial} />
 
         {/* Import pipeline admin routes */}
         <Route path="/admin/import" component={AdminImport} />
