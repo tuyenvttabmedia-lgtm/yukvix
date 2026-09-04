@@ -437,7 +437,63 @@ export function fallbackCreatorSeo(name: string): {
   };
 }
 
-async function tryAiCreatorSeo(name: string, bio?: string | null): Promise<{
+export function fallbackCreatorBio(
+  name: string,
+  hints?: { characters?: string[]; series?: string[] }
+): string {
+  const n = name.trim() || "This cosplayer";
+  const characters = uniqueNames(hints?.characters ?? []).slice(0, 3);
+  const series = uniqueNames(hints?.series ?? []).slice(0, 3);
+  const parts = [`${n} is a cosplayer featured on Yukvix.`];
+  if (characters.length) {
+    parts.push(`Featured looks include ${characters.join(", ")}.`);
+  } else if (series.length) {
+    parts.push(`Photosets include ${series.join(", ")}.`);
+  } else {
+    parts.push("Browse character looks, photosets, and albums.");
+  }
+  return clipSeo(parts.join(" "), 300);
+}
+
+function uniqueNames(values: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const text = value?.trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out;
+}
+
+async function loadCreatorAlbumHints(
+  creatorId: number
+): Promise<{ characters: string[]; series: string[] }> {
+  const db = await getDb();
+  if (!db) return { characters: [], series: [] };
+  const rows = await db
+    .select({
+      character: albums.character,
+      series: albums.series,
+    })
+    .from(albums)
+    .where(eq(albums.creatorId, creatorId))
+    .orderBy(desc(albums.id))
+    .limit(12);
+  return {
+    characters: uniqueNames(rows.map(row => row.character)),
+    series: uniqueNames(rows.map(row => row.series)),
+  };
+}
+
+async function tryAiCreatorProfile(
+  name: string,
+  opts?: { bio?: string | null; characters?: string[]; series?: string[] }
+): Promise<{
+  bio: string;
   focusKeyword: string;
   seoTitle: string;
   seoDescription: string;
@@ -445,14 +501,19 @@ async function tryAiCreatorSeo(name: string, bio?: string | null): Promise<{
   try {
     const { callAi } = await import("./ai-provider");
     const contextParts = [`Name: ${name}`];
-    if (bio) contextParts.push(`Bio: ${bio}`);
+    if (opts?.bio) contextParts.push(`Current bio: ${opts.bio}`);
+    const characters = uniqueNames(opts?.characters ?? []).slice(0, 5);
+    const series = uniqueNames(opts?.series ?? []).slice(0, 5);
+    if (characters.length) contextParts.push(`Characters: ${characters.join(", ")}`);
+    if (series.length) contextParts.push(`Series: ${series.join(", ")}`);
     const result = await callAi({
       messages: [
         {
           role: "system",
           content: `You are an SEO expert specializing in cosplay content creators.
-Generate SEO metadata for a cosplay creator/model profile page.
+Generate a short profile intro and SEO metadata for a cosplay creator page.
 Rules:
+- bio: 2-3 sentences, max 300 characters, third person, mention the creator name
 - focusKeyword: 2-4 words, most important search term (e.g. "Sakura cosplay model")
 - metaTitle: 50-60 characters, include creator name and "cosplay"
 - metaDescription: 140-160 characters, engaging description of the creator
@@ -461,22 +522,23 @@ Rules:
         },
         {
           role: "user",
-          content: `Generate SEO metadata for this cosplay creator:\n\n${contextParts.join("\n")}`,
+          content: `Generate a bio and SEO metadata for this cosplay creator:\n\n${contextParts.join("\n")}`,
         },
       ],
       responseFormat: {
         type: "json_schema",
         json_schema: {
-          name: "creator_seo",
+          name: "creator_profile",
           strict: true,
           schema: {
             type: "object",
             properties: {
+              bio: { type: "string" },
               focusKeyword: { type: "string" },
               metaTitle: { type: "string" },
               metaDescription: { type: "string" },
             },
-            required: ["focusKeyword", "metaTitle", "metaDescription"],
+            required: ["bio", "focusKeyword", "metaTitle", "metaDescription"],
             additionalProperties: false,
           },
         },
@@ -484,12 +546,14 @@ Rules:
     });
     if (!result.content) return null;
     const parsed = JSON.parse(result.content) as {
+      bio?: string;
       focusKeyword?: string;
       metaTitle?: string;
       metaDescription?: string;
     };
-    if (!parsed.metaTitle || !parsed.metaDescription) return null;
+    if (!parsed.bio?.trim() || !parsed.metaTitle || !parsed.metaDescription) return null;
     return {
+      bio: clipSeo(parsed.bio, 300),
       focusKeyword: clipSeo(parsed.focusKeyword || `${name} cosplay`, 200),
       seoTitle: clipSeo(parsed.metaTitle, 60),
       seoDescription: clipSeo(parsed.metaDescription, 160),
@@ -499,38 +563,55 @@ Rules:
   }
 }
 
-/** Fill empty SEO and pick avatar/banner from a linked album. */
+/** Fill empty bio/SEO and pick avatar/banner from a linked album. */
 export async function enrichCreatorAfterLink(
   creatorId: number,
   opts?: { albumId?: number }
-): Promise<{ seo: boolean; images: boolean }> {
+): Promise<{ seo: boolean; bio: boolean; images: boolean }> {
   const db = await getDb();
-  if (!db) return { seo: false, images: false };
+  if (!db) return { seo: false, bio: false, images: false };
   const [creator] = await db
     .select()
     .from(creators)
     .where(eq(creators.id, creatorId))
     .limit(1);
-  if (!creator) return { seo: false, images: false };
+  if (!creator) return { seo: false, bio: false, images: false };
 
+  const needSeo = !creator.seoTitle?.trim() || !creator.seoDescription?.trim();
+  const needBio = !creator.bio?.trim();
   let seo = false;
-  if (!creator.seoTitle?.trim() || !creator.seoDescription?.trim()) {
-    const next = fallbackCreatorSeo(creator.name);
+  let bio = false;
+
+  if (needSeo || needBio) {
+    const hints = await loadCreatorAlbumHints(creatorId);
+    const nextSeo = fallbackCreatorSeo(creator.name);
+    const nextBio = fallbackCreatorBio(creator.name, hints);
     await db
       .update(creators)
       .set({
-        seoTitle: creator.seoTitle?.trim() || next.seoTitle,
-        seoDescription: creator.seoDescription?.trim() || next.seoDescription,
-        focusKeyword: creator.focusKeyword?.trim() || next.focusKeyword,
+        ...(needSeo
+          ? {
+              seoTitle: creator.seoTitle?.trim() || nextSeo.seoTitle,
+              seoDescription: creator.seoDescription?.trim() || nextSeo.seoDescription,
+              focusKeyword: creator.focusKeyword?.trim() || nextSeo.focusKeyword,
+            }
+          : {}),
+        ...(needBio ? { bio: nextBio } : {}),
         updatedAt: new Date(),
       })
       .where(eq(creators.id, creatorId));
-    seo = true;
-    void tryAiCreatorSeo(creator.name, creator.bio)
+    seo = needSeo;
+    bio = needBio;
+    void tryAiCreatorProfile(creator.name, {
+      bio: nextBio,
+      characters: hints.characters,
+      series: hints.series,
+    })
       .then(async ai => {
         if (!ai) return;
         const [latest] = await db
           .select({
+            bio: creators.bio,
             seoTitle: creators.seoTitle,
             seoDescription: creators.seoDescription,
             focusKeyword: creators.focusKeyword,
@@ -539,18 +620,19 @@ export async function enrichCreatorAfterLink(
           .where(eq(creators.id, creatorId))
           .limit(1);
         if (!latest) return;
-        const stillFallback =
-          latest.seoTitle === next.seoTitle && latest.seoDescription === next.seoDescription;
-        if (!stillFallback) return;
-        await db
-          .update(creators)
-          .set({
-            seoTitle: ai.seoTitle,
-            seoDescription: ai.seoDescription,
-            focusKeyword: latest.focusKeyword?.trim() || ai.focusKeyword,
-            updatedAt: new Date(),
-          })
-          .where(eq(creators.id, creatorId));
+        const updates: Partial<typeof creators.$inferInsert> = { updatedAt: new Date() };
+        if (needBio && latest.bio === nextBio) updates.bio = ai.bio;
+        if (
+          needSeo &&
+          latest.seoTitle === nextSeo.seoTitle &&
+          latest.seoDescription === nextSeo.seoDescription
+        ) {
+          updates.seoTitle = ai.seoTitle;
+          updates.seoDescription = ai.seoDescription;
+          updates.focusKeyword = latest.focusKeyword?.trim() || ai.focusKeyword;
+        }
+        if (Object.keys(updates).length <= 1) return;
+        await db.update(creators).set(updates).where(eq(creators.id, creatorId));
       })
       .catch(() => undefined);
   }
@@ -560,7 +642,7 @@ export async function enrichCreatorAfterLink(
     applyAvatar: !creator.avatarUrl,
     applyBanner: !creator.bannerUrl,
   });
-  return { seo, images: images.applied };
+  return { seo, bio, images: images.applied };
 }
 
 export async function applyCreatorImageFromPhoto(
