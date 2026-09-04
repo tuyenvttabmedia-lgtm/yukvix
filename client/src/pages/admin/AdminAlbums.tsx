@@ -82,9 +82,6 @@ export default function AdminAlbums() {
     setPage(1);
     window.localStorage.setItem(PAGE_SIZE_KEY, String(size));
   };
-    utils.albums.list.invalidate();
-    utils.albums.adminList.invalidate();
-  };
 
   const createAlbum = trpc.albums.create.useMutation({
     onSuccess: () => {
