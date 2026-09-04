@@ -81,6 +81,13 @@ describe("telegram random schedule", () => {
     });
     expect(
       parseSocialConfig(
+        JSON.stringify({
+          platforms: { x: { enabled: false, maxImages: 4, requireApproval: true } },
+        })
+      ).platforms.x
+    ).toMatchObject({ enabled: true, maxImages: 4 });
+    expect(
+      parseSocialConfig(
         JSON.stringify({ schedule: { enabled: true, intervalMinutes: 90 } })
       ).schedule.intervalMinutes
     ).toBe(90);

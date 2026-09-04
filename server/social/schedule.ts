@@ -18,7 +18,6 @@ const BLOCKING_STATUSES = [
   "processing",
   "awaiting_approval",
   "sent",
-  "skipped",
 ] as const;
 
 export function shouldRunSchedule(opts: {

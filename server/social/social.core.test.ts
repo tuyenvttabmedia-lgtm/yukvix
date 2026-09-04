@@ -199,6 +199,55 @@ describe("idempotency and duplicate", () => {
     expect(store.posts).toHaveLength(1);
   });
 
+  it("retries an auto share after a previous skip", async () => {
+    const store = new MemorySocialQueue();
+    const base = {
+      albumId: 42,
+      accountId: 1,
+      platform: "x" as const,
+      trigger: "auto" as const,
+      scheduledAt: new Date(),
+      contentRating: "mature",
+      caption: "hi",
+      media: {
+        items: [
+          {
+            type: "thumb" as const,
+            url: "https://media.yukvix.com/t.webp",
+            sortOrder: 1,
+          },
+        ],
+      },
+      policy: withPolicySnapshot(evaluateSocialPolicy(policyInput(telegramAccount)), {
+        album,
+        account: telegramAccount,
+        config: DEFAULT_SOCIAL_CONFIG,
+        delayMinutes: 5,
+        maxImages: 4,
+      }),
+    };
+    const skipped = await enqueueSocialPost(
+      {
+        ...base,
+        status: "skipped",
+        idempotencyKey: autoIdempotencyKey(42, 1),
+      },
+      store
+    );
+    const retry = await enqueueSocialPost(
+      {
+        ...base,
+        status: "pending",
+        idempotencyKey: autoIdempotencyKey(42, 1),
+      },
+      store
+    );
+    expect(skipped.duplicate).toBe(false);
+    expect(retry.duplicate).toBe(false);
+    expect(retry.id).not.toBe(skipped.id);
+    expect(store.posts).toHaveLength(2);
+  });
+
   it("allows intentional manual re-share with a new key", async () => {
     const store = new MemorySocialQueue();
     const media = {

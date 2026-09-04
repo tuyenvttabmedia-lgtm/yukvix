@@ -10,6 +10,7 @@ import { getDb } from "../db";
 import {
   autoIdempotencyKey,
   findDuplicate,
+  isOpenSocialPostStatus,
   manualIdempotencyKey,
   type ExistingPostLite,
 } from "./duplicate";
@@ -479,13 +480,17 @@ export async function enqueueSocialPost(
   input: EnqueueInput,
   store: SocialQueueStore = getSocialQueue()
 ): Promise<{ id: number; duplicate: boolean; skipped?: boolean }> {
-  const key =
+  let key =
     input.idempotencyKey ||
     (input.trigger === "auto"
       ? autoIdempotencyKey(input.albumId, input.accountId)
       : manualIdempotencyKey(input.albumId, input.accountId, nanoid()));
 
   const existing = await store.listExisting(input.albumId, input.accountId);
+  const occupant = existing.find(p => p.idempotencyKey === key);
+  if (occupant && !isOpenSocialPostStatus(occupant.status)) {
+    key = `${key}:retry:${nanoid()}`;
+  }
   const dup = findDuplicate({
     albumId: input.albumId,
     accountId: input.accountId,

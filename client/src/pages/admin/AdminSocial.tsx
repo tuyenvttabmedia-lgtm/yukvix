@@ -60,12 +60,21 @@ type DryRunResult = {
   duplicate?: { duplicate?: boolean; reason?: string };
 };
 
-function formatSocialPostError(lastError: string | null | undefined): string {
-  if (!lastError) return "";
-  if (/ambiguous publish/i.test(lastError)) {
-    return "Unknown publish result — check Telegram before re-sharing.";
+function skipReasonFromPolicy(policyJson: string | null | undefined): string {
+  if (!policyJson) return "";
+  try {
+    const parsed = JSON.parse(policyJson) as { reason?: unknown };
+    return typeof parsed.reason === "string" ? parsed.reason : "";
+  } catch {
+    return "";
   }
-  return lastError;
+}
+
+function formatSkipReason(reason: string): string {
+  if (/platform x is disabled/i.test(reason)) {
+    return "Config cũ vẫn tắt X — không gọi API";
+  }
+  return reason;
 }
 
 function parseConfig(raw: string | null | undefined) {
@@ -1274,6 +1283,14 @@ export default function AdminSocial() {
                           {post.status === "failed" && post.lastError ? (
                             <span className="block text-[11px] text-destructive truncate max-w-[14rem]">
                               {formatSocialPostError(post.lastError)}
+                            </span>
+                          ) : null}
+                          {post.status === "skipped" ? (
+                            <span className="block text-[11px] text-muted-foreground truncate max-w-[14rem]">
+                              {formatSkipReason(
+                                skipReasonFromPolicy(post.policyJson) ||
+                                  formatSocialPostError(post.lastError)
+                              ) || "Policy/media bỏ qua"}
                             </span>
                           ) : null}
                         </td>

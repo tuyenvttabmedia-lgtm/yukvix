@@ -171,7 +171,12 @@ export function parseSocialConfig(
           DEFAULT_SOCIAL_CONFIG.platforms.bluesky,
           platforms.bluesky
         ),
-        x: mergePlatform(DEFAULT_SOCIAL_CONFIG.platforms.x, platforms.x),
+        x: {
+          ...mergePlatform(DEFAULT_SOCIAL_CONFIG.platforms.x, platforms.x),
+          // Live adapter. Stored configs from before launch kept enabled:false.
+          // Account isEnabled is the kill switch.
+          enabled: true,
+        },
       },
     };
   } catch {

@@ -38,6 +38,10 @@ const OPEN_STATUSES = new Set([
   "sent",
 ]);
 
+export function isOpenSocialPostStatus(status: string): boolean {
+  return OPEN_STATUSES.has(status);
+}
+
 export function findDuplicate(opts: {
   albumId: number;
   accountId: number;
@@ -55,7 +59,7 @@ export function findDuplicate(opts: {
   const byKey = opts.existing.find(
     p => p.idempotencyKey === opts.idempotencyKey
   );
-  if (byKey) {
+  if (byKey && OPEN_STATUSES.has(byKey.status)) {
     return {
       duplicate: true,
       reason: "idempotencyKey already exists",
@@ -83,6 +87,7 @@ export function findDuplicate(opts: {
   }
 
   for (const post of opts.existing) {
+    if (!OPEN_STATUSES.has(post.status)) continue;
     const created = post.createdAt ? new Date(post.createdAt).getTime() : 0;
     const recent = created > 0 && now.getTime() - created < recentMs;
     if (!recent) continue;
