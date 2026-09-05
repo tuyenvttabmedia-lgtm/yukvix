@@ -625,6 +625,15 @@ export async function createSubscription(data: {
   return result;
 }
 
+export async function cancelPendingSubscriptionsForUser(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(subscriptions)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "pending")));
+}
+
 /** Look up by invoice id, NOWPayments order_id, or provider subscription id */
 export async function getSubscriptionBySessionId(sessionId: string) {
   const db = await getDb();
@@ -680,6 +689,7 @@ export async function activateSubscription(
     .set({ status: "active", startedAt: new Date(), expiresAt })
     .where(eq(subscriptions.id, sub.id));
   await updateUserRole(sub.userId, "vip");
+  await setUserEmailVerified(sub.userId);
   if (!alreadyActive) {
     void import("./email")
       .then((m) => m.notifyVipActivated(sub.userId, expiresAt))

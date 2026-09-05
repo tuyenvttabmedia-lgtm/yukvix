@@ -2,15 +2,15 @@ import { trpc } from "@/lib/trpc";
 import { isVipOrAdmin } from "@shared/const";
 import { CheckCircle, Crown, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 export default function PaymentSuccess() {
   const { t } = useTranslation();
-  const [location] = useLocation();
-  const params = new URLSearchParams(location.split("?")[1] || "");
+  const searchStr = useSearch();
+  const params = new URLSearchParams(searchStr.startsWith("?") ? searchStr.slice(1) : searchStr);
   const sessionId = params.get("session_id");
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(true);
@@ -48,7 +48,7 @@ export default function PaymentSuccess() {
       verifyPayment.mutate({ sessionId });
       return;
     }
-    const timer = setTimeout(() => setVerifying(false), 45000);
+    const timer = setTimeout(() => setVerifying(false), 120000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);

@@ -145,16 +145,19 @@ export class CCBillProvider implements PaymentProvider {
    * dynamicPricingValidationDigest field if present.
    */
   async parseWebhook(input: WebhookHandlerInput): Promise<WebhookHandlerResult> {
-    const { rawBody, headers } = input;
+    const { rawBody, headers, body } = input;
 
     let payload: Record<string, string>;
     const contentType = (headers["content-type"] as string) || "";
 
     try {
-      if (contentType.includes("application/json")) {
+      if (body && typeof body === "object" && Object.keys(body).length > 0) {
+        payload = Object.fromEntries(
+          Object.entries(body).map(([k, v]) => [k, v == null ? "" : String(v)])
+        );
+      } else if (contentType.includes("application/json")) {
         payload = JSON.parse(rawBody.toString());
       } else {
-        // URL-encoded format (default CCBill format)
         const decoded = new URLSearchParams(rawBody.toString());
         payload = Object.fromEntries(decoded.entries());
       }

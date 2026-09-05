@@ -319,7 +319,7 @@
     "alreadyHaveAccount": "Đã có tài khoản?",
     "registrationFailed": "Đăng ký thất bại. Vui lòng thử lại.",
     "welcomeUser": "Chào mừng, {{name}}!",
-    "checkEmailVerify": "Vui lòng kiểm tra email để xác nhận tài khoản.",
+    "checkEmailVerify": "Bạn có thể xác minh email sau trong Tài khoản — không bắt buộc để xem hay nạp VIP.",
     "welcomeToYukvix": "Chào mừng đến Yukvix, {{name}}!",
     "pwTooShort": "Quá ngắn",
     "pwWeak": "Yếu",
@@ -453,7 +453,7 @@
       "member": "Thành viên"
     },
     "emailNotVerified": "Email chưa xác minh",
-    "emailNotVerifiedDesc": "Vui lòng xác minh email để bảo mật tài khoản và nhận thông báo quan trọng.",
+    "emailNotVerifiedDesc": "Không bắt buộc: xác minh email giúp khôi phục tài khoản. Bạn vẫn xem và nạp VIP được ngay.",
     "tooManyAttempts": "Quá nhiều lần thử. Thử lại sau:",
     "resendVerification": "Gửi lại email xác minh",
     "verificationSent": "Email xác minh đã được gửi! Vui lòng kiểm tra hộp thư.",

@@ -70,9 +70,9 @@ export function registerStripeWebhook(app: Express) {
     "/api/ccbill/webhook",
     express.urlencoded({ extended: true }),
     async (req: Request, res: Response) => {
-      const accountNum = process.env.CCBILL_ACCOUNT_NUM;
-      const flexId = process.env.CCBILL_FLEX_ID;
-      const salt = process.env.CCBILL_SALT;
+      const accountNum = await getSetting("payment.ccbill.account_num", "CCBILL_ACCOUNT_NUM", "");
+      const flexId = await getSetting("payment.ccbill.flex_id", "CCBILL_FLEX_ID", "");
+      const salt = await getSetting("payment.ccbill.salt", "CCBILL_SALT", "");
 
       if (!accountNum || !flexId || !salt) {
         // CCBill not configured — return 200 to prevent CCBill retries
@@ -80,17 +80,30 @@ export function registerStripeWebhook(app: Express) {
         return;
       }
 
-      const subaccNum = process.env.CCBILL_SUBACC_NUM || "0000";
-      const currencyCode = process.env.CCBILL_CURRENCY_CODE || "840";
+      const subaccNum = await getSetting("payment.ccbill.sub_account_num", "CCBILL_SUBACC_NUM", "0000")
+        || process.env.CCBILL_SUB_ACCOUNT_NUM
+        || "0000";
+      const currencyCode = await getSetting("payment.ccbill.currency_code", "CCBILL_CURRENCY_CODE", "840");
       const provider = new CCBillProvider(accountNum, subaccNum, flexId, salt, currencyCode);
 
       let result: WebhookHandlerResult;
 
       try {
         result = await provider.parseWebhook({
-          rawBody: Buffer.from(JSON.stringify(req.body)),
+          rawBody: Buffer.from(
+            typeof req.body === "string"
+              ? req.body
+              : new URLSearchParams(
+                  Object.fromEntries(
+                    Object.entries((req.body || {}) as Record<string, unknown>).map(([k, v]) => [
+                      k,
+                      v == null ? "" : String(v),
+                    ])
+                  )
+                ).toString()
+          ),
           headers: req.headers as Record<string, string | string[] | undefined>,
-          body: req.body,
+          body: (req.body || {}) as Record<string, unknown>,
         });
       } catch (err: any) {
         console.error("[CCBill Webhook] Parse error:", err.message);

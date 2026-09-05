@@ -300,7 +300,7 @@
     "alreadyHaveAccount": "すでにアカウントをお持ちですか？",
     "registrationFailed": "登録に失敗しました。もう一度お試しください。",
     "welcomeUser": "ようこそ、{{name}}さん！",
-    "checkEmailVerify": "アカウントを確認するためにメールをご確認ください。",
+    "checkEmailVerify": "メール確認は後からアカウント画面でできます。VIP購入には不要です。",
     "welcomeToYukvix": "Yukvixへようこそ、{{name}}さん！",
     "pwTooShort": "短すぎる",
     "pwWeak": "弱い",

@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import AlbumCard from "@/components/AlbumCard";
 import { trpc } from "@/lib/trpc";
 import SeoHead, { buildImageGallerySchema, buildBreadcrumbSchema } from "@/components/SeoHead";
-import { Bookmark, BookmarkCheck, Crown, Download, Eye, ImageIcon, Lock, Loader2, Mail, Share2, Tag, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, Crown, Download, Eye, ImageIcon, Lock, Loader2, Share2, Tag } from "lucide-react";
 import PhotoSwipeViewer, { PhotoSwipeStyles, type PhotoSwipeItem } from "@/components/PhotoSwipeViewer";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -32,7 +32,6 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
 
   const isVip = user?.role === "vip" || user?.role === "admin" || user?.role === "super_admin";
   const [zipLoading, setZipLoading] = useState(false);
-  const [showEmailVerifyDialog, setShowEmailVerifyDialog] = useState(false);
   const utils = trpc.useUtils();
 
   // --- Album metadata (no photos) ----------------------------------------------
@@ -40,13 +39,6 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
     { slug: params.slug },
     { enabled: !!params.slug }
   );
-
-  const sendVerification = trpc.authEmail.sendVerification.useMutation({
-    onSuccess: () => {
-      toast.success(t("album.verificationSent"), { duration: 5000 });
-    },
-    onError: (err) => toast.error(err.message),
-  });
 
   const getZipUrl = trpc.downloads.getZipUrl.useMutation({
     onSuccess: (res) => {
@@ -56,13 +48,6 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
     },
     onError: (e) => {
       setZipLoading(false);
-      try {
-        const parsed = JSON.parse(e.message);
-        if (parsed?.type === "EMAIL_NOT_VERIFIED") {
-          setShowEmailVerifyDialog(true);
-          return;
-        }
-      } catch { /* not JSON */ }
       toast.error(e.message);
     },
   });
@@ -265,59 +250,6 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
 
   return (
     <div className="min-h-screen py-8">
-      {/* Email Verification Required Dialog */}
-      {showEmailVerifyDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowEmailVerifyDialog(false)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div
-            className="relative bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowEmailVerifyDialog(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex flex-col items-center text-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                <Mail className="w-7 h-7 text-amber-400" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground mb-1">{t("album.verifyEmailTitle")}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {t("album.verifyEmailDesc")}
-                </p>
-              </div>
-              <div className="flex flex-col gap-2 w-full">
-                <Button
-                  className="w-full"
-                  onClick={() => {
-                    sendVerification.mutate({ origin: window.location.origin });
-                    setShowEmailVerifyDialog(false);
-                  }}
-                  disabled={sendVerification.isPending}
-                >
-                  {sendVerification.isPending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Mail className="w-4 h-4 mr-2" />
-                  )}
-                  {t("album.sendVerification")}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => { window.location.href = "/account"; }}
-                >
-                  {t("album.goToAccount")}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <SeoHead
         title={metaTitle}
         description={metaDesc}
@@ -449,8 +381,6 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
               <Button
                 size="sm"
                 onClick={() => {
-                  // Always go through server first to check email verification,
-                  // log the download, then open the URL returned by server.
                   setZipLoading(true);
                   getZipUrl.mutate({ albumId: album.id });
                 }}

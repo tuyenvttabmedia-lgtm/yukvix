@@ -79,18 +79,16 @@ export default function VipPage() {
   const createCheckout = trpc.subscriptions.createCheckout.useMutation({
     onSuccess: (data) => {
       setLoadingPlanId(null);
-      if (!data.url && !data.sessionId) {
-        toast.error(t("vip.checkoutFailed"));
+      if (data.url) {
+        toast.info(t("vip.redirectingCheckout"));
+        window.location.href = data.url;
         return;
       }
       if (selectedPaymentMethod === "crypto" && data.sessionId) {
         navigate(`/payment/crypto/${encodeURIComponent(data.sessionId)}`);
-      } else if (data.url) {
-        toast.info(t("vip.redirectingCheckout"));
-        window.location.href = data.url;
-      } else {
-        toast.error(t("vip.checkoutFailed"));
+        return;
       }
+      toast.error(t("vip.checkoutFailed"));
     },
     onError: (err) => {
       toast.error(err.message || t("vip.paymentUnavailable"));

@@ -5,6 +5,7 @@ import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
   activateSubscription,
   createSubscription,
+  cancelPendingSubscriptionsForUser,
   getActiveSubscription,
   getDb,
   getSubscriptionBySessionId,
@@ -125,6 +126,7 @@ export const subscriptionsRouter = router({
 
       const paymentMethodLabel = input.paymentMethod || provider.name;
 
+      await cancelPendingSubscriptionsForUser(ctx.user.id);
       await createSubscription({
         userId: ctx.user.id,
         planId: plan.id,

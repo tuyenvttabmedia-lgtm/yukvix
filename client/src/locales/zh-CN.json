@@ -349,7 +349,7 @@
     "alreadyHaveAccount": "已有账号？",
     "registrationFailed": "注册失败，请再试一次。",
     "welcomeUser": "欢迎，{{name}}！",
-    "checkEmailVerify": "请查看电子邮件以确认账号。",
+    "checkEmailVerify": "可稍后在账户页验证邮箱，浏览和开通 VIP 不强制验证。",
     "welcomeToYukvix": "欢迎来到 Yukvix，{{name}}！",
     "pwTooShort": "太短",
     "pwWeak": "弱",

@@ -9,7 +9,6 @@ import {
   getAlbumById,
   getAlbumMediaItems,
   getDownloadHistory,
-  getUserById,
   logDownload,
   updateAlbum,
 } from "../db";
@@ -106,18 +105,6 @@ export const downloadsRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!isVipUser(ctx.user.role)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "VIP membership required to download" });
-      }
-
-      // Require email verification before allowing download
-      const user = await getUserById(ctx.user.id);
-      if (user && user.email && !user.emailVerified) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: JSON.stringify({
-            type: "EMAIL_NOT_VERIFIED",
-            message: "You need to verify your email before downloading.",
-          }),
-        });
       }
 
       const album = await getAlbumById(input.albumId);

@@ -300,7 +300,7 @@
     "alreadyHaveAccount": "이미 계정이 있으신가요?",
     "registrationFailed": "등록에 실패했습니다. 다시 시도해주세요.",
     "welcomeUser": "어서오세요, {{name}}님!",
-    "checkEmailVerify": "계정을 확인하려면 이메일을 확인해주세요.",
+    "checkEmailVerify": "이메일은 나중에 계정에서 인증하면 됩니다. VIP 결제에 필수는 아닙니다.",
     "welcomeToYukvix": "Yukvix에 오신 것을 환영합니다, {{name}}님!",
     "pwTooShort": "너무 짧음",
     "pwWeak": "약함",

@@ -271,7 +271,7 @@
     "alreadyHaveAccount": "Already have an account?",
     "registrationFailed": "Registration failed. Please try again.",
     "welcomeUser": "Welcome, {{name}}!",
-    "checkEmailVerify": "Please check your email to verify your account.",
+    "checkEmailVerify": "You can verify your email later from Account — it is not required to browse or buy VIP.",
     "welcomeToYukvix": "Welcome to Yukvix, {{name}}!",
     "pwTooShort": "Too short",
     "pwWeak": "Weak",
@@ -399,7 +399,7 @@
       "member": "Member"
     },
     "emailNotVerified": "Email not verified",
-    "emailNotVerifiedDesc": "Please verify your email to secure your account and receive important notifications.",
+    "emailNotVerifiedDesc": "Optional: verify your email for account recovery. You can already browse and purchase VIP.",
     "tooManyAttempts": "Too many attempts. Try again in",
     "resendVerification": "Resend verification email",
     "verificationSent": "Verification email sent! Please check your inbox.",

@@ -32,6 +32,7 @@ export default function CryptoPaymentStatus() {
   const status = payment?.status ?? "waiting";
   const isDone = status === "finished" || status === "confirmed";
   const isFailed = status === "failed" || status === "expired";
+  const invoiceOpened = useRef(false);
 
   useEffect(() => {
     if (!isDone) return;
@@ -50,6 +51,13 @@ export default function CryptoPaymentStatus() {
   }, [status, isDone, isFailed, refetch]);
 
   const invoiceUrl = payment?.invoiceUrl ?? `https://nowpayments.io/payment/?iid=${sessionId}`;
+
+  useEffect(() => {
+    if (!sessionId || isDone || isFailed || status === "not_found" || isLoading) return;
+    if (invoiceOpened.current) return;
+    invoiceOpened.current = true;
+    window.open(invoiceUrl, "_blank", "noopener,noreferrer");
+  }, [sessionId, invoiceUrl, isDone, isFailed, status, isLoading]);
 
   return (
     <div className="min-h-screen flex flex-col">
