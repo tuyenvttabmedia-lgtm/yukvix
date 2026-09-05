@@ -179,6 +179,8 @@
     "filterFree": "免費",
     "noAlbums": "找不到相簿",
     "loadMore": "載入更多",
+    "showingRange": "已顯示 {{shown}} / {{total}} 個圖輯",
+    "filteringByTag": "依標籤篩選：",
     "loading": "載入中...",
     "albumCount": "{{count}}個相冊",
     "sort": {

@@ -158,7 +158,9 @@
     "vipOnly": "VIP Only",
     "noAlbums": "No albums found",
     "allLoaded": "All albums loaded",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "showingRange": "Showing {{shown}} of {{total}} albums",
+    "filteringByTag": "Filtering by tag:"
   },
   "search": {
     "title": "Search",

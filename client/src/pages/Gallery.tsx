@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import AlbumCard from "@/components/AlbumCard";
 import SeoHead from "@/components/SeoHead";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,37 +16,82 @@ import { useTranslation } from "react-i18next";
 import { Tag, X } from "lucide-react";
 
 const LIMIT = 20;
+const AUTO_PAGES = 2;
+
+type SortBy = "newest" | "oldest" | "popular";
+
+function parseGalleryParams(searchStr: string) {
+  const raw = searchStr.startsWith("?") ? searchStr.slice(1) : searchStr;
+  const params = new URLSearchParams(raw);
+  const sortRaw = params.get("sort");
+  const sort: SortBy =
+    sortRaw === "popular" || sortRaw === "oldest" || sortRaw === "newest"
+      ? sortRaw
+      : "newest";
+  return {
+    sort,
+    vip: params.get("vip") === "true",
+    category: params.get("category") || "",
+    tag: params.get("tag") || undefined,
+  };
+}
+
+function buildGalleryPath(opts: {
+  sort: SortBy;
+  vip: boolean;
+  category: string;
+  tag?: string;
+}) {
+  const p = new URLSearchParams();
+  if (opts.sort !== "newest") p.set("sort", opts.sort);
+  if (opts.vip) p.set("vip", "true");
+  if (opts.category) p.set("category", opts.category);
+  if (opts.tag) p.set("tag", opts.tag);
+  const qs = p.toString();
+  return qs ? `/gallery?${qs}` : "/gallery";
+}
 
 export default function Gallery() {
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
   const searchStr = useSearch();
   const { t } = useTranslation();
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "popular">("newest");
-  const [filterVip, setFilterVip] = useState<boolean | undefined>(undefined);
+  const parsed = useMemo(() => parseGalleryParams(searchStr), [searchStr]);
+  const sortBy = parsed.sort;
+  const filterVip = parsed.vip ? true : undefined;
+  const categorySlug = parsed.category;
+  const tagSlug = parsed.tag;
+
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [allAlbums, setAllAlbums] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const loaderRef = useRef<HTMLDivElement>(null);
 
-  // Read ?tag= from URL
-  const tagSlug = new URLSearchParams(searchStr).get("tag") || undefined;
-
-  // Detect filter/query params that should be noindex
-  const searchParams = new URLSearchParams(searchStr);
-  const hasFilterParams = searchParams.has("page") || searchParams.has("sort") ||
-    searchParams.has("search") || searchParams.has("creator") ||
-    (searchParams.has("tag") && !!tagSlug); // tag= is noindex (canonical /tag/[slug] handles indexing)
+  const hasFilterParams =
+    parsed.sort !== "newest" ||
+    parsed.vip ||
+    !!parsed.category ||
+    !!tagSlug;
   const origin = typeof window !== "undefined" ? window.location.origin : "https://yukvix.com";
 
   const { data: categories } = trpc.albums.categories.useQuery();
 
+  useEffect(() => {
+    if (categories && categorySlug) {
+      setCategoryId(categories.find((c) => c.slug === categorySlug)?.id);
+    } else {
+      setCategoryId(undefined);
+    }
+  }, [categories, categorySlug]);
+
   const { data, isFetching } = trpc.albums.list.useQuery(
     { page, limit: LIMIT, sortBy, isVip: filterVip, categoryId, tagSlug },
-    { placeholderData: (prev: any) => prev }
+    {
+      placeholderData: (prev: any) => prev,
+      enabled: !categorySlug || categories !== undefined,
+    }
   );
 
-  // Append new page results
   useEffect(() => {
     if (data) {
       if (page === 1) {
@@ -62,19 +107,19 @@ export default function Gallery() {
     }
   }, [data, page]);
 
-  // Reset on filter change
   useEffect(() => {
     setPage(1);
     setAllAlbums([]);
     setHasMore(true);
   }, [sortBy, filterVip, categoryId, tagSlug]);
 
-  // Infinite scroll via IntersectionObserver
+  const canAutoLoad = page < AUTO_PAGES && hasMore && !isFetching;
+
   useEffect(() => {
-    if (!loaderRef.current) return;
+    if (!loaderRef.current || !canAutoLoad) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isFetching) {
+        if (entries[0].isIntersecting && canAutoLoad) {
           setPage((p) => p + 1);
         }
       },
@@ -82,7 +127,27 @@ export default function Gallery() {
     );
     observer.observe(loaderRef.current);
     return () => observer.disconnect();
-  }, [hasMore, isFetching]);
+  }, [canAutoLoad]);
+
+  const updateFilters = (next: {
+    sort?: SortBy;
+    vip?: boolean;
+    category?: string;
+    tag?: string | undefined;
+  }) => {
+    navigate(
+      buildGalleryPath({
+        sort: next.sort ?? sortBy,
+        vip: next.vip ?? parsed.vip,
+        category: next.category ?? categorySlug,
+        tag: "tag" in next ? next.tag : tagSlug,
+      }),
+      { replace: true }
+    );
+  };
+
+  const total = data?.total ?? 0;
+  const showLoadMore = hasMore && page >= AUTO_PAGES;
 
   return (
     <div className="min-h-screen py-8">
@@ -94,7 +159,6 @@ export default function Gallery() {
         noIndex={hasFilterParams}
       />
       <div className="container">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1
@@ -104,14 +168,12 @@ export default function Gallery() {
               {t("gallery.title")}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {data ? t("gallery.albumCount", { count: data.total.toLocaleString() }) : t("common.loading")}
+              {data ? t("gallery.albumCount", { count: total.toLocaleString() }) : t("common.loading")}
             </p>
           </div>
 
-          {/* Filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Sort */}
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+            <Select value={sortBy} onValueChange={(v) => updateFilters({ sort: v as SortBy })}>
               <SelectTrigger className="h-9 w-[140px] bg-secondary border-border">
                 <SelectValue />
               </SelectTrigger>
@@ -122,11 +184,10 @@ export default function Gallery() {
               </SelectContent>
             </Select>
 
-            {/* VIP filter */}
             <button
-              onClick={() => setFilterVip(filterVip === true ? undefined : true)}
+              onClick={() => updateFilters({ vip: !parsed.vip })}
               className={`flex items-center gap-1.5 h-9 px-3 rounded-lg border text-sm transition-all ${
-                filterVip === true
+                parsed.vip
                   ? "bg-primary/20 border-primary/50 text-primary"
                   : "bg-secondary border-border text-muted-foreground hover:text-foreground"
               }`}
@@ -137,15 +198,14 @@ export default function Gallery() {
           </div>
         </div>
 
-        {/* Active tag filter badge */}
         {tagSlug && (
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-sm text-muted-foreground">Đang lọc theo tag:</span>
+            <span className="text-sm text-muted-foreground">{t("gallery.filteringByTag")}</span>
             <span className="flex items-center gap-1.5 bg-primary/10 border border-primary/30 text-primary text-sm px-3 py-1 rounded-full">
               <Tag className="w-3.5 h-3.5" />
               {tagSlug}
               <button
-                onClick={() => setLocation("/gallery")}
+                onClick={() => updateFilters({ tag: undefined })}
                 className="ml-1 hover:text-primary/70 transition-colors"
                 aria-label="Xóa filter tag"
               >
@@ -155,13 +215,12 @@ export default function Gallery() {
           </div>
         )}
 
-        {/* Category tabs */}
         {categories && categories.length > 0 && (
           <div className="flex gap-2 flex-wrap mb-6">
             <button
-              onClick={() => setCategoryId(undefined)}
+              onClick={() => updateFilters({ category: "" })}
               className={`px-4 py-1.5 rounded-full text-sm border transition-all ${
-                !categoryId
+                !categorySlug
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-secondary border-border text-muted-foreground hover:text-foreground"
               }`}
@@ -171,9 +230,11 @@ export default function Gallery() {
             {categories.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => setCategoryId(categoryId === cat.id ? undefined : cat.id)}
+                onClick={() =>
+                  updateFilters({ category: categorySlug === cat.slug ? "" : cat.slug })
+                }
                 className={`px-4 py-1.5 rounded-full text-sm border transition-all ${
-                  categoryId === cat.id
+                  categorySlug === cat.slug
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-secondary border-border text-muted-foreground hover:text-foreground"
                 }`}
@@ -184,7 +245,6 @@ export default function Gallery() {
           </div>
         )}
 
-        {/* Masonry Grid */}
         {allAlbums.length > 0 ? (
           <div className="masonry-grid">
             {allAlbums.map((album, i) => (
@@ -203,7 +263,6 @@ export default function Gallery() {
           </div>
         ) : null}
 
-        {/* Loading skeletons for first load */}
         {isFetching && page === 1 && allAlbums.length === 0 && (
           <div className="masonry-grid">
             {Array.from({ length: 20 }).map((_, i) => (
@@ -217,10 +276,23 @@ export default function Gallery() {
           </div>
         )}
 
-        {/* Infinite scroll loader */}
-        <div ref={loaderRef} className="flex justify-center py-8">
+        <div ref={loaderRef} className="flex flex-col items-center gap-3 py-10">
+          {allAlbums.length > 0 && total > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {t("gallery.showingRange", { shown: allAlbums.length, total })}
+            </p>
+          )}
           {isFetching && page > 1 && (
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          )}
+          {showLoadMore && !isFetching && (
+            <Button
+              variant="outline"
+              onClick={() => setPage((p) => p + 1)}
+              className="border-border/50 px-6"
+            >
+              {t("gallery.loadMore")}
+            </Button>
           )}
           {!hasMore && allAlbums.length > 0 && (
             <p className="text-sm text-muted-foreground">{t("gallery.allLoaded")}</p>

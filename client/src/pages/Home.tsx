@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import AlbumCard from "@/components/AlbumCard";
 import SeoHead, { buildWebSiteSchema } from "@/components/SeoHead";
-import { ArrowRight, Crown, Hash, ImageIcon, Sparkles, Star, Users, Zap } from "lucide-react";
+import { ArrowRight, Crown, ImageIcon, Sparkles, Star, Users, Zap } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
@@ -93,7 +93,7 @@ export default function Home() {
 
   const { data: newAlbums } = trpc.albums.list.useQuery({
     page: 1,
-    limit: 8,
+    limit: 10,
     sortBy: "newest",
   });
 
@@ -110,7 +110,7 @@ export default function Home() {
     sortBy: "popular",
     minAlbums: 1,
     page: 1,
-    limit: 24,
+    limit: 16,
   });
   const trendingTagItems = trendingTags?.items ?? [];
 
@@ -169,7 +169,8 @@ export default function Home() {
             <h1
               className="text-4xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6"
               style={{ fontFamily: "'Playfair Display', serif", letterSpacing: "-0.03em" }}
-            >              {t("home.heroTitle1")}{" "}
+            >
+              {t("home.heroTitle1")}{" "}
               <span
                 style={{
                   background: "linear-gradient(135deg, oklch(0.90 0.12 80), oklch(0.72 0.18 50))",
@@ -180,7 +181,8 @@ export default function Home() {
               >
                 {t("home.heroTitle2")}
               </span>{" "}
-              {t("home.heroTitle3")}            </h1>
+              {t("home.heroTitle3")}
+            </h1>
 
             <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto leading-relaxed">
               {t("home.heroSubtitle")}
@@ -211,12 +213,14 @@ export default function Home() {
               )}
             </div>
 
-            {/* Stats - real numbers from DB */}
+            {/* Stats - real numbers from DB; hide tiny member counts */}
             <div className="flex items-center justify-center gap-8 mt-12 pt-8 border-t border-border/50">
               {[
-                { icon: <ImageIcon className="w-4 h-4" />, label: t("home.stats.photos"), value: siteStats ? (siteStats.totalPhotos >= 1000 ? `${(siteStats.totalPhotos / 1000).toFixed(0)}K+` : `${siteStats.totalPhotos}+`) : "10K+" },
-                { icon: <Star className="w-4 h-4" />, label: t("home.stats.albums"), value: siteStats ? `${siteStats.totalAlbums}+` : "500+" },
-                { icon: <Users className="w-4 h-4" />, label: t("home.stats.members"), value: siteStats ? (siteStats.totalUsers >= 1000 ? `${(siteStats.totalUsers / 1000).toFixed(1)}K+` : `${siteStats.totalUsers}+`) : "2K+" },
+                { icon: <ImageIcon className="w-4 h-4" />, label: t("home.stats.photos"), value: siteStats ? (siteStats.totalPhotos >= 1000 ? `${(siteStats.totalPhotos / 1000).toFixed(0)}K+` : `${siteStats.totalPhotos}+`) : "—" },
+                { icon: <Star className="w-4 h-4" />, label: t("home.stats.albums"), value: siteStats ? `${siteStats.totalAlbums}+` : "—" },
+                ...((siteStats?.totalUsers ?? 0) >= 100
+                  ? [{ icon: <Users className="w-4 h-4" />, label: t("home.stats.members"), value: siteStats!.totalUsers >= 1000 ? `${(siteStats!.totalUsers / 1000).toFixed(1)}K+` : `${siteStats!.totalUsers}+` }]
+                  : []),
               ].map(({ icon, label, value }) => (
                 <div key={label} className="text-center">
                   <div className="flex items-center justify-center gap-1.5 text-primary mb-1">
@@ -231,13 +235,89 @@ export default function Home() {
         </div>
       </section>
 
+      {/* --- Latest Uploads -------------------------------------------- */}
+      <section className="py-12 border-t border-border/50">
+        <div className="container">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2
+                className="text-2xl md:text-3xl font-bold text-foreground"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                {t("home.latestUploads")}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">{t("home.latestUploadsSubtitle")}</p>
+            </div>
+            <Link href="/gallery" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1">
+              {t("home.viewAll")} <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {newAlbums ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {newAlbums.items.map((album) => (
+                <AlbumCard key={album.id} album={album} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="rounded-xl overflow-hidden">
+                  <div className="aspect-[3/4] skeleton rounded-xl" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* --- Featured Albums -------------------------------------------- */}
+      <section className="py-12">
+        <div className="container">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2
+                className="text-2xl md:text-3xl font-bold text-foreground"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                {t("home.mostPopular")}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">{t("home.mostPopularSubtitle")}</p>
+            </div>
+            <Link href="/gallery?sort=popular" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1">
+              {t("home.viewAll")} <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {featuredAlbums ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {featuredAlbums.items.map((album) => (
+                <AlbumCard key={album.id} album={album} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="rounded-xl overflow-hidden">
+                  <div className="aspect-[3/4] skeleton rounded-xl" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3 skeleton rounded w-3/4" />
+                    <div className="h-2 skeleton rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* --- Categories -------------------------------------------------------- */}
       {categories && categories.length > 0 && (
         <section className="py-12 border-t border-border/50">
           <div className="container">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-foreground">{t("home.browseByCategory")}</h2>
-              <Link href="/search" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1">
+              <Link href="/gallery" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1">
                 {t("home.viewAll")} <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -259,7 +339,7 @@ export default function Home() {
                 return (
                   <Link
                     key={cat.id}
-                    href={`/search?category=${cat.slug}`}
+                    href={`/gallery?category=${cat.slug}`}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-secondary border border-border/50 text-sm text-foreground hover:border-primary/50 hover:text-primary transition-all duration-200"
                   >
                     <span>{icon}</span>
@@ -384,46 +464,6 @@ export default function Home() {
         </section>
       )}
 
-      {/* --- Featured Albums -------------------------------------------- */}
-      <section className="py-12">
-        <div className="container">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2
-                className="text-2xl md:text-3xl font-bold text-foreground"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                  {t("home.mostPopular")}
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">{t("home.mostPopularSubtitle")}</p>
-              </div>
-              <Link href="/gallery?sort=popular" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1">
-                {t("home.viewAll")} <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {featuredAlbums ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {featuredAlbums.items.map((album) => (
-                <AlbumCard key={album.id} album={album} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden">
-                  <div className="aspect-[3/4] skeleton rounded-xl" />
-                  <div className="p-3 space-y-2">
-                    <div className="h-3 skeleton rounded w-3/4" />
-                    <div className="h-2 skeleton rounded w-1/2" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* --- VIP Banner -------------------------------------------------------- */}
       {!isVip && (
         <section className="py-12">
@@ -489,42 +529,6 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      {/* --- New Albums -------------------------------------------------------- */}
-      <section className="py-12 border-t border-border/50">
-        <div className="container">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2
-                className="text-2xl md:text-3xl font-bold text-foreground"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                {t("home.latestUploads")}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">{t("home.latestUploadsSubtitle")}</p>
-            </div>
-            <Link href="/gallery" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1">
-              {t("home.viewAll")} <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {newAlbums ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {newAlbums.items.map((album) => (
-                <AlbumCard key={album.id} album={album} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden">
-                  <div className="aspect-[3/4] skeleton rounded-xl" />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
     </div>
   );
 }

@@ -206,6 +206,8 @@
     "noAlbums": "Không tìm thấy album",
     "allLoaded": "Đã tải tất cả album",
     "loadMore": "Tải thêm",
+    "showingRange": "Đã hiện {{shown}} / {{total}} album",
+    "filteringByTag": "Đang lọc theo tag:",
     "loading": "Đang tải..."
   },
   "search": {

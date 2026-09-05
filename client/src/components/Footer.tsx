@@ -102,10 +102,10 @@ export default function Footer() {
             <ul className="space-y-2">
               {[
                 { href: "/gallery", label: t("footer.allAlbums") },
-                { href: "/search?category=anime", label: t("footer.anime") },
-                { href: "/search?category=game", label: t("footer.games") },
-                { href: "/search?category=movie", label: t("footer.movies") },
-                { href: "/search?vip=true", label: t("footer.vipExclusive") },
+                { href: "/gallery?category=anime", label: t("footer.anime") },
+                { href: "/gallery?category=game", label: t("footer.games") },
+                { href: "/gallery?category=movie", label: t("footer.movies") },
+                { href: "/gallery?vip=true", label: t("footer.vipExclusive") },
               ].map(({ href, label }) => (
                 <li key={href}>
                   <Link href={href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
