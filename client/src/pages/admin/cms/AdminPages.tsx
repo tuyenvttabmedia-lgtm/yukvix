@@ -408,7 +408,7 @@ function PageEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
             </Label>
             {preview ? (
               <div
-                className="min-h-[400px] bg-background border border-border rounded-lg p-6 prose prose-invert max-w-none text-foreground"
+                className="cms-prose min-h-[400px] bg-background border border-border rounded-lg px-6 py-8 max-w-none"
                 dangerouslySetInnerHTML={{ __html: currentContent }}
               />
             ) : (

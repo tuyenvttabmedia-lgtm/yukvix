@@ -118,16 +118,7 @@ export default function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "prose prose-invert max-w-none focus:outline-none",
-          "prose-headings:text-foreground prose-headings:font-bold",
-          "prose-p:text-foreground prose-p:leading-relaxed",
-          "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
-          "prose-strong:text-foreground",
-          "prose-ul:text-foreground prose-ol:text-foreground",
-          "prose-li:marker:text-primary",
-          "prose-blockquote:border-primary prose-blockquote:text-muted-foreground",
-          "prose-code:text-primary prose-code:bg-muted prose-code:px-1 prose-code:rounded",
-          "px-4 py-3"
+          "cms-prose max-w-none focus:outline-none text-foreground"
         ),
         style: `min-height: ${minHeight}`,
       },
@@ -324,7 +315,7 @@ export default function RichTextEditor({
       </div>
 
       {/* Editor content */}
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} className="cms-prose-host" />
     </div>
   );
 }

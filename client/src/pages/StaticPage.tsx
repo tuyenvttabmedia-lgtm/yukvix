@@ -151,7 +151,7 @@ export default function StaticPage({ slug }: Props) {
 
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-10">
-          <div className="flex gap-10">
+          <div className="flex gap-12">
             {/* Sidebar TOC */}
             {toc.length > 0 && (
               <aside className="hidden lg:block w-64 shrink-0">
@@ -159,13 +159,13 @@ export default function StaticPage({ slug }: Props) {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                     {t("staticPage.onThisPage", "Trên trang này")}
                   </p>
-                  <nav className="space-y-0.5">
+                  <nav className="space-y-1">
                     {toc.map((item) => (
                       <button
                         key={item.id}
                         onClick={() => scrollToSection(item.id)}
                         className={cn(
-                          "block w-full text-left text-sm py-1.5 px-3 rounded-md transition-colors",
+                          "block w-full text-left text-sm py-2 px-3 rounded-md transition-colors leading-snug",
                           item.level === 3 && "pl-6",
                           activeId === item.id
                             ? "bg-primary/10 text-primary font-medium"
@@ -184,18 +184,7 @@ export default function StaticPage({ slug }: Props) {
             <div className="flex-1 min-w-0">
               <div
                 ref={contentRef}
-                className="prose prose-invert max-w-none
-                  prose-headings:text-foreground prose-headings:font-bold
-                  prose-p:text-muted-foreground prose-p:leading-relaxed
-                  prose-a:text-primary prose-a:no-underline hover:prose-a:underline
-                  prose-strong:text-foreground
-                  prose-ul:text-muted-foreground prose-ol:text-muted-foreground
-                  prose-li:marker:text-primary
-                  prose-h1:text-3xl prose-h2:text-xl prose-h3:text-lg
-                  prose-h1:mb-6 prose-h2:mt-10 prose-h2:mb-4 prose-h2:pt-4
-                  prose-h2:border-t prose-h2:border-border/50
-                  prose-blockquote:border-primary prose-blockquote:text-muted-foreground
-                  prose-code:text-primary prose-code:bg-muted prose-code:px-1 prose-code:rounded"
+                className="cms-prose max-w-none"
                 dangerouslySetInnerHTML={{ __html: processedContent }}
               />
 
