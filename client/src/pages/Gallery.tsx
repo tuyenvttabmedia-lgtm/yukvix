@@ -15,7 +15,7 @@ import { useLocation, useSearch } from "wouter";
 import { useTranslation } from "react-i18next";
 import { Tag, X } from "lucide-react";
 
-const LIMIT = 24;
+const LIMIT = 25;
 
 type SortBy = "newest" | "oldest" | "popular";
 
@@ -223,12 +223,12 @@ export default function Gallery() {
         )}
 
         {allAlbums.length > 0 ? (
-          <div className="masonry-grid">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {allAlbums.map((album, i) => (
               <div
                 key={album.id}
-                className="masonry-item animate-fade-in"
-                style={{ animationDelay: `${(i % 20) * 30}ms` }}
+                className="animate-fade-in"
+                style={{ animationDelay: `${(i % LIMIT) * 20}ms` }}
               >
                 <AlbumCard album={album} />
               </div>
@@ -241,13 +241,10 @@ export default function Gallery() {
         ) : null}
 
         {isFetching && page === 1 && allAlbums.length === 0 && (
-          <div className="masonry-grid">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="masonry-item">
-                <div
-                  className="skeleton rounded-xl"
-                  style={{ height: `${200 + (i % 3) * 80}px` }}
-                />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {Array.from({ length: LIMIT }).map((_, i) => (
+              <div key={i} className="rounded-xl overflow-hidden">
+                <div className="aspect-[3/4] skeleton rounded-xl" />
               </div>
             ))}
           </div>
