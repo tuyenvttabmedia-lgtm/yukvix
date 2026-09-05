@@ -159,7 +159,17 @@ export async function listUsers(
 export async function listCategories() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(categories).orderBy(categories.name);
+  const rows = await db.select().from(categories).orderBy(categories.sortOrder, categories.name);
+  const counts = await db
+    .select({
+      categoryId: albums.categoryId,
+      albumCount: sql<number>`count(*)`,
+    })
+    .from(albums)
+    .where(eq(albums.status, "published"))
+    .groupBy(albums.categoryId);
+  const countMap = new Map(counts.map((c) => [c.categoryId, Number(c.albumCount)]));
+  return rows.map((row) => ({ ...row, albumCount: countMap.get(row.id) ?? 0 }));
 }
 
 export async function createCategory(data: { name: string; slug: string; description?: string }) {
@@ -1319,8 +1329,18 @@ export async function listCreators(opts: { page?: number; limit?: number; search
   const { page = 1, limit = 20, search, sortBy = "name", hasAlbums, publicOnly } = opts;
   const offset = (page - 1) * limit;
   const conditions: any[] = [];
-  if (search) conditions.push(or(like(creators.name, `%${search}%`), like(creators.bio ?? sql`''`, `%${search}%`))!);
-  if (hasAlbums || publicOnly) conditions.push(sql`${publishedAlbumCountSql} > 0`);
+  if (search) {
+    const pattern = `%${search}%`;
+    conditions.push(
+      or(
+        like(creators.name, pattern),
+        like(creators.slug, pattern),
+        like(creators.bio ?? sql`''`, pattern)
+      )!
+    );
+  }
+  if (hasAlbums === true || publicOnly) conditions.push(sql`${publishedAlbumCountSql} > 0`);
+  else if (hasAlbums === false) conditions.push(sql`${publishedAlbumCountSql} = 0`);
   if (publicOnly) {
     conditions.push(sql`${creators.avatarUrl} IS NOT NULL AND ${creators.avatarUrl} != ''`);
   }

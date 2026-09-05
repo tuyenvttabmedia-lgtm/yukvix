@@ -82,7 +82,13 @@ export const creatorsRouter = router({
 
   // --- Admin: list all creators -----------------------------------------------
   adminList: protectedProcedure
-    .input(z.object({ page: z.number().min(1).default(1), limit: z.number().min(1).max(500).default(20), search: z.string().optional() }).optional())
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      limit: z.number().min(1).max(500).default(20),
+      search: z.string().optional(),
+      sortBy: z.enum(["name", "albumCount", "newest"]).optional(),
+      hasAlbums: z.boolean().optional(),
+    }).optional())
     .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       return listCreators(input ?? {});

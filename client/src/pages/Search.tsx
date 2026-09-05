@@ -5,8 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Loader2, Search as SearchIcon, X } from "lucide-react";
 import { useLocation, useSearch } from "wouter";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 
-const LIMIT = 20;
+const LIMIT = 25;
 const SEARCH_DEBOUNCE_MS = 350;
 
 function parseSearchString(searchStr: string) {
@@ -46,8 +47,6 @@ export default function Search() {
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [allAlbums, setAllAlbums] = useState<any[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const loaderRef = useRef<HTMLDivElement>(null);
   const lastUrlQ = useRef(urlQ);
 
   const { data: categories } = trpc.albums.categories.useQuery();
@@ -77,13 +76,13 @@ export default function Search() {
 
   const hasActiveSearch = !!(query.trim() || filterVip !== undefined || categoryId);
 
-  const { data, isFetching } = trpc.albums.list.useQuery(
+  const { data, isFetching, isPlaceholderData } = trpc.albums.list.useQuery(
     { page, limit: LIMIT, sortBy, isVip: filterVip, categoryId, search: query.trim() || undefined },
-    { enabled: hasActiveSearch }
+    { enabled: hasActiveSearch, placeholderData: (prev: any) => prev }
   );
 
   useEffect(() => {
-    if (!data) return;
+    if (!data?.items || isPlaceholderData) return;
     if (page === 1) {
       setAllAlbums(data.items);
     } else {
@@ -92,28 +91,12 @@ export default function Search() {
         return [...prev, ...data.items.filter((a) => !ids.has(a.id))];
       });
     }
-    setHasMore(data.items.length === LIMIT);
-  }, [data, page]);
+  }, [data, page, isPlaceholderData]);
 
   useEffect(() => {
     setPage(1);
     setAllAlbums([]);
-    setHasMore(true);
   }, [query, sortBy, filterVip, categoryId]);
-
-  useEffect(() => {
-    if (!loaderRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isFetching) {
-          setPage((p) => p + 1);
-        }
-      },
-      { threshold: 0.1, rootMargin: "200px" }
-    );
-    observer.observe(loaderRef.current);
-    return () => observer.disconnect();
-  }, [hasMore, isFetching]);
 
   const go = (q: string, vip: boolean, category: string, replace = true) => {
     const href = buildSearchPath(q, vip, category);
@@ -142,6 +125,11 @@ export default function Search() {
     : `${origin}/search`;
 
   const selectedCategory = categories?.find((c) => c.slug === categorySlug);
+  const total = data?.total ?? 0;
+  const hasMore = allAlbums.length > 0 && allAlbums.length < total;
+  const visibleCategories = (categories ?? []).filter(
+    (c) => c.slug === categorySlug || ((c as { albumCount?: number }).albumCount ?? 1) > 0
+  );
   const seoTitle = isCategoryLanding && selectedCategory
     ? `${selectedCategory.name} Cosplay Gallery`
     : "Search Cosplay Albums";
@@ -223,7 +211,7 @@ export default function Search() {
             {t("gallery.vipOnly")}
           </button>
 
-          {categories?.map((cat) => (
+          {visibleCategories.map((cat) => (
             <button
               type="button"
               key={cat.id}
@@ -284,9 +272,23 @@ export default function Search() {
           </div>
         )}
 
-        <div ref={loaderRef} className="flex justify-center py-8">
+        <div className="flex flex-col items-center gap-3 py-8">
+          {allAlbums.length > 0 && total > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {t("gallery.showingRange", { shown: allAlbums.length, total })}
+            </p>
+          )}
           {isFetching && page > 1 && <Loader2 className="w-6 h-6 text-primary animate-spin" />}
-          {!hasMore && allAlbums.length > 0 && (
+          {hasMore && !isFetching && (
+            <Button
+              variant="outline"
+              onClick={() => setPage((p) => p + 1)}
+              className="border-border/50 px-8"
+            >
+              {t("gallery.loadMore")}
+            </Button>
+          )}
+          {!hasMore && allAlbums.length > 0 && !isFetching && (
             <p className="text-sm text-muted-foreground">{t("gallery.allLoaded")}</p>
           )}
         </div>

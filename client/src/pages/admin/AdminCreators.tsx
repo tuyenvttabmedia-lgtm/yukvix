@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { Users, Pencil, Trash2, Plus, Upload, User, ChevronRight, Sparkles, Loader2, Wand2, ImageIcon } from "lucide-react";
 
@@ -36,10 +36,15 @@ type Creator = {
 };
 
 const EMPTY_FORM = { name: "", slug: "", bio: "", seoTitle: "", seoDescription: "", seoKeywords: "", focusKeyword: "", canonicalUrl: "", ogImage: "", robotsIndex: true, seoLanguage: "en", twitter: "", instagram: "", website: "" };
+const PAGE_SIZE = 30;
 
 export default function AdminCreators() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [albumFilter, setAlbumFilter] = useState<"all" | "with" | "without">("all");
+  const [sortBy, setSortBy] = useState<"name" | "albumCount" | "newest">("albumCount");
   const [editCreator, setEditCreator] = useState<Creator | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -48,8 +53,31 @@ export default function AdminCreators() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
-  const { data, isLoading } = trpc.creators.adminList.useQuery({ page: 1, limit: 100 });
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, albumFilter, sortBy]);
+
+  const { data, isLoading } = trpc.creators.adminList.useQuery({
+    page,
+    limit: PAGE_SIZE,
+    search: debouncedSearch || undefined,
+    sortBy,
+    hasAlbums: albumFilter === "all" ? undefined : albumFilter === "with",
+  });
   const creators: Creator[] = (data?.items ?? []) as Creator[];
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  const hasFilters = !!(debouncedSearch || albumFilter !== "all" || sortBy !== "albumCount");
+
+  useEffect(() => {
+    if (!data) return;
+    const lastPage = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
+    if (page > lastPage) setPage(lastPage);
+  }, [data, page]);
 
   const createMutation = trpc.creators.adminCreate.useMutation({
     onSuccess: () => { utils.creators.adminList.invalidate(); setShowCreate(false); setForm(EMPTY_FORM); toast.success("Tạo cosplayer thành công"); },
@@ -154,11 +182,6 @@ export default function AdminCreators() {
     }
   }
 
-  const filtered = creators.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.slug.toLowerCase().includes(search.toLowerCase())
-  );
-
   function openEdit(creator: Creator) {
     setEditCreator(creator);
     const social = (() => { try { return creator.socialLinks ? JSON.parse(creator.socialLinks) : {}; } catch { return {}; } })();
@@ -198,7 +221,7 @@ export default function AdminCreators() {
         header={{
           icon: Users,
           title: "Quản lý cosplayer",
-          subtitle: isLoading ? adminGlossary.loading.page : `${creators.length} cosplayer`,
+          subtitle: isLoading ? adminGlossary.loading.page : `${data?.total ?? 0} cosplayer`,
           actions: (
             <Button onClick={() => { setShowCreate(true); setForm(EMPTY_FORM); }} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
               <Plus className="w-4 h-4" /> {adminGlossary.action.createCreator}
@@ -212,19 +235,57 @@ export default function AdminCreators() {
               onChange: setSearch,
               placeholder: "Tìm cosplayer theo tên hoặc slug...",
             }}
+            filters={
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex gap-1 p-1 bg-secondary/30 rounded-xl">
+                  {([
+                    { id: "all", label: "Tất cả" },
+                    { id: "with", label: "Có album" },
+                    { id: "without", label: "Chưa có album" },
+                  ] as const).map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setAlbumFilter(s.id)}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                        albumFilter === s.id
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="px-3 py-1 rounded-xl text-xs bg-secondary/30 border-0 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value="albumCount">Nhiều album</option>
+                  <option value="name">Tên A–Z</option>
+                  <option value="newest">Mới nhất</option>
+                </select>
+              </div>
+            }
           />
         }
-        isEmpty={!isLoading && filtered.length === 0}
+        pagination={
+          data && data.total > 0
+            ? { page, totalPages, total: data.total, onPageChange: setPage, itemLabel: "cosplayer" }
+            : undefined
+        }
+        isEmpty={!isLoading && creators.length === 0}
         emptyState={{
           icon: Users,
-          title: search ? adminGlossary.empty.search : "Chưa có cosplayer nào",
-          action: !search
+          title: hasFilters ? adminGlossary.empty.search : "Chưa có cosplayer nào",
+          action: !hasFilters
             ? { label: adminGlossary.action.createCreator, onClick: () => { setShowCreate(true); setForm(EMPTY_FORM); } }
             : undefined,
         }}
       >
         <EntityGrid
-          items={filtered}
+          items={creators}
           isLoading={isLoading}
           renderCard={(creator) => (
             <div className="border rounded-lg p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors">
@@ -286,7 +347,7 @@ export default function AdminCreators() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Hủy</Button>
               <Button onClick={() => createMutation.mutate({ name: form.name, slug: form.slug || undefined, bio: form.bio || undefined, socialLinks: buildSocialLinks(), seoTitle: form.seoTitle || undefined, seoDescription: form.seoDescription || undefined, seoKeywords: form.seoKeywords || undefined, focusKeyword: form.focusKeyword || undefined, canonicalUrl: form.canonicalUrl || undefined, ogImage: form.ogImage || undefined, robotsIndex: form.robotsIndex, seoLanguage: form.seoLanguage || undefined })} disabled={!form.name || createMutation.isPending}>
-                {createMutation.isPending ? "Đang tạo..." : "Create"}
+                {createMutation.isPending ? "Đang tạo..." : "Tạo"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -410,7 +471,7 @@ export default function AdminCreators() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditCreator(null)}>Hủy</Button>
               <Button onClick={() => editCreator && updateMutation.mutate({ id: editCreator.id, name: form.name, slug: form.slug || undefined, bio: form.bio || undefined, socialLinks: buildSocialLinks(), seoTitle: form.seoTitle || undefined, seoDescription: form.seoDescription || undefined, seoKeywords: form.seoKeywords || undefined, focusKeyword: form.focusKeyword || undefined, canonicalUrl: form.canonicalUrl || undefined, ogImage: form.ogImage || undefined, robotsIndex: form.robotsIndex, seoLanguage: form.seoLanguage || undefined })} disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? "Đang lưu..." : "Save"}
+                {updateMutation.isPending ? "Đang lưu..." : "Lưu"}
               </Button>
             </DialogFooter>
           </DialogContent>

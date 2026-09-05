@@ -98,6 +98,9 @@ export default function Home() {
   });
 
   const { data: categories } = trpc.albums.categories.useQuery();
+  const browseCategories = (categories ?? []).filter(
+    (c) => ((c as { albumCount?: number }).albumCount ?? 1) > 0
+  );
 
   const { data: popularCreators } = trpc.creators.list.useQuery({
     page: 1,
@@ -335,7 +338,7 @@ export default function Home() {
       </section>
 
       {/* --- Categories -------------------------------------------------------- */}
-      {categories && categories.length > 0 && (
+      {browseCategories.length > 0 && (
         <section className="scroll-mt-24 py-12 border-t border-border/50">
           <div className="container">
             <div className="flex items-center justify-between mb-6">
@@ -353,7 +356,7 @@ export default function Home() {
               </Link>
             </div>
             <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
+              {browseCategories.map((cat) => (
                 <Link
                   key={cat.id}
                   href={`/gallery?category=${cat.slug}`}

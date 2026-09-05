@@ -204,7 +204,9 @@ export default function Gallery() {
             >
               {t("common.all")}
             </button>
-            {categories.map((cat) => (
+            {categories
+              .filter((c) => c.slug === categorySlug || ((c as { albumCount?: number }).albumCount ?? 1) > 0)
+              .map((cat) => (
               <button
                 key={cat.id}
                 onClick={() =>
