@@ -214,29 +214,52 @@ export default function Home() {
             </div>
 
             {/* Stats - real numbers from DB; hide tiny member counts */}
-            <div className="flex items-center justify-center gap-8 mt-12 pt-8 border-t border-border/50">
-              {[
-                { icon: <ImageIcon className="w-4 h-4" />, label: t("home.stats.photos"), value: siteStats ? (siteStats.totalPhotos >= 1000 ? `${(siteStats.totalPhotos / 1000).toFixed(0)}K+` : `${siteStats.totalPhotos}+`) : "—" },
-                { icon: <Star className="w-4 h-4" />, label: t("home.stats.albums"), value: siteStats ? `${siteStats.totalAlbums}+` : "—" },
-                ...((siteStats?.totalUsers ?? 0) >= 100
-                  ? [{ icon: <Users className="w-4 h-4" />, label: t("home.stats.members"), value: siteStats!.totalUsers >= 1000 ? `${(siteStats!.totalUsers / 1000).toFixed(1)}K+` : `${siteStats!.totalUsers}+` }]
-                  : []),
-              ].map(({ icon, label, value }) => (
-                <div key={label} className="text-center">
-                  <div className="flex items-center justify-center gap-1.5 text-primary mb-1">
-                    {icon}
-                    <span className="text-xl font-bold text-foreground">{value}</span>
+            <div className="flex items-center justify-center gap-8 mt-12 pt-8 border-t border-border/50 min-h-[4.75rem]">
+              {siteStats ? (
+                [
+                  {
+                    icon: <ImageIcon className="w-4 h-4" />,
+                    label: t("home.stats.photos"),
+                    value:
+                      siteStats.totalPhotos >= 1000
+                        ? `${(siteStats.totalPhotos / 1000).toFixed(0)}K+`
+                        : `${siteStats.totalPhotos}+`,
+                  },
+                  { icon: <Star className="w-4 h-4" />, label: t("home.stats.albums"), value: `${siteStats.totalAlbums}+` },
+                  ...((siteStats.totalUsers ?? 0) >= 100
+                    ? [
+                        {
+                          icon: <Users className="w-4 h-4" />,
+                          label: t("home.stats.members"),
+                          value:
+                            siteStats.totalUsers >= 1000
+                              ? `${(siteStats.totalUsers / 1000).toFixed(1)}K+`
+                              : `${siteStats.totalUsers}+`,
+                        },
+                      ]
+                    : []),
+                ].map(({ icon, label, value }) => (
+                  <div key={label} className="text-center">
+                    <div className="flex items-center justify-center gap-1.5 text-primary mb-1">
+                      {icon}
+                      <span className="text-xl font-bold text-foreground">{value}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{label}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{label}</span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <>
+                  <div className="h-10 w-20 skeleton rounded" />
+                  <div className="h-10 w-20 skeleton rounded" />
+                </>
+              )}
             </div>
           </div>
         </div>
       </section>
 
       {/* --- Latest Uploads -------------------------------------------- */}
-      <section className="py-12 border-t border-border/50">
+      <section className="scroll-mt-24 py-12 border-t border-border/50">
         <div className="container">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -272,7 +295,7 @@ export default function Home() {
       </section>
 
       {/* --- Featured Albums -------------------------------------------- */}
-      <section className="py-12">
+      <section className="scroll-mt-24 py-12">
         <div className="container">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -313,40 +336,32 @@ export default function Home() {
 
       {/* --- Categories -------------------------------------------------------- */}
       {categories && categories.length > 0 && (
-        <section className="py-12 border-t border-border/50">
+        <section className="scroll-mt-24 py-12 border-t border-border/50">
           <div className="container">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-foreground">{t("home.browseByCategory")}</h2>
+              <div>
+                <h2
+                  className="text-2xl md:text-3xl font-bold text-foreground"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  {t("home.browseByCategory")}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">{t("home.browseByCategorySubtitle")}</p>
+              </div>
               <Link href="/gallery" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1">
                 {t("home.viewAll")} <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
             <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => {
-                // Map category names to emoji icons
-                const catIcons: Record<string, string> = {
-                  anime: '🌟', manga: '📚', game: '🎮', games: '🎮',
-                  korea: '🇰🇷', kpop: '🇰🇷', cosplay: '🎭',
-                  fantasy: '✨', sci: '🚀', scifi: '🚀', maid: '🌸',
-                  swimsuit: '👙', lingerie: '👗', bunny: '🐰',
-                  school: '🎓', nurse: '⚕️', police: '👮',
-                  halloween: '🎃', christmas: '🎄', military: '🎯',
-                  chinese: '🇨🇳', japanese: '🇯🇵', western: '🤠',
-                  superhero: '🦸', villain: '😈', magic: '🪄',
-                };
-                const key = cat.name.toLowerCase().replace(/[^a-z]/g, '');
-                const icon = Object.entries(catIcons).find(([k]) => key.includes(k))?.[1] || '📸';
-                return (
-                  <Link
-                    key={cat.id}
-                    href={`/gallery?category=${cat.slug}`}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-secondary border border-border/50 text-sm text-foreground hover:border-primary/50 hover:text-primary transition-all duration-200"
-                  >
-                    <span>{icon}</span>
-                    {cat.name}
-                  </Link>
-                );
-              })}
+              {categories.map((cat) => (
+                <Link
+                  key={cat.id}
+                  href={`/gallery?category=${cat.slug}`}
+                  className="px-4 py-2 rounded-full bg-secondary border border-border/50 text-sm text-foreground hover:border-primary/50 hover:text-primary transition-all duration-200"
+                >
+                  {cat.name}
+                </Link>
+              ))}
             </div>
           </div>
         </section>
@@ -354,7 +369,7 @@ export default function Home() {
 
       {/* --- Popular Creators ------------------------------------------ */}
       {popularCreators && popularCreators.items.length > 0 && (
-        <section className="py-12 border-t border-border/50">
+        <section className="scroll-mt-24 py-12 border-t border-border/50">
           <div className="container">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -400,7 +415,9 @@ export default function Home() {
                       {creator.name}
                     </p>
                     {creator.albumCount > 0 && (
-                      <p className="text-xs text-muted-foreground/60">{creator.albumCount} albums</p>
+                      <p className="text-xs text-muted-foreground/60">
+                        {creator.albumCount} {t("home.albums")}
+                      </p>
                     )}
                   </div>
                 </Link>
@@ -412,7 +429,7 @@ export default function Home() {
 
       {/* --- Trending Tags --------------------------------------------- */}
       {trendingTagItems.length > 0 && (
-        <section className="py-12 border-t border-border/50">
+        <section className="scroll-mt-24 py-12 border-t border-border/50">
           <div className="container">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -452,7 +469,9 @@ export default function Home() {
                       <div className="absolute bottom-0 left-0 right-0 p-2">
                         <p className="font-semibold text-white text-xs line-clamp-1">{tag.name}</p>
                         {tag.albumCount > 0 && (
-                          <p className="text-[10px] text-white/50">{tag.albumCount}</p>
+                          <p className="text-[10px] text-white/50">
+                            {tag.albumCount} {t("home.albums")}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -466,7 +485,7 @@ export default function Home() {
 
       {/* --- VIP Banner -------------------------------------------------------- */}
       {!isVip && (
-        <section className="py-12">
+        <section className="scroll-mt-24 py-12">
           <div className="container">
             <div
               className="relative overflow-hidden rounded-2xl p-8 md:p-12"

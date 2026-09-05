@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import AlbumCard from "@/components/AlbumCard";
 import SeoHead from "@/components/SeoHead";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Crown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +15,7 @@ import { useLocation, useSearch } from "wouter";
 import { useTranslation } from "react-i18next";
 import { Tag, X } from "lucide-react";
 
-const LIMIT = 20;
-const AUTO_PAGES = 2;
+const LIMIT = 24;
 
 type SortBy = "newest" | "oldest" | "popular";
 
@@ -64,8 +63,6 @@ export default function Gallery() {
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [allAlbums, setAllAlbums] = useState<any[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const loaderRef = useRef<HTMLDivElement>(null);
 
   const hasFilterParams =
     parsed.sort !== "newest" ||
@@ -84,7 +81,7 @@ export default function Gallery() {
     }
   }, [categories, categorySlug]);
 
-  const { data, isFetching } = trpc.albums.list.useQuery(
+  const { data, isFetching, isPlaceholderData } = trpc.albums.list.useQuery(
     { page, limit: LIMIT, sortBy, isVip: filterVip, categoryId, tagSlug },
     {
       placeholderData: (prev: any) => prev,
@@ -93,41 +90,21 @@ export default function Gallery() {
   );
 
   useEffect(() => {
-    if (data) {
-      if (page === 1) {
-        setAllAlbums(data.items);
-      } else {
-        setAllAlbums((prev) => {
-          const existingIds = new Set(prev.map((a) => a.id));
-          const newItems = data.items.filter((a) => !existingIds.has(a.id));
-          return [...prev, ...newItems];
-        });
-      }
-      setHasMore(data.items.length === LIMIT);
+    if (!data?.items || isPlaceholderData) return;
+    if (page === 1) {
+      setAllAlbums(data.items);
+    } else {
+      setAllAlbums((prev) => {
+        const existingIds = new Set(prev.map((a) => a.id));
+        return [...prev, ...data.items.filter((a) => !existingIds.has(a.id))];
+      });
     }
-  }, [data, page]);
+  }, [data, page, isPlaceholderData]);
 
   useEffect(() => {
     setPage(1);
     setAllAlbums([]);
-    setHasMore(true);
   }, [sortBy, filterVip, categoryId, tagSlug]);
-
-  const canAutoLoad = page < AUTO_PAGES && hasMore && !isFetching;
-
-  useEffect(() => {
-    if (!loaderRef.current || !canAutoLoad) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && canAutoLoad) {
-          setPage((p) => p + 1);
-        }
-      },
-      { threshold: 0.1, rootMargin: "200px" }
-    );
-    observer.observe(loaderRef.current);
-    return () => observer.disconnect();
-  }, [canAutoLoad]);
 
   const updateFilters = (next: {
     sort?: SortBy;
@@ -147,7 +124,7 @@ export default function Gallery() {
   };
 
   const total = data?.total ?? 0;
-  const showLoadMore = hasMore && page >= AUTO_PAGES;
+  const hasMore = allAlbums.length > 0 && allAlbums.length < total;
 
   return (
     <div className="min-h-screen py-8">
@@ -265,7 +242,7 @@ export default function Gallery() {
 
         {isFetching && page === 1 && allAlbums.length === 0 && (
           <div className="masonry-grid">
-            {Array.from({ length: 20 }).map((_, i) => (
+            {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="masonry-item">
                 <div
                   className="skeleton rounded-xl"
@@ -276,7 +253,7 @@ export default function Gallery() {
           </div>
         )}
 
-        <div ref={loaderRef} className="flex flex-col items-center gap-3 py-10">
+        <div className="flex flex-col items-center gap-3 py-10">
           {allAlbums.length > 0 && total > 0 && (
             <p className="text-sm text-muted-foreground">
               {t("gallery.showingRange", { shown: allAlbums.length, total })}
@@ -285,16 +262,16 @@ export default function Gallery() {
           {isFetching && page > 1 && (
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
           )}
-          {showLoadMore && !isFetching && (
+          {hasMore && !isFetching && (
             <Button
               variant="outline"
               onClick={() => setPage((p) => p + 1)}
-              className="border-border/50 px-6"
+              className="border-border/50 px-8"
             >
               {t("gallery.loadMore")}
             </Button>
           )}
-          {!hasMore && allAlbums.length > 0 && (
+          {!hasMore && allAlbums.length > 0 && !isFetching && (
             <p className="text-sm text-muted-foreground">{t("gallery.allLoaded")}</p>
           )}
         </div>
