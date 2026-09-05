@@ -15,7 +15,7 @@ import {
 } from "../services/tag-seo-bulk.js";
 
 import { callAi } from "../services/ai-provider";
-import { generateAlbumSeo, generateCreatorSeo } from "../services/album-seo";
+import { generateAlbumSeo, generateCreatorSeo, repairAlbumSeoTitles as runRepairAlbumSeoTitles } from "../services/album-seo";
 // ─── In-memory Bulk Job Store ─────────────────────────────────────────────────
 // Tracks one active bulk job at a time (albums or creators).
 // Resets on server restart — acceptable for admin-only background tasks.
@@ -557,6 +557,12 @@ export const seoRouter = router({
 
       return { success: true };
     }),
+
+  // --- Admin: rewrite SEO titles from original album names (no AI) ------------
+  repairAlbumSeoTitles: protectedProcedure.mutation(async ({ ctx }) => {
+    if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
+    return runRepairAlbumSeoTitles();
+  }),
 
   // --- Admin: get auto-bulk-seo schedule config --------------------------------
   getAutoSeoConfig: protectedProcedure.query(async ({ ctx }) => {

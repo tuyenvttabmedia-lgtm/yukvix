@@ -1,7 +1,12 @@
+import { eq } from "drizzle-orm";
+import { albums } from "../../drizzle/schema";
+import { getDb } from "../db";
 import { callAi } from "./ai-provider";
 import {
+  albumSeoTitleNeedsRepair,
   mergeAiAlbumSeo,
   mergeAiCreatorSeo,
+  naturalAlbumSeoTitle,
   type AlbumSeoContext,
   type AlbumSeoFields,
 } from "./seo-title";
@@ -120,4 +125,35 @@ Rules:
   } catch {
     return natural;
   }
+}
+
+/** Rewrite SEO titles from the original album name. Does not call AI or touch descriptions. */
+export async function repairAlbumSeoTitles(): Promise<{ total: number; updated: number; skipped: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const rows = await db
+    .select({
+      id: albums.id,
+      title: albums.title,
+      seoTitle: albums.seoTitle,
+      metaTitle: albums.metaTitle,
+    })
+    .from(albums);
+
+  let updated = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    if (!albumSeoTitleNeedsRepair(row)) {
+      skipped++;
+      continue;
+    }
+    const next = naturalAlbumSeoTitle(row.title);
+    await db
+      .update(albums)
+      .set({ seoTitle: next, metaTitle: next, updatedAt: new Date() })
+      .where(eq(albums.id, row.id));
+    updated++;
+  }
+  return { total: rows.length, updated, skipped };
 }

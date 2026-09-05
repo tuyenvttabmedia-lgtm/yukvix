@@ -129,6 +129,15 @@ export function naturalAlbumSeoTitle(originalTitle: string, siteName = "Yukvix")
   return clipSeoTitle(tidy);
 }
 
+export function albumSeoTitleNeedsRepair(row: {
+  title: string;
+  seoTitle?: string | null;
+  metaTitle?: string | null;
+}): boolean {
+  const next = naturalAlbumSeoTitle(row.title);
+  return (row.seoTitle || "") !== next || (row.metaTitle || "") !== next;
+}
+
 export function naturalFocusKeyword(album: AlbumSeoContext): string {
   const cosplayer = album.cosplayer?.trim();
   const character = album.character?.trim();

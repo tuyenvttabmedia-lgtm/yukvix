@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSeoFromFilename } from "./seo-generator";
 import {
+  albumSeoTitleNeedsRepair,
   mergeAiAlbumSeo,
   naturalAlbumSeoTitle,
   titleKeepsOriginalOrder,
@@ -33,6 +34,23 @@ describe("naturalAlbumSeoTitle", () => {
     expect(title.length).toBeLessThanOrEqual(60);
     expect(title.startsWith("ArtGravia")).toBe(true);
     expect(title).not.toMatch(/[…]$/);
+  });
+});
+
+describe("albumSeoTitleNeedsRepair", () => {
+  it("flags a scrambled AI title", () => {
+    expect(
+      albumSeoTitleNeedsRepair({
+        title: ORIGINAL,
+        seoTitle: "TSUBAKI SANNOMIYA Cosplay – Espacia Korea Premium Gallery | Yukvix",
+        metaTitle: "TSUBAKI SANNOMIYA Cosplay – Espacia Korea Premium Gallery | Yukvix",
+      })
+    ).toBe(true);
+  });
+
+  it("skips a title that already matches the original filename", () => {
+    const next = naturalAlbumSeoTitle(ORIGINAL);
+    expect(albumSeoTitleNeedsRepair({ title: ORIGINAL, seoTitle: next, metaTitle: next })).toBe(false);
   });
 });
 

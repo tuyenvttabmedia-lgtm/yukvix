@@ -17,7 +17,7 @@ import { notifyOwner } from "../_core/notification";
 import { appendSchedulerRun } from "../services/scheduler-log";
 import { normalizeScheduleConfig } from "../services/schedule-config";
 
-async function verifyCronSecret(req: Request): Promise<boolean> {
+export async function verifyCronSecret(req: Request): Promise<boolean> {
   const provided = (req.headers["x-cron-secret"] as string | undefined)?.trim();
   if (!provided) return false;
   // 1. Check CRON_SECRET env var

@@ -22,6 +22,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 type JobType = "albums" | "creators" | "tags";
 type ItemStatus = "pending" | "processing" | "done" | "failed";
@@ -80,6 +81,7 @@ export default function AdminSeoBulk() {
   const [pollingEnabled, setPollingEnabled] = useState(false);
   const [forceAll, setForceAll] = useState(false);
   const [confirmForceAll, setConfirmForceAll] = useState<JobType | null>(null);
+  const [confirmRepairTitles, setConfirmRepairTitles] = useState(false);
 
   // Filters
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>();
@@ -157,6 +159,13 @@ export default function AdminSeoBulk() {
       }
       toast.success(`Đã bắt đầu tạo SEO cho ${data.total} mục`);
       setPollingEnabled(true);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const repairTitlesMutation = trpc.seo.repairAlbumSeoTitles.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Đã sửa ${data.updated}/${data.total} tiêu đề SEO theo tên album gốc.`);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -562,6 +571,20 @@ export default function AdminSeoBulk() {
                       : <><Sparkles className="w-4 h-4 mr-2" />Tạo SEO cho {albumMissing} Albums</>
                 }
               </Button>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => setConfirmRepairTitles(true)}
+                disabled={repairTitlesMutation.isPending || !!isRunning || albumTotal === 0}
+              >
+                {repairTitlesMutation.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Đang sửa tiêu đề...</>
+                  : <>Sửa tiêu đề theo tên gốc</>
+                }
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Nút trên chỉ ghi lại tiêu đề SEO từ tên album/file gốc — không gọi AI, không đổi mô tả.
+              </p>
             </div>
 
             {/* Creators card */}
@@ -997,6 +1020,28 @@ export default function AdminSeoBulk() {
               className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               Xác nhận chạy lại
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRepairTitles} onOpenChange={setConfirmRepairTitles}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sửa tiêu đề SEO theo tên gốc?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sẽ ghi đè tiêu đề SEO của album bằng tên file/album gốc (cùng thứ tự từ). Không gọi AI và không đổi mô tả.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmRepairTitles(false);
+                repairTitlesMutation.mutate();
+              }}
+            >
+              Sửa tiêu đề
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

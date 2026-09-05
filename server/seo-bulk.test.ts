@@ -288,3 +288,11 @@ describe("SEO Bulk Router — startBulkJob (tags)", () => {
     expect(stats.tags).toHaveProperty("missing");
   });
 });
+
+describe("SEO Bulk Router — repairAlbumSeoTitles", () => {
+  it("throws FORBIDDEN for non-admin users", async () => {
+    const { seoRouter } = await import("./routers/seo");
+    const caller = seoRouter.createCaller(makeCtx("user"));
+    await expect(caller.repairAlbumSeoTitles()).rejects.toThrow("FORBIDDEN");
+  });
+});
