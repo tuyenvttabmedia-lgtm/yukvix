@@ -102,9 +102,8 @@ export default function Footer() {
             <ul className="space-y-2">
               {[
                 { href: "/gallery", label: t("footer.allAlbums") },
-                { href: "/gallery?category=anime", label: t("footer.anime") },
-                { href: "/gallery?category=game", label: t("footer.games") },
-                { href: "/gallery?category=movie", label: t("footer.movies") },
+                { href: "/creators", label: t("nav.creators") },
+                { href: "/tags", label: t("nav.tags") },
                 { href: "/gallery?vip=true", label: t("footer.vipExclusive") },
               ].map(({ href, label }) => (
                 <li key={href}>
