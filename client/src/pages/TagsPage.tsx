@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Tag, SlidersHorizontal, X, Hash } from "lucide-react";
 import { Link } from "wouter";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+
+const LIMIT = 30;
 
 export default function TagsPage() {
   const { t } = useTranslation();
@@ -14,40 +16,53 @@ export default function TagsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortBy, setSortBy] = useState<"popular" | "name" | "newest">("popular");
   const [minAlbums, setMinAlbums] = useState(0);
+  const [page, setPage] = useState(1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback((val: string) => {
     setSearch(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 350);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(val);
+      setPage(1);
+    }, 350);
   }, []);
 
-  const { data: tags, isLoading } = trpc.tags.listWithCount.useQuery({
-    search: debouncedSearch || undefined,
-    sortBy,
-    minAlbums,
-  });
+  const { data, isLoading } = trpc.tags.listWithCount.useQuery(
+    {
+      search: debouncedSearch || undefined,
+      sortBy,
+      minAlbums,
+      page,
+      limit: LIMIT,
+    },
+    { placeholderData: (prev) => prev }
+  );
+
+  const tags = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const from = total === 0 ? 0 : (page - 1) * LIMIT + 1;
+  const to = Math.min(page * LIMIT, total);
 
   const hasFilters = debouncedSearch || sortBy !== "popular" || minAlbums > 0;
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const clearFilters = () => {
     setSearch("");
     setDebouncedSearch("");
     setSortBy("popular");
     setMinAlbums(0);
+    setPage(1);
   };
 
-  // Color palette for tag chips (cycles)
-  const tagColors = [
-    "bg-violet-500/10 text-violet-400 border-violet-500/20 hover:bg-violet-500/20",
-    "bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20",
-    "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20",
-    "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20",
-    "bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20",
-    "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20",
-    "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20 hover:bg-fuchsia-500/20",
-    "bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20",
-  ];
+  useEffect(() => {
+    if (data && page > totalPages) setPage(totalPages);
+  }, [data, page, totalPages]);
 
   return (
     <>
@@ -69,7 +84,7 @@ export default function TagsPage() {
                   Tags
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  {tags !== undefined ? t("tags.count", { count: tags.length.toLocaleString() }) : t("common.loading")}
+                  {data ? t("tags.count", { count: total.toLocaleString() }) : t("common.loading")}
                 </p>
               </div>
             </div>
@@ -96,7 +111,13 @@ export default function TagsPage() {
             </div>
 
             <div className="flex gap-2 shrink-0 flex-wrap">
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <Select
+                value={sortBy}
+                onValueChange={(v) => {
+                  setSortBy(v as typeof sortBy);
+                  setPage(1);
+                }}
+              >
                 <SelectTrigger className="w-44 bg-secondary/50 border-border/50">
                   <SlidersHorizontal className="w-4 h-4 mr-2 text-muted-foreground" />
                   <SelectValue />
@@ -114,7 +135,10 @@ export default function TagsPage() {
                   key={n}
                   variant={minAlbums === n ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setMinAlbums(n)}
+                  onClick={() => {
+                    setMinAlbums(n);
+                    setPage(1);
+                  }}
                   className={minAlbums === n ? "bg-primary" : "border-border/50"}
                 >
                   {n === 0 ? t("common.all") : t("tags.minAlbums", { count: n })}
@@ -131,7 +155,7 @@ export default function TagsPage() {
           </div>
 
           {/* Results */}
-          {isLoading ? (
+          {isLoading && !data ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {Array.from({ length: 24 }).map((_, i) => (
                 <div key={i} className="rounded-xl bg-secondary/50 animate-pulse aspect-[4/3]" />
@@ -188,12 +212,51 @@ export default function TagsPage() {
             </div>
           )}
 
-          {/* Stats footer */}
-          {tags && tags.length > 0 && (
-            <div className="mt-10 pt-6 border-t border-border/30 text-center text-sm text-muted-foreground">
-              {t("tags.showing", { count: tags.length })}
-              {minAlbums > 0 && <> {t("tags.withMinAlbums", { count: minAlbums })}</>}
-            </div>
+          {tags.length > 0 && (
+            <>
+              <div className="mt-10 pt-6 border-t border-border/30 text-center text-sm text-muted-foreground">
+                {t("tags.showingRange", { from, to, total })}
+                {minAlbums > 0 && <> {t("tags.withMinAlbums", { count: minAlbums })}</>}
+              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(Math.max(1, page - 1))}
+                    disabled={page === 1}
+                    className="border-border/50"
+                  >
+                    {t("common.prev")}
+                  </Button>
+                  <div className="flex gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pageNum = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pageNum === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => goToPage(pageNum)}
+                          className={pageNum === page ? "bg-primary" : "border-border/50 w-9"}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(Math.min(totalPages, page + 1))}
+                    disabled={page === totalPages}
+                    className="border-border/50"
+                  >
+                    {t("common.next")}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -51,8 +51,16 @@ export const tagsRouter = router({
       search: z.string().optional(),
       sortBy: z.enum(["popular", "name", "newest"]).default("popular"),
       minAlbums: z.number().min(0).default(0),
+      page: z.number().min(1).default(1),
+      limit: z.number().min(1).max(60).default(30),
     }).optional())
-    .query(({ input }) => listTagsWithCount(input ?? {})),
+    .query(({ input }) =>
+      listTagsWithCount({
+        ...input,
+        page: input?.page ?? 1,
+        limit: input?.limit ?? 30,
+      })
+    ),
 
   // --- Admin: list tags with count --------------------------------------------
   adminList: protectedProcedure

@@ -1415,8 +1415,7 @@ export async function listTagsWithCount(
   opts: { search?: string; sortBy?: string; minAlbums?: number; page?: number; limit?: number } = {}
 ) {
   const db = await getDb();
-  const paginate = opts.page != null;
-  if (!db) return paginate ? { items: [], total: 0 } : [];
+  if (!db) return { items: [], total: 0 };
 
   const { search, sortBy = "popular", minAlbums, page = 1, limit = 30 } = opts;
 
@@ -1453,10 +1452,6 @@ export async function listTagsWithCount(
   if (sortBy === "name") orderByExpr = tags.name;
   else if (sortBy === "newest") orderByExpr = desc(tags.createdAt);
   else orderByExpr = desc(sql`count(distinct ${albumTags.albumId})`);
-
-  if (!paginate) {
-    return await query.orderBy(orderByExpr);
-  }
 
   const offset = (page - 1) * limit;
   const items = await query.orderBy(orderByExpr).limit(limit).offset(offset);

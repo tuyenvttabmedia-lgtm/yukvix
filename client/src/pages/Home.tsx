@@ -109,7 +109,10 @@ export default function Home() {
   const { data: trendingTags } = trpc.tags.listWithCount.useQuery({
     sortBy: "popular",
     minAlbums: 1,
+    page: 1,
+    limit: 24,
   });
+  const trendingTagItems = trendingTags?.items ?? [];
 
   // Real site stats for hero
   const { data: siteStats } = trpc.albums.publicStats.useQuery();
@@ -328,7 +331,7 @@ export default function Home() {
       )}
 
       {/* --- Trending Tags --------------------------------------------- */}
-      {trendingTags && trendingTags.length > 0 && (
+      {trendingTagItems.length > 0 && (
         <section className="py-12 border-t border-border/50">
           <div className="container">
             <div className="flex items-center justify-between mb-6">
@@ -347,7 +350,7 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
-              {trendingTags.slice(0, 24).map((tag: any, idx: number) => {
+              {trendingTagItems.map((tag: any, idx: number) => {
                 const accentColors = [
                   "from-violet-500/40", "from-blue-500/40", "from-emerald-500/40",
                   "from-amber-500/40", "from-rose-500/40", "from-cyan-500/40",
