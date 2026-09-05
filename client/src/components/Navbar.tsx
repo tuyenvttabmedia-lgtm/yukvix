@@ -27,10 +27,10 @@ export default function Navbar() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setMobileOpen(false);
-    }
+    const q = searchQuery.trim();
+    if (!q) return;
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+    setMobileOpen(false);
   };
 
   const isVip = user?.role === "vip" || user?.role === "admin" || user?.role === "super_admin";
@@ -89,14 +89,23 @@ export default function Navbar() {
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="hidden sm:flex flex-1 max-w-sm">
             <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
-                type="text"
+                type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("nav.searchPlaceholder")}
-                className="w-full h-9 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                enterKeyHint="search"
+                autoComplete="off"
+                className="w-full h-9 pl-9 pr-9 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               />
+              <button
+                type="submit"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60"
+                aria-label={t("nav.searchPlaceholder")}
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
             </div>
           </form>
 
@@ -211,17 +220,26 @@ export default function Navbar() {
         {/* Mobile Menu */}
         {mobileOpen && (
           <div className="md:hidden border-t border-border/50 py-4 space-y-3 animate-slide-up">
-            <form onSubmit={handleSearch}>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
-                  type="text"
+                  type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t("nav.searchPlaceholderMobile")}
-                  className="w-full h-10 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  className="w-full h-10 pl-9 pr-3 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
+              <button
+                type="submit"
+                className="h-10 px-3 rounded-lg bg-primary text-primary-foreground text-sm shrink-0"
+                aria-label={t("nav.searchPlaceholderMobile")}
+              >
+                <Search className="w-4 h-4" />
+              </button>
             </form>
             <nav className="flex flex-col gap-1">
               {[

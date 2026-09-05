@@ -313,12 +313,15 @@ export async function listAlbums(opts: {
   if (categoryId) conditions.push(eq(albums.categoryId, categoryId));
   if (creatorId) conditions.push(eq(albums.creatorId, creatorId));
   if (search) {
+    const pattern = `%${search}%`;
     conditions.push(
       or(
-        like(albums.title, `%${search}%`),
-        like(albums.cosplayer, `%${search}%`),
-        like(albums.character, `%${search}%`),
-        like(albums.series, `%${search}%`)
+        like(albums.title, pattern),
+        like(albums.cosplayer, pattern),
+        like(albums.creator, pattern),
+        like(albums.character, pattern),
+        like(albums.series, pattern),
+        like(creators.name, pattern)
       )!
     );
   }
@@ -403,6 +406,7 @@ export async function listAlbums(opts: {
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)` })
     .from(albums)
+    .leftJoin(creators, eq(albums.creatorId, creators.id))
     .where(where);
 
   return {

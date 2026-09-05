@@ -1,34 +1,57 @@
 import { trpc } from "@/lib/trpc";
 import AlbumCard from "@/components/AlbumCard";
 import SeoHead from "@/components/SeoHead";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Loader2, Search as SearchIcon, X } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useTranslation } from "react-i18next";
 
 const LIMIT = 20;
+const SEARCH_DEBOUNCE_MS = 350;
+
+function parseSearchString(searchStr: string) {
+  const raw = searchStr.startsWith("?") ? searchStr.slice(1) : searchStr;
+  const params = new URLSearchParams(raw);
+  return {
+    q: params.get("q") || "",
+    vip: params.get("vip") === "true",
+    category: params.get("category") || "",
+  };
+}
+
+function buildSearchPath(q: string, vip: boolean, category: string) {
+  const p = new URLSearchParams();
+  if (q.trim()) p.set("q", q.trim());
+  if (vip) p.set("vip", "true");
+  if (category) p.set("category", category);
+  const qs = p.toString();
+  return qs ? `/search?${qs}` : "/search";
+}
 
 export default function Search() {
   const { t } = useTranslation();
-  const [location] = useLocation();
-  const params = new URLSearchParams(location.split("?")[1] || "");
-
-  const [query, setQuery] = useState(params.get("q") || "");
-  const [inputValue, setInputValue] = useState(params.get("q") || "");
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "popular">("newest");
-  const [filterVip, setFilterVip] = useState<boolean | undefined>(
-    params.get("vip") === "true" ? true : undefined
+  const [, navigate] = useLocation();
+  const searchStr = useSearch();
+  const { q: urlQ, vip: urlVip, category: urlCategory } = useMemo(
+    () => parseSearchString(searchStr),
+    [searchStr]
   );
-  const [categorySlug, setCategorySlug] = useState(params.get("category") || "");
+
+  const query = urlQ;
+  const filterVip = urlVip ? true : undefined;
+  const categorySlug = urlCategory;
+
+  const [inputValue, setInputValue] = useState(urlQ);
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "popular">("newest");
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [allAlbums, setAllAlbums] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const loaderRef = useRef<HTMLDivElement>(null);
+  const lastUrlQ = useRef(urlQ);
 
   const { data: categories } = trpc.albums.categories.useQuery();
 
-  // Resolve category slug to ID
   useEffect(() => {
     if (categories && categorySlug) {
       const cat = categories.find((c) => c.slug === categorySlug);
@@ -38,26 +61,38 @@ export default function Search() {
     }
   }, [categories, categorySlug]);
 
-  // Only fetch when user has typed a query OR applied a filter (category / VIP)
+  useEffect(() => {
+    if (urlQ !== lastUrlQ.current) {
+      lastUrlQ.current = urlQ;
+      setInputValue(urlQ);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const href = buildSearchPath(inputValue, urlVip, urlCategory);
+      const current = buildSearchPath(urlQ, urlVip, urlCategory);
+      if (href !== current) navigate(href, { replace: true });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [inputValue, urlQ, urlVip, urlCategory, navigate]);
+
   const hasActiveSearch = !!(query.trim() || filterVip !== undefined || categoryId);
 
   const { data, isFetching } = trpc.albums.list.useQuery(
     { page, limit: LIMIT, sortBy, isVip: filterVip, categoryId, search: query.trim() || undefined },
-    { enabled: hasActiveSearch, placeholderData: (prev: any) => prev }
+    { enabled: hasActiveSearch }
   );
 
   useEffect(() => {
-    if (data) {
-      if (page === 1) {
-        setAllAlbums(data.items);
-      } else {
-        setAllAlbums((prev) => {
-          const ids = new Set(prev.map((a) => a.id));
-          return [...prev, ...data.items.filter((a) => !ids.has(a.id))];
-        });
-      }
-      setHasMore(data.items.length === LIMIT);
+    if (!data) return;
+    if (page === 1) {
+      setAllAlbums(data.items);
+    } else {
+      setAllAlbums((prev) => {
+        const ids = new Set(prev.map((a) => a.id));
+        return [...prev, ...data.items.filter((a) => !ids.has(a.id))];
+      });
     }
+    setHasMore(data.items.length === LIMIT);
   }, [data, page]);
 
   useEffect(() => {
@@ -80,9 +115,23 @@ export default function Search() {
     return () => observer.disconnect();
   }, [hasMore, isFetching]);
 
+  const go = (q: string, vip: boolean, category: string, replace = true) => {
+    const href = buildSearchPath(q, vip, category);
+    const current = buildSearchPath(urlQ, urlVip, urlCategory);
+    if (href === current) return;
+    navigate(href, { replace });
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setQuery(inputValue);
+    lastUrlQ.current = inputValue.trim();
+    go(inputValue, urlVip, urlCategory, true);
+  };
+
+  const clearSearch = () => {
+    setInputValue("");
+    lastUrlQ.current = "";
+    go("", urlVip, urlCategory, true);
   };
 
   const hasQueryOrVip = !!(query.trim() || filterVip !== undefined);
@@ -117,35 +166,43 @@ export default function Search() {
           {isCategoryLanding && selectedCategory ? selectedCategory.name : t("search.title")}
         </h1>
 
-        {/* Search bar */}
         <form onSubmit={handleSearch} className="mb-6">
-          <div className="relative max-w-xl">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder={t("search.placeholder")}
-              className="w-full h-11 pl-10 pr-10 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-            />
-            {inputValue && (
-              <button
-                type="button"
-                onClick={() => { setInputValue(""); setQuery(""); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+          <div className="flex gap-2 max-w-xl">
+            <div className="relative flex-1">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="search"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder={t("search.placeholder")}
+                enterKeyHint="search"
+                autoComplete="off"
+                className="w-full h-11 pl-10 pr-10 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+              />
+              {inputValue && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={t("search.clearSearch")}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="h-11 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
+            >
+              {t("search.title")}
+            </button>
           </div>
         </form>
 
-        {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-6">
-          {/* Sort */}
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "popular")}
             className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
             <option value="newest">{t("gallery.sort.newest")}</option>
@@ -153,9 +210,9 @@ export default function Search() {
             <option value="oldest">{t("gallery.sort.oldest")}</option>
           </select>
 
-          {/* VIP filter */}
           <button
-            onClick={() => setFilterVip(filterVip === true ? undefined : true)}
+            type="button"
+            onClick={() => go(urlQ, !urlVip, urlCategory)}
             className={`flex items-center gap-1.5 h-9 px-3 rounded-lg border text-sm transition-all ${
               filterVip === true
                 ? "bg-primary/20 border-primary/50 text-primary"
@@ -166,11 +223,11 @@ export default function Search() {
             {t("gallery.vipOnly")}
           </button>
 
-          {/* Category filters */}
           {categories?.map((cat) => (
             <button
+              type="button"
               key={cat.id}
-              onClick={() => setCategorySlug(categorySlug === cat.slug ? "" : cat.slug)}
+              onClick={() => go(urlQ, urlVip, categorySlug === cat.slug ? "" : cat.slug)}
               className={`h-9 px-3 rounded-lg border text-sm transition-all ${
                 categorySlug === cat.slug
                   ? "bg-primary/20 border-primary/50 text-primary"
@@ -182,7 +239,6 @@ export default function Search() {
           ))}
         </div>
 
-        {/* Results count */}
         {data && hasActiveSearch && (
           <p className="text-sm text-muted-foreground mb-6">
             {t("search.resultsFound", { count: data.total.toLocaleString() })}
@@ -190,9 +246,7 @@ export default function Search() {
           </p>
         )}
 
-        {/* Results grid */}
         {!hasActiveSearch ? (
-          // Prompt state: user hasn't typed anything yet
           <div className="text-center py-24">
             <SearchIcon className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
             <p className="text-lg font-medium text-foreground mb-2">{t("search.prompt") || "Nhập từ khóa để tìm kiếm"}</p>
@@ -210,7 +264,8 @@ export default function Search() {
             <p className="text-muted-foreground">{t("search.noResults")}</p>
             {query && (
               <button
-                onClick={() => { setInputValue(""); setQuery(""); }}
+                type="button"
+                onClick={clearSearch}
                 className="text-sm text-primary mt-2 hover:underline"
               >
                 {t("search.clearSearch")}
@@ -219,7 +274,6 @@ export default function Search() {
           </div>
         ) : null}
 
-        {/* Skeleton */}
         {isFetching && page === 1 && allAlbums.length === 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {Array.from({ length: 20 }).map((_, i) => (
@@ -230,7 +284,6 @@ export default function Search() {
           </div>
         )}
 
-        {/* Infinite scroll loader */}
         <div ref={loaderRef} className="flex justify-center py-8">
           {isFetching && page > 1 && <Loader2 className="w-6 h-6 text-primary animate-spin" />}
           {!hasMore && allAlbums.length > 0 && (
