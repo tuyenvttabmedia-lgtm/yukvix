@@ -1,6 +1,7 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import sharp from "sharp";
 import { getPhotoById } from "../db";
+import { deriveMediumObjectKey } from "../public-media-url";
 import { getS3ClientForProcessing, getWasabiBucket } from "../storage-wasabi";
 import { isShareablePublicMediaUrl } from "./media";
 import type { SnapshotMediaItem } from "./types";
@@ -12,9 +13,32 @@ const FETCH_TIMEOUT_MS = 20_000;
 export function socialUploadObjectKey(key: string | null | undefined): string | null {
   const trimmed = key?.trim();
   if (!trimmed) return null;
+  if (trimmed.includes("..")) return null;
   if (!/\/medium\//.test(trimmed)) return null;
   if (/\/(original|webp)\//.test(trimmed)) return null;
   return trimmed;
+}
+
+/** Prefer the 1200px medium object so social posts are not 400×400 square thumbs. */
+export function resolveSocialMediumKey(opts: {
+  mediumKey?: string | null;
+  thumbKey?: string | null;
+  webpKey?: string | null;
+  thumbUrl?: string | null;
+  snapshotUrl?: string | null;
+}): string | null {
+  const candidates = [
+    opts.mediumKey,
+    deriveMediumObjectKey(opts.mediumKey, null),
+    deriveMediumObjectKey(opts.thumbKey, opts.thumbUrl),
+    deriveMediumObjectKey(opts.webpKey, null),
+    deriveMediumObjectKey(null, opts.snapshotUrl),
+  ];
+  for (const key of candidates) {
+    const ok = socialUploadObjectKey(key);
+    if (ok) return ok;
+  }
+  return null;
 }
 
 async function objectBuffer(key: string): Promise<Buffer> {
@@ -88,10 +112,20 @@ export async function loadSocialUploadBytes(
   item: SnapshotMediaItem
 ): Promise<Buffer | null> {
   try {
-    if (item.photoId) {
-      const photo = await getPhotoById(item.photoId);
-      const key = socialUploadObjectKey(photo?.mediumKey);
-      if (key) return toSocialJpeg(await objectBuffer(key));
+    const photo = item.photoId ? await getPhotoById(item.photoId) : undefined;
+    const key = resolveSocialMediumKey({
+      mediumKey: photo?.mediumKey,
+      thumbKey: photo?.thumbKey,
+      webpKey: photo?.webpKey,
+      thumbUrl: photo?.thumbUrl,
+      snapshotUrl: item.url,
+    });
+    if (key) {
+      try {
+        return toSocialJpeg(await objectBuffer(key));
+      } catch {
+        /* medium object missing — last resort is the public thumb */
+      }
     }
     return toSocialJpeg(await fetchPublicSnapshot(item.url));
   } catch {

@@ -8,7 +8,7 @@ describe("socialUploadObjectKey", () => {
     );
   });
 
-  it("rejects 4K webp, original, empty, and mixed paths", () => {
+  it("rejects 4K webp, original, empty, path traversal, and thumbs", () => {
     expect(socialUploadObjectKey("albums/1/webp/a.webp")).toBeNull();
     expect(socialUploadObjectKey("albums/1/original/a.jpg")).toBeNull();
     expect(socialUploadObjectKey("albums/1/thumb/a.webp")).toBeNull();

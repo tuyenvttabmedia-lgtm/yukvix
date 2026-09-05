@@ -36,6 +36,28 @@ describe("social media security", () => {
     expect(result.items.some(i => i.type === "free_preview")).toBe(true);
   });
 
+  it("attaches photoId on the cover when CDN and Wasabi URLs share the same object key", () => {
+    const result = selectSocialMedia({
+      album: {
+        ...album,
+        coverUrl:
+          "https://s3.ap-southeast-1.wasabisys.com/media.yukvix.com/albums/1/thumb/cover.webp",
+        coverKey: "albums/1/thumb/cover.webp",
+      },
+      photos: [
+        {
+          id: 10,
+          thumbKey: "albums/1/thumb/cover.webp",
+          thumbUrl: "https://media.yukvix.com/albums/1/thumb/cover.webp",
+          isFreePreview: true,
+          sortOrder: 0,
+        },
+      ],
+      capabilities: stubCapabilities("telegram"),
+    });
+    expect(result.items[0]).toMatchObject({ type: "cover", photoId: 10 });
+  });
+
   it("attaches photoId on the cover when it matches a photo thumb", () => {
     const result = selectSocialMedia({
       album,

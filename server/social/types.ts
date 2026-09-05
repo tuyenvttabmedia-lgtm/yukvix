@@ -43,6 +43,7 @@ export interface PolicyInputAlbum {
   character?: string | null;
   series?: string | null;
   coverUrl?: string | null;
+  coverKey?: string | null;
 }
 
 export interface PolicyDecision {

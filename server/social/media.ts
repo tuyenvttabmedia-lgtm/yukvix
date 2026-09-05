@@ -1,4 +1,4 @@
-import { rewritePublicMediaUrl } from "../public-media-url";
+import { extractStorageObjectKey, rewritePublicMediaUrl } from "../public-media-url";
 import type {
   PlatformCapabilities,
   PolicyInputAlbum,
@@ -47,6 +47,35 @@ function toPublicThumb(url: string | null | undefined): string | null {
   return rewritten;
 }
 
+function objectKey(urlOrKey: string | null | undefined): string | null {
+  if (!urlOrKey?.trim()) return null;
+  return extractStorageObjectKey(urlOrKey) || (!/^https?:/i.test(urlOrKey) && !urlOrKey.startsWith("/")
+    ? urlOrKey
+    : null);
+}
+
+function sameMedia(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  const left = objectKey(a);
+  const right = objectKey(b);
+  return Boolean(left && right && left === right);
+}
+
+function findCoverPhoto(
+  album: PolicyInputAlbum,
+  photos: PhotoLike[]
+): PhotoLike | undefined {
+  return photos.find(
+    photo =>
+      sameMedia(album.coverUrl, photo.thumbUrl) ||
+      sameMedia(album.coverKey, photo.thumbKey) ||
+      sameMedia(album.coverUrl, photo.thumbKey) ||
+      sameMedia(album.coverKey, photo.thumbUrl)
+  );
+}
+
 function pushItem(
   items: SnapshotMediaItem[],
   seen: Set<string>,
@@ -70,9 +99,7 @@ export function selectSocialMedia(opts: {
   const seen = new Set<string>();
 
   const cover = toPublicThumb(opts.album.coverUrl);
-  const coverPhoto = cover
-    ? opts.photos.find(p => toPublicThumb(p.thumbUrl) === cover)
-    : undefined;
+  const coverPhoto = findCoverPhoto(opts.album, opts.photos);
   if (cover) {
     pushItem(
       items,
@@ -180,6 +207,7 @@ export async function getSocialMediaForAlbum(
     character: album.character,
     series: album.series,
     coverUrl: album.coverUrl,
+    coverKey: album.coverKey,
   };
   const result = selectSocialMedia({
     album: policyAlbum,
