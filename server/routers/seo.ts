@@ -15,6 +15,7 @@ import {
 } from "../services/tag-seo-bulk.js";
 
 import { callAi } from "../services/ai-provider";
+import { generateAlbumSeo, generateCreatorSeo } from "../services/album-seo";
 // ─── In-memory Bulk Job Store ─────────────────────────────────────────────────
 // Tracks one active bulk job at a time (albums or creators).
 // Resets on server restart — acceptable for admin-only background tasks.
@@ -53,120 +54,6 @@ function getJobSummary(job: BulkJob) {
   const pending = job.items.filter((i) => i.status === "pending").length;
   const finished = !job.cancelled && pending === 0 && processing === 0;
   return { total, done, failed, processing, pending, finished, cancelled: job.cancelled };
-}
-
-// ─── LLM helpers (shared with suggestAlbum / suggestCreator) ─────────────────
-
-async function generateAlbumSeo(album: {
-  id: number;
-  title: string;
-  cosplayer?: string | null;
-  character?: string | null;
-  series?: string | null;
-  isVip?: boolean;
-}, tagNames: string) {
-  const contextParts: string[] = [];
-  if (album.title) contextParts.push(`Title: ${album.title}`);
-  if (album.cosplayer) contextParts.push(`Cosplayer: ${album.cosplayer}`);
-  if (album.character) contextParts.push(`Character: ${album.character}`);
-  if (album.series) contextParts.push(`Series/Franchise: ${album.series}`);
-  if (tagNames) contextParts.push(`Tags: ${tagNames}`);
-  if (album.isVip) contextParts.push(`Type: VIP/Premium content`);
-
-  const result = await callAi({
-    messages: [
-      {
-        role: "system",
-        content: `You are an SEO expert specializing in cosplay and anime content. 
-Generate SEO metadata for a cosplay photo album. 
-Rules:
-- focusKeyword: 2-4 words, most important search term (e.g. "Rem Re:Zero cosplay")
-- metaTitle: 50-60 characters, include character/cosplayer name and "cosplay"
-- metaDescription: 140-160 characters, engaging, include character, series, and call-to-action
-- Use English for all output
-- Do NOT include the word "premium" or "VIP" in public-facing SEO text
-- Return valid JSON only`,
-      },
-      {
-        role: "user",
-        content: `Generate SEO metadata for this cosplay album:\n\n${contextParts.join("\n")}`,
-      },
-    ],
-    responseFormat: {
-      type: "json_schema",
-      json_schema: {
-        name: "album_seo",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            focusKeyword: { type: "string", description: "Primary SEO keyword phrase (2-4 words)" },
-            metaTitle: { type: "string", description: "SEO page title (50-60 chars)" },
-            metaDescription: { type: "string", description: "SEO meta description (140-160 chars)" },
-          },
-          required: ["focusKeyword", "metaTitle", "metaDescription"],
-          additionalProperties: false,
-        },
-      },
-    },
-  });
-
-  const raw = result.content;
-  if (!raw) throw new Error("Empty AI response");
-  return JSON.parse(raw) as { focusKeyword: string; metaTitle: string; metaDescription: string };
-}
-
-async function generateCreatorSeo(creator: {
-  id: number;
-  name: string;
-  bio?: string | null;
-  country?: string | null;
-}) {
-  const contextParts: string[] = [];
-  if (creator.name) contextParts.push(`Name: ${creator.name}`);
-  if (creator.bio) contextParts.push(`Bio: ${creator.bio}`);
-  if (creator.country) contextParts.push(`Country: ${creator.country}`);
-
-  const result = await callAi({
-    messages: [
-      {
-        role: "system",
-        content: `You are an SEO expert specializing in cosplay content creators.
-Generate SEO metadata for a cosplay creator/model profile page.
-Rules:
-- focusKeyword: 2-4 words, most important search term (e.g. "Sakura cosplay model")
-- metaTitle: 50-60 characters, include creator name and "cosplay"
-- metaDescription: 140-160 characters, engaging description of the creator
-- Use English for all output
-- Return valid JSON only`,
-      },
-      {
-        role: "user",
-        content: `Generate SEO metadata for this cosplay creator:\n\n${contextParts.join("\n")}`,
-      },
-    ],
-    responseFormat: {
-      type: "json_schema",
-      json_schema: {
-        name: "creator_seo",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            focusKeyword: { type: "string", description: "Primary SEO keyword phrase (2-4 words)" },
-            metaTitle: { type: "string", description: "SEO page title (50-60 chars)" },
-            metaDescription: { type: "string", description: "SEO meta description (140-160 chars)" },
-          },
-          required: ["focusKeyword", "metaTitle", "metaDescription"],
-          additionalProperties: false,
-        },
-      },
-    },
-  });
-
-  const raw = result.content;
-  if (!raw) throw new Error("Empty AI response");
-  return JSON.parse(raw) as { focusKeyword: string; metaTitle: string; metaDescription: string };
 }
 
 // ─── SEO Settings Router ──────────────────────────────────────────────────────
@@ -644,14 +531,18 @@ export const seoRouter = router({
 
       const payload = {
         ...(input.focusKeyword !== undefined && { focusKeyword: input.focusKeyword }),
-        ...(input.metaTitle !== undefined && { seoTitle: input.metaTitle }),
-        ...(input.metaDescription !== undefined && { seoDescription: input.metaDescription }),
+        ...(input.metaTitle !== undefined && { seoTitle: input.metaTitle, metaTitle: input.metaTitle }),
+        ...(input.metaDescription !== undefined && { seoDescription: input.metaDescription, metaDescription: input.metaDescription }),
       };
 
       if (input.type === "albums") {
         await updateAlbum(input.id, payload);
       } else {
-        await updateCreator(input.id, payload);
+        await updateCreator(input.id, {
+          ...(input.focusKeyword !== undefined && { focusKeyword: input.focusKeyword }),
+          ...(input.metaTitle !== undefined && { seoTitle: input.metaTitle }),
+          ...(input.metaDescription !== undefined && { seoDescription: input.metaDescription }),
+        });
       }
 
       // Also update in-memory job item if it exists
@@ -811,6 +702,8 @@ async function runBulkJob(job: BulkJob) {
           focusKeyword: seo.focusKeyword,
           seoTitle: seo.metaTitle,
           seoDescription: seo.metaDescription,
+          metaTitle: seo.metaTitle,
+          metaDescription: seo.metaDescription,
         });
 
         item.focusKeyword = seo.focusKeyword;

@@ -28,17 +28,14 @@ vi.mock("./db", () => ({
 }));
 
 // ─── Mock LLM ─────────────────────────────────────────────────────────────────
-vi.mock("./_core/llm.js", () => ({
-  invokeLLM: vi.fn().mockResolvedValue({
-    choices: [{
-      message: {
-        content: JSON.stringify({
-          focusKeyword: "test cosplay",
-          metaTitle: "Test Album Cosplay | Yukvix",
-          metaDescription: "Browse stunning test cosplay photos on Yukvix.",
-        }),
-      },
-    }],
+vi.mock("./services/ai-provider", () => ({
+  callAi: vi.fn().mockResolvedValue({
+    content: JSON.stringify({
+      focusKeyword: "test photos",
+      metaTitle: "Test Album | Yukvix",
+      metaDescription: "Photos from Test Album. View the full set on Yukvix.",
+    }),
+    model: "test",
   }),
 }));
 

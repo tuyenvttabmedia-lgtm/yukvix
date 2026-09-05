@@ -32,6 +32,10 @@ vi.mock("./_core/llm.js", () => ({
   invokeLLM: vi.fn(),
 }));
 
+vi.mock("./services/ai-provider", () => ({
+  callAi: vi.fn(),
+}));
+
 // -- Mock schema ---------------------------------------------------------------
 vi.mock("../drizzle/schema", () => ({
   seoSettings: { id: "id", gtmContainerId: "gtmContainerId", gscVerificationMeta: "gscVerificationMeta" },
@@ -68,7 +72,7 @@ describe("SEO Router — suggestAlbum", () => {
 
   it("returns AI-generated SEO fields for an album", async () => {
     const { getAlbumById, getTagsByAlbumId } = await import("./db");
-    const { invokeLLM } = await import("./_core/llm.js");
+    const { callAi } = await import("./services/ai-provider");
 
     vi.mocked(getAlbumById).mockResolvedValue({
       id: 1,
@@ -84,25 +88,23 @@ describe("SEO Router — suggestAlbum", () => {
       { id: 2, name: "anime", slug: "anime", createdAt: new Date() },
     ]);
 
-    vi.mocked(invokeLLM).mockResolvedValue({
-      choices: [{
-        message: {
-          content: JSON.stringify({
-            focusKeyword: "Rem Re:Zero cosplay",
-            metaTitle: "Rem Re:Zero Maid Cosplay by Sakura | Yukvix",
-            metaDescription: "Stunning Rem from Re:Zero maid cosplay by Sakura. Browse 50+ high-quality photos of this iconic anime character.",
-          }),
-        },
-      }],
-    } as any);
+    vi.mocked(callAi).mockResolvedValue({
+      content: JSON.stringify({
+        focusKeyword: "Rem Re:Zero",
+        metaTitle: "Maid Cosplay Rem by Sakura | Yukvix",
+        metaDescription: "Photos from Rem Re:Zero Maid by Sakura. View the full set on Yukvix.",
+      }),
+      model: "test",
+    });
 
     const { seoRouter } = await import("./routers/seo");
     const caller = seoRouter.createCaller(makeCtx("admin"));
     const result = await caller.suggestAlbum({ albumId: 1 });
 
-    expect(result.focusKeyword).toBe("Rem Re:Zero cosplay");
-    expect(result.metaTitle).toContain("Rem");
+    expect(result.metaTitle).toContain("Rem Re:Zero Maid");
+    expect(result.metaTitle.toLowerCase().indexOf("rem")).toBeLessThan(result.metaTitle.toLowerCase().indexOf("maid"));
     expect(result.metaDescription.length).toBeGreaterThan(50);
+    expect(result.focusKeyword.length).toBeGreaterThan(2);
   });
 
   it("throws NOT_FOUND when album does not exist", async () => {
@@ -124,7 +126,7 @@ describe("SEO Router — suggestAlbum", () => {
 
   it("calls LLM with album context including tags", async () => {
     const { getAlbumById, getTagsByAlbumId } = await import("./db");
-    const { invokeLLM } = await import("./_core/llm.js");
+    const { callAi } = await import("./services/ai-provider");
 
     vi.mocked(getAlbumById).mockResolvedValue({
       id: 2,
@@ -139,23 +141,20 @@ describe("SEO Router — suggestAlbum", () => {
       { id: 3, name: "sword art online", slug: "sword-art-online", createdAt: new Date() },
     ]);
 
-    vi.mocked(invokeLLM).mockResolvedValue({
-      choices: [{
-        message: {
-          content: JSON.stringify({
-            focusKeyword: "Asuna SAO cosplay",
-            metaTitle: "Asuna Sword Art Online Cosplay | Yukvix",
-            metaDescription: "Beautiful Asuna from Sword Art Online cosplay by Yuki. Explore premium anime cosplay photos.",
-          }),
-        },
-      }],
-    } as any);
+    vi.mocked(callAi).mockResolvedValue({
+      content: JSON.stringify({
+        focusKeyword: "Asuna SAO",
+        metaTitle: "Asuna SAO | Yukvix",
+        metaDescription: "Photos from Asuna SAO by Yuki. View the full set on Yukvix.",
+      }),
+      model: "test",
+    });
 
     const { seoRouter } = await import("./routers/seo");
     const caller = seoRouter.createCaller(makeCtx("admin"));
     await caller.suggestAlbum({ albumId: 2 });
 
-    const callArgs = vi.mocked(invokeLLM).mock.calls[0][0];
+    const callArgs = vi.mocked(callAi).mock.calls[0][0];
     const userMessage = callArgs.messages.find((m: any) => m.role === "user");
     expect(userMessage.content).toContain("Asuna");
     expect(userMessage.content).toContain("sword art online");
@@ -169,7 +168,7 @@ describe("SEO Router — suggestCreator", () => {
 
   it("returns AI-generated SEO fields for a creator", async () => {
     const { getCreatorById } = await import("./db");
-    const { invokeLLM } = await import("./_core/llm.js");
+    const { callAi } = await import("./services/ai-provider");
 
     vi.mocked(getCreatorById).mockResolvedValue({
       id: 1,
@@ -178,25 +177,22 @@ describe("SEO Router — suggestCreator", () => {
       country: "Japan",
     } as any);
 
-    vi.mocked(invokeLLM).mockResolvedValue({
-      choices: [{
-        message: {
-          content: JSON.stringify({
-            focusKeyword: "Sakura Cosplay model",
-            metaTitle: "Sakura Cosplay — Japanese Anime Cosplayer | Yukvix",
-            metaDescription: "Sakura is a professional Japanese cosplayer specializing in anime characters. View her stunning cosplay gallery on Yukvix.",
-          }),
-        },
-      }],
-    } as any);
+    vi.mocked(callAi).mockResolvedValue({
+      content: JSON.stringify({
+        focusKeyword: "Sakura Cosplay",
+        metaTitle: "Japanese Anime Cosplayer Sakura | Yukvix",
+        metaDescription: "Sakura Cosplay photo gallery from Japan. Browse albums on Yukvix.",
+      }),
+      model: "test",
+    });
 
     const { seoRouter } = await import("./routers/seo");
     const caller = seoRouter.createCaller(makeCtx("admin"));
     const result = await caller.suggestCreator({ creatorId: 1 });
 
-    expect(result.focusKeyword).toBe("Sakura Cosplay model");
-    expect(result.metaTitle).toContain("Sakura");
+    expect(result.metaTitle).toBe("Sakura Cosplay | Yukvix");
     expect(result.metaDescription.length).toBeGreaterThan(50);
+    expect(result.focusKeyword.toLowerCase()).toContain("sakura");
   });
 
   it("throws NOT_FOUND when creator does not exist", async () => {
@@ -218,7 +214,7 @@ describe("SEO Router — suggestCreator", () => {
 
   it("builds LLM prompt with creator name and bio", async () => {
     const { getCreatorById } = await import("./db");
-    const { invokeLLM } = await import("./_core/llm.js");
+    const { callAi } = await import("./services/ai-provider");
 
     vi.mocked(getCreatorById).mockResolvedValue({
       id: 3,
@@ -227,23 +223,20 @@ describe("SEO Router — suggestCreator", () => {
       country: "South Korea",
     } as any);
 
-    vi.mocked(invokeLLM).mockResolvedValue({
-      choices: [{
-        message: {
-          content: JSON.stringify({
-            focusKeyword: "Luna Cosplay Korea",
-            metaTitle: "Luna Cosplay — Korean Game Cosplayer | Yukvix",
-            metaDescription: "Luna is a Korean cosplayer specializing in game characters. Explore her gallery on Yukvix.",
-          }),
-        },
-      }],
-    } as any);
+    vi.mocked(callAi).mockResolvedValue({
+      content: JSON.stringify({
+        focusKeyword: "Luna Cosplay",
+        metaTitle: "Luna Cosplay | Yukvix",
+        metaDescription: "Luna Cosplay photo gallery from South Korea. Browse albums on Yukvix.",
+      }),
+      model: "test",
+    });
 
     const { seoRouter } = await import("./routers/seo");
     const caller = seoRouter.createCaller(makeCtx("admin"));
     await caller.suggestCreator({ creatorId: 3 });
 
-    const callArgs = vi.mocked(invokeLLM).mock.calls[0][0];
+    const callArgs = vi.mocked(callAi).mock.calls[0][0];
     const userMessage = callArgs.messages.find((m: any) => m.role === "user");
     expect(userMessage.content).toContain("Luna Cosplay");
     expect(userMessage.content).toContain("Korean cosplayer");
@@ -286,7 +279,7 @@ describe("SEO Router — suggestTagsFromImages", () => {
 
   it("returns tag suggestions from vision LLM", async () => {
     const { getAlbumById, getTagsByAlbumId, getPhotosByAlbumId, listTags } = await import("./db");
-    const { invokeLLM } = await import("./_core/llm.js");
+    const { callAi } = await import("./services/ai-provider");
 
     vi.mocked(getAlbumById).mockResolvedValue({
       id: 1, title: "Rem Re:Zero Cosplay", cosplayer: "Sakura", character: "Rem",
@@ -302,12 +295,13 @@ describe("SEO Router — suggestTagsFromImages", () => {
       { id: 2, name: "rem", slug: "rem", createdAt: new Date() },
       { id: 3, name: "re:zero", slug: "re-zero", createdAt: new Date() },
     ]);
-    vi.mocked(invokeLLM).mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({
+    vi.mocked(callAi).mockResolvedValue({
+      content: JSON.stringify({
         tags: ["rem", "re:zero", "maid costume", "blue hair", "fantasy"],
         reasoning: "Character Rem from Re:Zero wearing maid costume",
-      }) } }],
-    } as any);
+      }),
+      model: "test",
+    });
 
     const { seoRouter } = await import("./routers/seo");
     const caller = seoRouter.createCaller(makeCtx("admin"));
@@ -321,7 +315,7 @@ describe("SEO Router — suggestTagsFromImages", () => {
     expect(remTag?.existsInDb).toBe(true);
     expect(result.imagesAnalyzed).toBeGreaterThan(0);
     // Verify LLM was called with image_url content
-    const llmCall = vi.mocked(invokeLLM).mock.calls[0][0];
+    const llmCall = vi.mocked(callAi).mock.calls[0][0];
     const userMsg = llmCall.messages.find((m: any) => m.role === "user");
     expect(Array.isArray(userMsg.content)).toBe(true);
     const imageContent = (userMsg.content as any[]).find((c: any) => c.type === "image_url");

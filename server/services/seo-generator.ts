@@ -1,5 +1,5 @@
 /**
- * SEO Generator Service (V4.17)
+ * SEO Generator Service (V4.18)
  * Generates SEO metadata for albums from ZIP/RAR filenames.
  * Uses standalone AI provider (NOT Manus invokeLLM).
  * Falls back to rule-based generation if AI fails.
@@ -18,8 +18,15 @@ import { getDb } from "../db";
 import { seoCache } from "../../drizzle/schema";
 import { and, eq, gt } from "drizzle-orm";
 import { callAi, getAiProviderConfig } from "./ai-provider";
+import {
+  clipSeoDescription,
+  hasBannedAiWording,
+  naturalAlbumSeoDescription,
+  naturalAlbumSeoTitle,
+  significantTitleTokens,
+} from "./seo-title";
 
-export const PROMPT_VERSION = "v4.17";
+export const PROMPT_VERSION = "v4.18";
 
 /** Yukvix fixed categories — do NOT add or change these */
 export type YukvixCategory = "Japan" | "China" | "Korea" | "Euro" | "Cosplay" | "Gravure";
@@ -139,10 +146,7 @@ export async function generateSeoData(input: SeoInput): Promise<SeoOutput> {
     }
 
     const data = JSON.parse(jsonStr) as SeoOutput;
-    // Override albumTitle with filename to ensure consistency with original file name
-    if (!data.albumTitle || data.albumTitle === "string" || data.albumTitle.length < 3) {
-      data.albumTitle = cleaned;
-    }
+    applyOriginalFilenameSeo(data, cleaned);
     finalizeSeoOutput(data);
 
     // Persist to DB cache
@@ -248,10 +252,9 @@ FIELD RULES
 - albumTitle:       WILL BE OVERRIDDEN with filename (do not generate)
                     The system will use the original filename as albumTitle
                     Do not include adjectives or modifications
-- seoTitle:         UNDER 60 characters, includes focus keyword
-                    Preferred format: "[Collection] No.[N] [Creator] Photo Gallery"
-                    or "[Creator] [Collection] No.[N] Photos"
-                    Keep it short and factual — no adjectives
+- seoTitle:         UNDER 60 characters. Trim the original filename — SAME word order.
+                    Do NOT rearrange collection codes, volume numbers, or model names.
+                    Do NOT invent a new title. Do NOT prefix the creator if the filename already includes it.
 - metaDescription:  UNDER 155 characters, compelling, includes focus keyword
 - focusKeyword:     PRIORITY: creator name > collection name > filename
                     Do NOT append "cosplay" unless category = Cosplay
@@ -305,7 +308,29 @@ OUTPUT — return ONLY valid JSON, no markdown
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
-
+/** Keep display + SEO titles on the original filename order. */
+export function applyOriginalFilenameSeo(data: SeoOutput, cleaned: string): SeoOutput {
+  data.albumTitle = cleaned;
+  data.seoTitle = naturalAlbumSeoTitle(cleaned);
+  const creator = data.creator && data.creator !== "Unknown" ? data.creator : null;
+  const fallbackDesc = clipSeoDescription(
+    naturalAlbumSeoDescription({ title: cleaned, cosplayer: creator }),
+    155
+  );
+  const desc = (data.metaDescription || "").trim();
+  const tokens = significantTitleTokens(cleaned);
+  const hay = desc.toLowerCase();
+  const mentionsOriginal =
+    tokens.length === 0 ||
+    tokens.some((token) => hay.includes(token.toLowerCase())) ||
+    (creator && hay.includes(creator.toLowerCase()));
+  if (!desc || hasBannedAiWording(desc) || !mentionsOriginal) {
+    data.metaDescription = fallbackDesc;
+  } else if (desc.length > 155) {
+    data.metaDescription = clipSeoDescription(desc, 155);
+  }
+  return data;
+}
 
 /** Phase 7 — parse AI JSON response for import SEO step. */
 export function parseAndValidateSeoResponse(content: string, cleaned: string): SeoOutput {
@@ -314,7 +339,7 @@ export function parseAndValidateSeoResponse(content: string, cleaned: string): S
     jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   }
   const data = JSON.parse(jsonStr) as SeoOutput;
-  if (!data.albumTitle || data.albumTitle === "string" || data.albumTitle.length < 3) data.albumTitle = cleaned;
+  applyOriginalFilenameSeo(data, cleaned);
   return finalizeSeoOutput(data);
 }
 
@@ -472,12 +497,14 @@ function fallbackSeo(filename: string, input: SeoInput & { siteName: string }): 
   const generatedSlug = generateSlug(filename);
   // Use filename directly as albumTitle (no AI inference)
   const albumTitle = filename;
-  const seoTitle = `${creator} ${filename.slice(0, 35)} - ${input.siteName}`.slice(0, 60);
-  const metaDescription =
-    `Explore premium ${creator} photos on ${input.siteName}. High-quality images from ${filename}.`.slice(
-      0,
-      155
-    );
+  const seoTitle = naturalAlbumSeoTitle(filename, input.siteName);
+  const metaDescription = clipSeoDescription(
+    naturalAlbumSeoDescription(
+      { title: filename, cosplayer: creator !== "Unknown" ? creator : null },
+      input.siteName
+    ),
+    155
+  );
 
   // Focus keyword — creator priority, no auto-append cosplay
   const focusKeyword =

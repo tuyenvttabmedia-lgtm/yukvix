@@ -12,6 +12,7 @@ import { getDb } from "../db";
 import { albums, creators, adminSettings } from "../../drizzle/schema";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { callAi } from "../services/ai-provider";
+import { generateAlbumSeo } from "../services/album-seo";
 import { notifyOwner } from "../_core/notification";
 import { appendSchedulerRun } from "../services/scheduler-log";
 import { normalizeScheduleConfig } from "../services/schedule-config";
@@ -134,56 +135,19 @@ export async function autoBulkSeoHandler(req: Request, res: Response) {
 
     for (const album of albumsMissingSeo) {
       try {
-        const seoResult = await callAi({
-          messages: [
-            { role: "system", content: "You are an SEO expert for a cosplay gallery. Return only valid JSON." },
-            {
-              role: "user",
-              content: `Generate SEO metadata for this cosplay album:
-Title: ${album.title || "Unknown"}
-Cosplayer: ${album.cosplayer || "Unknown"}
-Character: ${album.character || ""}
-Series: ${album.series || ""}
-
-Return JSON: { "metaTitle": "string (max 60 chars)", "metaDescription": "string (max 160 chars)", "focusKeyword": "string (1-3 words)", "shortDescription": "string (max 300 chars)" }`,
-            },
-          ],
-          responseFormat: {
-            type: "json_schema",
-            json_schema: {
-              name: "album_seo",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  metaTitle: { type: "string" },
-                  metaDescription: { type: "string" },
-                  focusKeyword: { type: "string" },
-                  shortDescription: { type: "string" },
-                },
-                required: ["metaTitle", "metaDescription", "focusKeyword", "shortDescription"],
-                additionalProperties: false,
-              },
-            },
-          },
-        });
-
-        if (seoResult.content) {
-          const seo = JSON.parse(seoResult.content);
-          await db
-            .update(albums)
-            .set({
-              metaTitle: seo.metaTitle || undefined,
-              seoTitle: seo.metaTitle || undefined,
-              metaDescription: seo.metaDescription || undefined,
-              seoDescription: seo.metaDescription || undefined,
-              focusKeyword: seo.focusKeyword || undefined,
-              shortDescription: seo.shortDescription || undefined,
-              updatedAt: new Date(),
-            })
-            .where(eq(albums.id, album.id));
-          results.albumsProcessed++;
-        }
+        const seo = await generateAlbumSeo(album, "");
+        await db
+          .update(albums)
+          .set({
+            metaTitle: seo.metaTitle,
+            seoTitle: seo.metaTitle,
+            metaDescription: seo.metaDescription,
+            seoDescription: seo.metaDescription,
+            focusKeyword: seo.focusKeyword,
+            updatedAt: new Date(),
+          })
+          .where(eq(albums.id, album.id));
+        results.albumsProcessed++;
       } catch {
         results.albumsFailed++;
       }
