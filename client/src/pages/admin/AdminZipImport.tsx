@@ -727,12 +727,12 @@ function JobsDashboard() {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-lg border border-border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">ID</TableHead>
-              <TableHead>File</TableHead>
+              <TableHead className="min-w-[28rem]">File</TableHead>
               <TableHead>Trạng thái</TableHead>
               <TableHead>Tiến độ</TableHead>
               <TableHead>Kích thước</TableHead>
@@ -757,13 +757,24 @@ function JobsDashboard() {
               data.jobs.map((job) => (
                 <TableRow key={job.id}>
                   <TableCell className="font-mono text-xs text-muted-foreground">#{job.id}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="text-sm font-medium truncate max-w-[200px]">
-                        {job.albumTitle || job.sourceArchiveOriginalName}
+                  <TableCell className="align-top">
+                    <div className="max-w-xl">
+                      <p
+                        className="text-sm font-medium break-all whitespace-normal leading-snug"
+                        title={job.sourceArchiveOriginalName || undefined}
+                      >
+                        {job.sourceArchiveOriginalName || job.albumTitle || "—"}
                       </p>
+                      {job.albumTitle &&
+                        job.albumTitle !== job.sourceArchiveOriginalName && (
+                          <p className="text-xs text-muted-foreground mt-0.5 break-all">
+                            {job.albumTitle}
+                          </p>
+                        )}
                       {job.albumSlug && (
-                        <p className="text-xs text-muted-foreground font-mono">{job.albumSlug}</p>
+                        <p className="text-xs text-muted-foreground font-mono break-all">
+                          {job.albumSlug}
+                        </p>
                       )}
                     </div>
                   </TableCell>
