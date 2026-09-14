@@ -35,7 +35,7 @@ import { checkSeoQuality } from "../services/seo-quality-check";
 import { eq, and, inArray, ne, desc, sql } from "drizzle-orm";
 import path from "path";
 import { generateSeoData, generateSeoFromFilename } from "../services/seo-generator";
-import { resolveCreatorFromFilename } from "../services/creator-detect";
+import { looksLikeCreatorName, resolveCreatorFromFilename } from "../services/creator-detect";
 import { getPresignedPutUrl, getSignedMediaUrl, createMultipartUpload, getPresignedUploadPartUrl, completeMultipartUpload, abortMultipartUpload } from "../storage-wasabi";
 import {
   ARCHIVE_CONTENT_TYPE,
@@ -280,19 +280,27 @@ export const zipImportRouter = router({
       }
 
       // 3-layer creator detect when admin did not supply creator
-      let creatorName = input.creator || null;
+      let creatorName = input.creator?.trim() || null;
       let creatorId: number | null = null;
       if (input.originalFileName) {
         const resolved = await resolveCreatorFromFilename(input.originalFileName, input.category, {
-          createIfMissing: false,
+          createIfMissing: true,
         });
         if (resolved.creatorId) {
           creatorName = resolved.name;
           creatorId = resolved.creatorId;
-        } else if (resolved.name) {
+        } else if (looksLikeCreatorName(resolved.name) && !creatorName) {
           creatorName = resolved.name;
-        } else if (!creatorName) {
-          creatorName = null;
+        }
+      }
+      if (creatorName && !creatorId) {
+        try {
+          const { findOrCreateCreator } = await import("../services/creator-service");
+          const linked = await findOrCreateCreator({ name: creatorName, category: input.category });
+          creatorId = linked.creatorId;
+          creatorName = linked.creator.name;
+        } catch {
+          if (!looksLikeCreatorName(creatorName)) creatorName = null;
         }
       }
 
@@ -433,6 +441,14 @@ export const zipImportRouter = router({
 
       return { success: true, status: "cancelled" as const };
     }),
+
+  /**
+   * Link ZIP-imported albums that were saved without creatorId.
+   */
+  repairUnlinkedCreators: adminProcedure.mutation(async () => {
+    const { repairUnlinkedAlbumCreators } = await import("../services/repair-album-creators");
+    return repairUnlinkedAlbumCreators();
+  }),
 
   /**
    * List all import jobs for admin dashboard.
@@ -1048,9 +1064,10 @@ export const zipImportRouter = router({
           }
 
           const resolvedCreator = await resolveCreatorFromFilename(item.filename, seo.category, {
-            createIfMissing: false,
+            createIfMissing: true,
+            skipAi: true,
           });
-          const creatorName = resolvedCreator.name;
+          const creatorName = looksLikeCreatorName(resolvedCreator.name) ? resolvedCreator.name : null;
           const creatorId = resolvedCreator.creatorId;
 
           const importProfile = {

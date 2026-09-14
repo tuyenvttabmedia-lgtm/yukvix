@@ -25,6 +25,7 @@ import { expirePendingPaymentsHandler } from "../scheduled/expire-pending-paymen
 import { notifyVipExpiryHandler } from "../scheduled/notify-vip-expiry";
 import { autoBulkSeoHandler } from "../scheduled/auto-bulk-seo";
 import { repairAlbumSeoTitlesHandler } from "../scheduled/repair-album-seo-titles";
+import { repairAlbumCreatorsHandler } from "../scheduled/repair-album-creators";
 import { importMetricsSnapshotHandler } from "../scheduled/import-metrics-snapshot";
 import { cleanupImportArtifactsHandler } from "../scheduled/cleanup-import-artifacts";
 import { processImportQueueHandler } from "../scheduled/process-import-queue";
@@ -145,6 +146,7 @@ async function startServer() {
   app.post("/api/scheduled/notify-vip-expiry", notifyVipExpiryHandler);
   app.post("/api/scheduled/auto-bulk-seo", autoBulkSeoHandler);
   app.post("/api/scheduled/repair-album-seo-titles", repairAlbumSeoTitlesHandler);
+  app.post("/api/scheduled/repair-album-creators", repairAlbumCreatorsHandler);
   app.post("/api/scheduled/import-metrics-snapshot", importMetricsSnapshotHandler);
   app.post("/api/scheduled/cleanup-import-artifacts", cleanupImportArtifactsHandler);
   app.post("/api/scheduled/process-import-queue", processImportQueueHandler);

@@ -305,7 +305,7 @@ export default function AdminAlbums() {
                 header: "Cosplayer",
                 hideBelow: "lg",
                 cell: (album) => (
-                  <span className="text-muted-foreground truncate max-w-[10rem] block" title={(album as any).creatorName || album.cosplayer || ""}>
+                  <span className="text-muted-foreground break-all whitespace-normal max-w-[16rem] block" title={(album as any).creatorName || album.cosplayer || ""}>
                     {(album as any).creatorName || album.cosplayer || "—"}
                   </span>
                 ),

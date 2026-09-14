@@ -1081,7 +1081,7 @@ function BatchUpload() {
       <div>
         <h2 className="text-lg font-semibold">Batch Upload</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Upload nhiều file ZIP lên Wasabi (kho chờ). Album chỉ được tạo khi bấm Run hoặc tới lịch 20 album/ngày. SEO lấy từ tên file, cosplayer chỉ gán nếu khớp danh mục. Free xem 10 ảnh đầu. ZIP gốc là file tải VIP.
+          Upload nhiều file ZIP lên Wasabi (kho chờ). Album chỉ được tạo khi bấm Run hoặc tới lịch 20 album/ngày. SEO lấy từ tên file; cosplayer lấy tên model (ví dụ Dami (퀸다미)), gán vào danh mục Creator nếu đã có hoặc tạo mới. Free xem 10 ảnh đầu. ZIP gốc là file tải VIP.
         </p>
       </div>
 

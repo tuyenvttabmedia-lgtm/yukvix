@@ -23,6 +23,10 @@ type CreatorCategory = "Japan" | "China" | "Korea" | "Euro" | "Cosplay" | "Gravu
 
 const NOISE_SUFFIXES = /\s+(?:Photoset|Photobook|Photo\s*Set|Set|Collection)$/i;
 
+/** SEO / filename fluff after the real model name, e.g. "Korean Model Gallery". */
+const TRAILING_GALLERY_SUFFIX =
+  /\s+(?:(?:korean|japanese|chinese|european|japan|korea|china|euro)\s+)?(?:model\s+)?(?:photo\s+)?(?:gallery|photoset|photobook|collection|album)\s*$/i;
+
 const NOISE_TOKENS = new Set([
   "photoset",
   "photobook",
@@ -44,6 +48,14 @@ const NOISE_TOKENS = new Set([
   "gallery",
   "photos",
   "zip",
+]);
+
+const REST_NOISE_WORDS = new Set([
+  ...NOISE_TOKENS,
+  "model",
+  "japanese",
+  "chinese",
+  "european",
 ]);
 
 /** Hangul in parentheses that are clearly not person names. */
@@ -84,17 +96,74 @@ function isNoiseToken(token: string): boolean {
   return false;
 }
 
+function stripCreatorNoise(segment: string): string {
+  let s = segment.trim();
+  for (let i = 0; i < 4; i++) {
+    const next = s.replace(TRAILING_GALLERY_SUFFIX, "").replace(NOISE_SUFFIXES, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
+function restIsNoise(rest: string): boolean {
+  const tokens = rest.split(/[\s\-_]+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  return tokens.every((token) => {
+    const t = token.toLowerCase().replace(/[^a-z0-9.]/g, "");
+    return !t || REST_NOISE_WORDS.has(t) || isNoiseToken(token);
+  });
+}
+
+/** True when a hint looks like a person, not leftover album-title text. */
+export function looksLikeCreatorName(name: string | null | undefined): boolean {
+  const n = name?.trim() ?? "";
+  if (n.length < 2 || n.length > 48) return false;
+  if (KNOWN_COLLECTIONS.has(name!.trim())) return false;
+  if (/\b(gallery|photoset|photobook|collection)\b/i.test(n)) return false;
+  if (/\bvol\.?\s*\d+\b/i.test(n)) return false;
+  if (isNoiseToken(n)) return false;
+  return true;
+}
+
+export function creatorNamesOverlap(a: string, b: string): boolean {
+  const left = a.trim();
+  const right = b.trim();
+  if (!left || !right) return false;
+  if (normalizeName(left) === normalizeName(right)) return true;
+  const hangulA = left.match(/\(([^)]+)\)/)?.[1]?.trim();
+  const hangulB = right.match(/\(([^)]+)\)/)?.[1]?.trim();
+  if (hangulA && hangulB && hangulA === hangulB) return true;
+  const stageA = left.replace(/\s*\([^)]+\)\s*/g, "").trim();
+  const stageB = right.replace(/\s*\([^)]+\)\s*/g, "").trim();
+  return stageA.length >= 2 && stageA.toLowerCase() === stageB.toLowerCase();
+}
+
+function splitNameCandidates(name: string): string[] {
+  const out = [name];
+  const paren = name.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+  if (paren) {
+    const stage = paren[1].trim();
+    const inner = paren[2].trim();
+    if (stage) out.push(stage);
+    if (inner) out.push(inner);
+  }
+  return out;
+}
+
 /** Normalize Espacia / Vol segments — strip bad parenthetical scripts. */
 function normalizeCreatorSegment(segment: string, isKoreaSeries: boolean): string | null {
-  const trimmed = segment.trim();
+  const trimmed = stripCreatorNoise(segment);
   if (!trimmed || isNoiseToken(trimmed)) return null;
 
-  const paren = trimmed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+  const paren = trimmed.match(/^(.+?)\s*\(([^)]+)\)(?:\s+(.+))?$/);
   if (!paren) return trimmed;
 
   const stage = paren[1].trim();
   const inner = paren[2].trim();
+  const rest = paren[3]?.trim() ?? "";
   if (!stage || isNoiseToken(stage)) return null;
+  if (rest && !restIsNoise(stripCreatorNoise(rest))) return trimmed;
 
   if (isKoreaSeries) {
     const hasHangul = /[\uac00-\ud7af]/.test(inner);
@@ -167,7 +236,7 @@ export function parseCreatorFromFilename(filename: string): string | null {
 function extractDbCandidates(filename: string): string[] {
   const out: string[] = [];
   const parsed = parseCreatorFromFilename(filename);
-  if (parsed) out.push(parsed);
+  if (parsed) out.push(...splitNameCandidates(parsed));
 
   const base = stripArchiveExt(filename).replace(NOISE_SUFFIXES, "").trim();
   const vol = base.match(/Vol\.?\s*\d+\s+(.+)$/i);
@@ -176,11 +245,10 @@ function extractDbCandidates(filename: string): string[] {
       vol[1],
       /Espacia\s+Korea|ArtGravia|DJAWA/i.test(base)
     );
-    if (normalized) out.push(normalized);
-    out.push(vol[1].trim());
+    if (normalized) out.push(...splitNameCandidates(normalized));
   }
 
-  return [...new Set(out.filter((c) => c && !isNoiseToken(c)))];
+  return [...new Set(out.filter((c) => c && looksLikeCreatorName(c)))];
 }
 
 async function findCreatorByExactName(
@@ -325,14 +393,68 @@ export async function detectCreatorWithAi(filename: string): Promise<string | nu
   return verifyCreatorWithAi(filename, undefined, { regexHint, dbHint: null, searchSnippets: snippets });
 }
 
+async function linkOrCreateByName(
+  name: string,
+  category: CreatorCategory | undefined,
+  source: CreatorDetectSource,
+  createIfMissing: boolean | undefined
+): Promise<ResolvedCreator> {
+  const existing = await findCreatorByExactName(name);
+  if (existing) {
+    return { name: existing.name, creatorId: existing.id, source };
+  }
+
+  if (createIfMissing === false) {
+    const { findExistingCreator } = await import("./creator-service");
+    const catalogHit = await findExistingCreator(name);
+    if (catalogHit) {
+      return { name: catalogHit.creator.name, creatorId: catalogHit.creatorId, source: "db" };
+    }
+    return {
+      name: looksLikeCreatorName(name) ? name : null,
+      creatorId: null,
+      source: looksLikeCreatorName(name) ? source : "none",
+    };
+  }
+
+  try {
+    const linked: FindOrCreateCreatorResult = await findOrCreateCreator({
+      name,
+      category,
+    });
+    return {
+      name: linked.creator.name,
+      creatorId: linked.creatorId,
+      source,
+      isNew: linked.isNew,
+    };
+  } catch {
+    return {
+      name: looksLikeCreatorName(name) ? name : null,
+      creatorId: null,
+      source,
+    };
+  }
+}
+
 /** Full resolver — AI+Google verify before create. */
 export async function resolveCreatorFromFilename(
   filename: string,
   category?: CreatorCategory,
-  options?: { createIfMissing?: boolean }
+  options?: { createIfMissing?: boolean; skipAi?: boolean }
 ): Promise<ResolvedCreator> {
   const regexName = parseCreatorFromFilename(filename);
   const dbHit = await findCreatorInDb(filename);
+
+  if (options?.skipAi) {
+    if (dbHit) {
+      return { name: dbHit.name, creatorId: dbHit.id, source: "db" };
+    }
+    if (!regexName || !looksLikeCreatorName(regexName)) {
+      return { name: null, creatorId: null, source: "none" };
+    }
+    return linkOrCreateByName(regexName, category, "regex", options.createIfMissing);
+  }
 
   const searchQuery = buildCreatorSearchQuery(filename, category);
   const searchSnippets = await searchCreatorOnWeb(searchQuery, { category, num: 5 });
@@ -358,39 +480,22 @@ export async function resolveCreatorFromFilename(
     };
   }
 
-  if (dbHit && normalizeName(dbHit.name) === normalizeName(finalName)) {
+  if (dbHit && (normalizeName(dbHit.name) === normalizeName(finalName) || creatorNamesOverlap(dbHit.name, finalName))) {
     return { name: dbHit.name, creatorId: dbHit.id, source: aiName ? "ai" : "db" };
   }
 
-  if (options?.createIfMissing === false) {
-    const { findExistingCreator } = await import("./creator-service");
-    const catalogHit = await findExistingCreator(finalName);
-    if (catalogHit) {
-      return { name: catalogHit.creator.name, creatorId: catalogHit.creatorId, source: "db" };
-    }
-    return {
-      name: finalName,
-      creatorId: null,
-      source: aiName ? "ai" : regexName ? "regex" : "none",
-    };
+  if (!looksLikeCreatorName(finalName) && dbHit) {
+    return { name: dbHit.name, creatorId: dbHit.id, source: "db" };
   }
 
-  try {
-    const linked: FindOrCreateCreatorResult = await findOrCreateCreator({
-      name: finalName,
-      category,
-    });
-    return {
-      name: finalName,
-      creatorId: linked.creatorId,
-      source: aiName ? "ai" : regexName ? "regex" : "none",
-      isNew: linked.isNew,
-    };
-  } catch {
-    return {
-      name: finalName,
-      creatorId: null,
-      source: aiName ? "ai" : "none",
-    };
+  if (!looksLikeCreatorName(finalName)) {
+    return { name: null, creatorId: null, source: "none" };
   }
+
+  return linkOrCreateByName(
+    finalName,
+    category,
+    aiName ? "ai" : regexName ? "regex" : "none",
+    options?.createIfMissing
+  );
 }

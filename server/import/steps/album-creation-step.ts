@@ -86,13 +86,47 @@ export class AlbumCreationStep extends BasePipelineStep {
     try {
       if ((ctx.isV2 || ctx.pendingAlbum) && ctx.pendingAlbum && !ctx.albumId) {
         const pending = ctx.pendingAlbum;
+        const { resolveCreatorFromFilename, looksLikeCreatorName, parseCreatorFromFilename } =
+          await import("../../services/creator-detect");
+        const { findOrCreateCreator } = await import("../../services/creator-service");
+
+        let creatorId = pending.creatorId ?? null;
+        let creatorName = pending.creator ?? null;
+        if (!creatorId) {
+          const filename = pending.originalFileName || pending.title;
+          const resolved = await resolveCreatorFromFilename(filename, pending.category, {
+            createIfMissing: true,
+          });
+          if (resolved.creatorId) {
+            creatorId = resolved.creatorId;
+            creatorName = resolved.name;
+          } else {
+            const parsed = parseCreatorFromFilename(filename);
+            if (looksLikeCreatorName(parsed)) {
+              try {
+                const linked = await findOrCreateCreator({
+                  name: parsed!,
+                  category: pending.category,
+                });
+                creatorId = linked.creatorId;
+                creatorName = linked.creator.name;
+              } catch {
+                creatorName = parsed;
+              }
+            }
+          }
+        }
+        if (!looksLikeCreatorName(creatorName)) {
+          creatorName = parseCreatorFromFilename(pending.originalFileName || pending.title);
+        }
+
         const albumId = await db.transaction(async (tx) => {
           const [albumResult] = await tx.insert(albums).values({
             slug: pending.slug,
             title: pending.title,
-            creator: pending.creator,
-            creatorId: pending.creatorId,
-            cosplayer: pending.creator || null,
+            creator: creatorName,
+            creatorId,
+            cosplayer: creatorName || null,
             collectionName: pending.collectionName,
             description: pending.description,
             shortDescription: pending.shortDescription,
@@ -136,18 +170,18 @@ export class AlbumCreationStep extends BasePipelineStep {
         ctx.checkpoint.albumId = albumId;
         await ctx.saveCheckpoint();
 
-        if (pending.creatorId && coverThumbKey) {
-          await updateCreatorAvatarIfEmpty(pending.creatorId, coverThumbKey);
+        if (creatorId && coverThumbKey) {
+          await updateCreatorAvatarIfEmpty(creatorId, coverThumbKey);
         }
-        if (pending.creatorId && heroMediumKey) {
+        if (creatorId && heroMediumKey) {
           await updateCreatorBannerIfEmpty(
-            pending.creatorId,
+            creatorId,
             heroMediumKey,
             getPublicUrl(heroMediumKey)
           );
         }
-        if (pending.creatorId) {
-          await updateCreatorAlbumCount(pending.creatorId);
+        if (creatorId) {
+          await updateCreatorAlbumCount(creatorId);
         }
       } else if (ctx.albumId) {
         await db.transaction(async (tx) => {
