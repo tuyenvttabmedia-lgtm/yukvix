@@ -165,6 +165,7 @@ function Router() {
         <Route path="/admin/albums" component={AdminAlbums} />
         <Route path="/admin/users" component={AdminUsers} />
         <Route path="/admin/subscriptions" component={AdminSubscriptions} />
+        <Route path="/admin/albums/:id/seo-review" component={AdminAlbumSeoReview} />
         <Route path="/admin/albums/:id">
           {(params) => <AdminAlbumEditor albumId={parseInt(params.id || "0", 10)} />}
         </Route>
@@ -203,7 +204,6 @@ function Router() {
 
         {/* ZIP Import (separate from legacy crawler) */}
         <Route path="/admin/zip-import" component={AdminZipImport} />
-        <Route path="/admin/albums/:id/seo-review" component={AdminAlbumSeoReview} />
 
         {/* AI Settings */}
         <Route path="/admin/settings/ai" component={AdminAiSettings} />

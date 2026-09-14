@@ -28,7 +28,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDropzone } from "react-dropzone";
-import { AdminPageShell, AdminPageHeader } from "@/admin";
+import { AdminPageShell } from "@/admin";
+import AdminLayout from "./AdminLayout";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -1202,20 +1203,24 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
 
   if (albumLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
     );
   }
 
   if (!album) {
     return (
-      <div className="text-center py-16 text-muted-foreground">
-        Album not found.{" "}
-        <button onClick={() => navigate("/admin/albums")} className="text-primary underline">
-          Go back
-        </button>
-      </div>
+      <AdminLayout>
+        <div className="text-center py-16 text-muted-foreground">
+          Album not found.{" "}
+          <button onClick={() => navigate("/admin/albums")} className="text-primary underline">
+            Go back
+          </button>
+        </div>
+      </AdminLayout>
     );
   }
 
@@ -1224,6 +1229,8 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
   const errorCount = uploadQueue.filter((i) => i.status === "error").length;
 
   return (
+    <AdminLayout>
+    <AdminPageShell mode="full">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -2331,5 +2338,7 @@ export default function AdminAlbumEditor({ albumId }: { albumId: number }) {
         </DialogContent>
       </Dialog>
     </div>
+    </AdminPageShell>
+    </AdminLayout>
   );
 }
