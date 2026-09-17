@@ -88,36 +88,17 @@ export class AlbumCreationStep extends BasePipelineStep {
         const pending = ctx.pendingAlbum;
         const { resolveCreatorFromFilename, looksLikeCreatorName, parseCreatorFromFilename } =
           await import("../../services/creator-detect");
-        const { findOrCreateCreator } = await import("../../services/creator-service");
 
-        let creatorId = pending.creatorId ?? null;
-        let creatorName = pending.creator ?? null;
-        if (!creatorId) {
-          const filename = pending.originalFileName || pending.title;
-          const resolved = await resolveCreatorFromFilename(filename, pending.category, {
-            createIfMissing: true,
-          });
-          if (resolved.creatorId) {
-            creatorId = resolved.creatorId;
-            creatorName = resolved.name;
-          } else {
-            const parsed = parseCreatorFromFilename(filename);
-            if (looksLikeCreatorName(parsed)) {
-              try {
-                const linked = await findOrCreateCreator({
-                  name: parsed!,
-                  category: pending.category,
-                });
-                creatorId = linked.creatorId;
-                creatorName = linked.creator.name;
-              } catch {
-                creatorName = parsed;
-              }
-            }
-          }
-        }
+        const filename = pending.originalFileName || pending.title;
+        const resolved = await resolveCreatorFromFilename(filename, pending.category, {
+          createIfMissing: false,
+          skipAi: true,
+        });
+        let creatorId = resolved.creatorId ?? null;
+        let creatorName = resolved.name ?? null;
         if (!looksLikeCreatorName(creatorName)) {
-          creatorName = parseCreatorFromFilename(pending.originalFileName || pending.title);
+          const parsed = parseCreatorFromFilename(filename);
+          creatorName = looksLikeCreatorName(parsed) ? parsed : null;
         }
 
         const albumId = await db.transaction(async (tx) => {

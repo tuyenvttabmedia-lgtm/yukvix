@@ -48,6 +48,8 @@ const NOISE_TOKENS = new Set([
   "gallery",
   "photos",
   "zip",
+  "coser",
+  "my",
 ]);
 
 const REST_NOISE_WORDS = new Set([
@@ -86,8 +88,14 @@ function stripArchiveExt(filename: string): string {
   return filename.replace(/\.(zip|rar|7z)$/i, "").trim();
 }
 
+const CJK_OR_KANA_OR_HANGUL = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
+
 function isNoiseToken(token: string): boolean {
-  const t = token.toLowerCase().replace(/[^a-z0-9.]/g, "");
+  const trimmed = token.trim();
+  if (!trimmed) return true;
+  if (BAD_HANGUL_IN_PAREN.has(trimmed)) return true;
+  if (CJK_OR_KANA_OR_HANGUL.test(trimmed)) return false;
+  const t = trimmed.toLowerCase().replace(/[^a-z0-9.]/g, "");
   if (!t || t.length < 2) return true;
   if (NOISE_TOKENS.has(t)) return true;
   if (/^vol\.?\d+$/i.test(token)) return true;
@@ -119,11 +127,24 @@ function restIsNoise(rest: string): boolean {
 export function looksLikeCreatorName(name: string | null | undefined): boolean {
   const n = name?.trim() ?? "";
   if (n.length < 2 || n.length > 48) return false;
-  if (KNOWN_COLLECTIONS.has(name!.trim())) return false;
+  if (KNOWN_COLLECTIONS.has(n) || /^coser$/i.test(n)) return false;
   if (/\b(gallery|photoset|photobook|collection)\b/i.test(n)) return false;
   if (/\bvol\.?\s*\d+\b/i.test(n)) return false;
   if (isNoiseToken(n)) return false;
   return true;
+}
+
+/**
+ * High-confidence person name: CJK/Hangul/Kana, "Dami (퀸다미)", or 2+ Latin words.
+ * Single English tokens like "rose" are album titles, not cosplayers.
+ */
+export function isConfidentCreatorName(name: string | null | undefined): boolean {
+  if (!looksLikeCreatorName(name)) return false;
+  const n = name!.trim();
+  if (CJK_OR_KANA_OR_HANGUL.test(n)) return true;
+  if (/\([^)]*[\uac00-\ud7af]+[^)]*\)/.test(n)) return true;
+  const latinWords = n.split(/\s+/).filter((w) => /[a-z]/i.test(w) && !isNoiseToken(w));
+  return latinWords.length >= 2;
 }
 
 export function creatorNamesOverlap(a: string, b: string): boolean {
@@ -183,10 +204,28 @@ function normalizeCreatorSegment(segment: string, isKoreaSeries: boolean): strin
   return stage;
 }
 
+/**
+ * Coser 阿包也是兔娘 - My rose 玫瑰  → 阿包也是兔娘
+ * Coser 村上西瓜-问琴武士的重启人生     → 村上西瓜
+ */
+function parseCoserPrefixName(base: string): string | null {
+  const match = base.match(/^(?:Coser|COS(?:PLAY)?)\s+(.+?)\s*[-–—]\s*.+/i);
+  if (!match?.[1]) return null;
+  const name = stripCreatorNoise(match[1]);
+  if (!name || /^coser$/i.test(name) || KNOWN_COLLECTIONS.has(name)) return null;
+  if (name.length < 2 || name.length > 40) return null;
+  if (CJK_OR_KANA_OR_HANGUL.test(name)) return name;
+  if (isConfidentCreatorName(name)) return name;
+  return null;
+}
+
 /** Layer 1 — regex / filename parser (hint only, not final). */
 export function parseCreatorFromFilename(filename: string): string | null {
   let base = stripArchiveExt(filename);
   base = base.replace(NOISE_SUFFIXES, "").trim();
+
+  const coserName = parseCoserPrefixName(base);
+  if (coserName) return coserName;
 
   const isKoreaSeries = /Espacia\s+Korea|ArtGravia|DJAWA|PIA|Pure Media|CreamSoda|SWEETBOX/i.test(
     base
@@ -221,15 +260,10 @@ export function parseCreatorFromFilename(filename: string): string | null {
   const volMatch = base.match(/Vol\.?\s*\d+\s+(.+)$/i);
   if (volMatch?.[1]?.trim()) {
     const name = normalizeCreatorSegment(volMatch[1], isKoreaSeries);
-    if (name) return name;
+    if (name && looksLikeCreatorName(name)) return name;
   }
 
-  const parts = base.split(/[\s\-_]+/).filter((p) => p && !isNoiseToken(p));
-  if (parts.length > 0) {
-    const last = parts[parts.length - 1];
-    if (last.length > 1) return last;
-  }
-
+  // Do not guess the last leftover token ("rose", "Coser") — leave unassigned.
   return null;
 }
 
@@ -404,7 +438,7 @@ async function linkOrCreateByName(
     return { name: existing.name, creatorId: existing.id, source };
   }
 
-  if (createIfMissing === false) {
+  if (createIfMissing !== true) {
     const { findExistingCreator } = await import("./creator-service");
     const catalogHit = await findExistingCreator(name);
     if (catalogHit) {

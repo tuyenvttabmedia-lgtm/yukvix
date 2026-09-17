@@ -38,12 +38,30 @@ describe("parseCreatorFromFilename", () => {
       parseCreatorFromFilename("Espacia Korea EHC Vol.041 Lee Snow (리 스노우) Photoset.zip")
     ).toBe("Lee Snow (리 스노우)");
   });
+
+  it("takes the cosplayer before the dash in Coser titles, not the set name", () => {
+    expect(
+      parseCreatorFromFilename("Coser 阿包也是兔娘 - My rose 玫瑰.zip")
+    ).toBe("阿包也是兔娘");
+    expect(
+      parseCreatorFromFilename("Coser 阿包也是兔娘 - Kuuka")
+    ).toBe("阿包也是兔娘");
+    expect(
+      parseCreatorFromFilename("Coser 村上西瓜-问琴武士的重启人生 刹那 (旗袍)")
+    ).toBe("村上西瓜");
+  });
+
+  it("does not guess a leftover English token as the creator", () => {
+    expect(parseCreatorFromFilename("My rose 玫瑰.zip")).toBeNull();
+  });
 });
 
 describe("looksLikeCreatorName", () => {
   it("accepts a model name and rejects leftover title text", () => {
     expect(looksLikeCreatorName("Dami (퀸다미)")).toBe(true);
+    expect(looksLikeCreatorName("阿包也是兔娘")).toBe(true);
     expect(looksLikeCreatorName("Dami (퀸다미) Korean Model Gallery")).toBe(false);
     expect(looksLikeCreatorName("ArtGravia")).toBe(false);
+    expect(looksLikeCreatorName("Coser")).toBe(false);
   });
 });

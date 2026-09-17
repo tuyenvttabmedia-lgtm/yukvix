@@ -27,6 +27,7 @@ export const KNOWN_COLLECTIONS = new Set([
   "XIUREN", "XiuRen", "IMISS", "UOM", "YouMi", "FeiLin", "MFStar", "Ugirls", "TouTiao",
   "ArtGravia", "DJAWA", "PIA", "Pure Media", "CreamSoda", "SWEETBOX",
   "MissKON", "MrCong", "Yukvix", "Photoset", "Photobook", "Espacia", "EHC",
+  "Coser",
 ]);
 
 /**

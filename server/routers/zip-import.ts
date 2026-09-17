@@ -279,28 +279,27 @@ export const zipImportRouter = router({
         });
       }
 
-      // 3-layer creator detect when admin did not supply creator
+      // Detect creator from filename. Never auto-create; only link a catalog match.
       let creatorName = input.creator?.trim() || null;
       let creatorId: number | null = null;
       if (input.originalFileName) {
         const resolved = await resolveCreatorFromFilename(input.originalFileName, input.category, {
-          createIfMissing: true,
+          createIfMissing: false,
+          skipAi: true,
         });
         if (resolved.creatorId) {
           creatorName = resolved.name;
           creatorId = resolved.creatorId;
-        } else if (looksLikeCreatorName(resolved.name) && !creatorName) {
+        } else if (!creatorName && looksLikeCreatorName(resolved.name)) {
           creatorName = resolved.name;
         }
       }
       if (creatorName && !creatorId) {
-        try {
-          const { findOrCreateCreator } = await import("../services/creator-service");
-          const linked = await findOrCreateCreator({ name: creatorName, category: input.category });
-          creatorId = linked.creatorId;
-          creatorName = linked.creator.name;
-        } catch {
-          if (!looksLikeCreatorName(creatorName)) creatorName = null;
+        const { findExistingCreator } = await import("../services/creator-service");
+        const existing = await findExistingCreator(creatorName);
+        if (existing) {
+          creatorId = existing.creatorId;
+          creatorName = existing.creator.name;
         }
       }
 
@@ -1064,7 +1063,7 @@ export const zipImportRouter = router({
           }
 
           const resolvedCreator = await resolveCreatorFromFilename(item.filename, seo.category, {
-            createIfMissing: true,
+            createIfMissing: false,
             skipAi: true,
           });
           const creatorName = looksLikeCreatorName(resolvedCreator.name) ? resolvedCreator.name : null;
