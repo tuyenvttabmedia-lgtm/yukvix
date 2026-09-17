@@ -11,9 +11,9 @@
 
 import { getDb } from "../db";
 import { albums, creators, photos } from "../../drizzle/schema";
-import { desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, ne, or, sql } from "drizzle-orm";
 import type { YukvixCategory } from "./seo-generator";
-import { generateSlug } from "./seo-generator";
+import { isUsableLatinSlug, slugifyCreatorName } from "@shared/creator-slug";
 import { copyObject, getPublicUrl } from "../storage-wasabi";
 import {
   extractStorageObjectKey,
@@ -172,7 +172,7 @@ export async function findOrCreateCreator(
   const normalizedInput = normalizeName(name);
 
   // 4. Create new creator
-  const slug = await generateUniqueCreatorSlug(name, db);
+  const slug = await generateUniqueCreatorSlug(name);
   const allAliases = [name, ...aliases].filter(Boolean);
 
   const [result] = await db.insert(creators).values({
@@ -685,14 +685,17 @@ export async function applyCreatorImageFromPhoto(
 
 /**
  * Generate a unique slug for a creator.
+ * CJK names are Latinized (pinyin / hangul RR / kana) instead of falling back to album-N.
  * Appends numeric suffix if slug already exists.
  */
-async function generateUniqueCreatorSlug(
+export async function generateUniqueCreatorSlug(
   name: string,
-  db: Awaited<ReturnType<typeof getDb>>
+  options?: { preferredSlug?: string; excludeId?: number }
 ): Promise<string> {
+  const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const base = generateSlug(name) || "creator";
+  const preferred = options?.preferredSlug?.trim().toLowerCase() ?? "";
+  const base = isUsableLatinSlug(preferred) ? preferred : slugifyCreatorName(name);
   let slug = base;
   let attempt = 1;
 
@@ -700,7 +703,11 @@ async function generateUniqueCreatorSlug(
     const existing = await db
       .select({ id: creators.id })
       .from(creators)
-      .where(eq(creators.slug, slug))
+      .where(
+        options?.excludeId
+          ? and(eq(creators.slug, slug), ne(creators.id, options.excludeId))
+          : eq(creators.slug, slug)
+      )
       .limit(1);
 
     if (existing.length === 0) return slug;
@@ -708,4 +715,37 @@ async function generateUniqueCreatorSlug(
     attempt++;
     slug = `${base}-${attempt}`;
   }
+}
+
+/** Rewrite album-1 / empty leftover slugs to a Latinized Cosplayer name. */
+export async function repairPlaceholderCreatorSlugs(): Promise<{
+  total: number;
+  updated: number;
+  skipped: number;
+}> {
+  const db = await getDb();
+  if (!db) return { total: 0, updated: 0, skipped: 0 };
+  const rows = await db
+    .select({ id: creators.id, name: creators.name, slug: creators.slug })
+    .from(creators);
+
+  let updated = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    if (isUsableLatinSlug(row.slug)) {
+      skipped++;
+      continue;
+    }
+    const next = await generateUniqueCreatorSlug(row.name, { excludeId: row.id });
+    if (next === row.slug) {
+      skipped++;
+      continue;
+    }
+    await db
+      .update(creators)
+      .set({ slug: next, updatedAt: new Date() })
+      .where(eq(creators.id, row.id));
+    updated++;
+  }
+  return { total: rows.length, updated, skipped };
 }

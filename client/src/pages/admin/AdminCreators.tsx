@@ -10,10 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { Users, Pencil, Trash2, Plus, Upload, User, ChevronRight, Sparkles, Loader2, Wand2, ImageIcon } from "lucide-react";
-
-function slugify(text: string) {
-  return text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
-}
+import { slugifyCreatorName } from "@shared/creator-slug";
 
 type Creator = {
   id: number;
@@ -320,7 +317,7 @@ export default function AdminCreators() {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Tạo cosplayer mới</DialogTitle></DialogHeader>
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-              <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value, slug: slugify(e.target.value) }))} /></div>
+              <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value, slug: slugifyCreatorName(e.target.value) }))} /></div>
               <div><Label>Slug</Label><Input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} /></div>
               <div><Label>Giới thiệu</Label><Textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} rows={3} /></div>
               <div className="grid grid-cols-2 gap-3">

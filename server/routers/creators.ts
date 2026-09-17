@@ -13,18 +13,9 @@ import {
 } from "../db";
 import { getPublicUrl, uploadToStorage } from "../storage-wasabi";
 import { isAdmin, isVipOrAdmin } from '@shared/const';
-import { applyCreatorImageFromPhoto, applyCreatorImagesFromAlbums, listCreatorAlbumIds } from "../services/creator-service";
+import { applyCreatorImageFromPhoto, applyCreatorImagesFromAlbums, generateUniqueCreatorSlug, listCreatorAlbumIds } from "../services/creator-service";
 import { isCreatorPubliclyVisible, isLowResCreatorBanner, toPublicCreatorBannerUrl, toPublicCreatorImageUrl } from "../public-media-url";
 import { creators } from "../../drizzle/schema";
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .trim();
-}
 
 export const creatorsRouter = router({
   // --- Public: list all creators --------------------------------------------
@@ -136,7 +127,7 @@ export const creatorsRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
-      const slug = input.slug || slugify(input.name) + "-" + Date.now().toString(36);
+      const slug = await generateUniqueCreatorSlug(input.name, { preferredSlug: input.slug });
       const creator = await createCreator({
         name: input.name,
         slug,

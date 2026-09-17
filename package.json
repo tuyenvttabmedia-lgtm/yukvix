@@ -103,6 +103,7 @@
     "nodemailer": "^8.0.7",
     "p-queue": "^9.3.0",
     "photoswipe": "^5.4.4",
+    "pinyin-pro": "^3.29.4",
     "puppeteer": "^25.0.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.1",
