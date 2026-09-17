@@ -49,6 +49,9 @@ describe("parseCreatorFromFilename", () => {
     expect(
       parseCreatorFromFilename("Coser 村上西瓜-问琴武士的重启人生 刹那 (旗袍)")
     ).toBe("村上西瓜");
+    expect(
+      parseCreatorFromFilename("Coser 年年Nnian Vol.110 - 风")
+    ).toBe("年年Nnian");
   });
 
   it("does not guess a leftover English token as the creator", () => {

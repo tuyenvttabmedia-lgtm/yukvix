@@ -211,7 +211,8 @@ function normalizeCreatorSegment(segment: string, isKoreaSeries: boolean): strin
 function parseCoserPrefixName(base: string): string | null {
   const match = base.match(/^(?:Coser|COS(?:PLAY)?)\s+(.+?)\s*[-–—]\s*.+/i);
   if (!match?.[1]) return null;
-  const name = stripCreatorNoise(match[1]);
+  let name = stripCreatorNoise(match[1]);
+  name = name.replace(/\s+Vol\.?\s*\d+\s*$/i, "").trim();
   if (!name || /^coser$/i.test(name) || KNOWN_COLLECTIONS.has(name)) return null;
   if (name.length < 2 || name.length > 40) return null;
   if (CJK_OR_KANA_OR_HANGUL.test(name)) return name;
