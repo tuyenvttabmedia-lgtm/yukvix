@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n";
+import { LANG_STORAGE_KEY, SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +35,7 @@ export function LanguageSwitcher({ variant = "icon", className }: LanguageSwitch
 
   const handleChange = (code: LanguageCode) => {
     i18n.changeLanguage(code);
-    localStorage.setItem("cosplay-lang", code);
+    localStorage.setItem(LANG_STORAGE_KEY, code);
   };
 
   return (

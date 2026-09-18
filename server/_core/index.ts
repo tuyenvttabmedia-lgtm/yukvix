@@ -31,6 +31,7 @@ import { importMetricsSnapshotHandler } from "../scheduled/import-metrics-snapsh
 import { cleanupImportArtifactsHandler } from "../scheduled/cleanup-import-artifacts";
 import { processImportQueueHandler } from "../scheduled/process-import-queue";
 import { registerHealthRoutes } from "./health.js";
+import { registerGeoRoutes } from "../geo";
 import { paymentReconciliationHandler } from "../scheduled/payment-reconciliation.js";
 import { cleanupSkippedImportsHandler } from "../scheduled/cleanup-skipped-imports.js";
 import { getWorkerMode } from "./worker-mode";
@@ -137,6 +138,7 @@ async function startServer() {
   registerUploadRoutes(app);
   registerSeoRoutes(app);
   registerHealthRoutes(app);
+  registerGeoRoutes(app);
   // Keep-alive endpoint for Cloud Run CPU warm-up during background jobs
   app.get("/api/import/keepalive", (_req, res) => {
     res.json({ ok: true, ts: Date.now() });
