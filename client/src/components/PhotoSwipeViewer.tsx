@@ -6,10 +6,9 @@
  * Tier 3: original (4K)   → auto-upgrade after medium paints, for anyone who can view the photo
  *
  * Features:
- * - Desktop: scroll wheel zoom, drag pan, double-click zoom 100%, ESC close, ← → nav
+ * - Desktop: wheel zooms gradually toward the cursor, drag pan, click zooms ~2.25x then back
  * - Mobile: pinch zoom, swipe nav, double-tap zoom, swipe-down close
- * - Guest: zoom capped at 2x; still receives 4K after first paint
- * - VIP: unlimited zoom; overlay only if they zoom before 4K is ready
+ * - Guest and VIP both get 4K after first paint; wheel/pinch can reach 1:1 pixels
  */
 import PhotoSwipeLightbox from "photoswipe/lightbox";
 import "photoswipe/style.css";
@@ -215,14 +214,18 @@ export default function PhotoSwipeViewer({
       dataSource,
       pswpModule: () => import("photoswipe"),
       index: initialIndex,
-      maxZoomLevel: isVip ? 4 : 2,
+      // Zoom numbers are relative to original pixels (1 = 1:1). After 4K, a literal
+      // 2/4 jumps from "fit" to a tiny crop. Scale from the fitted view instead.
       initialZoomLevel: "fit",
-      secondaryZoomLevel: isVip ? 2 : 1.5,
+      secondaryZoomLevel: (zoom) => zoom.fit * 2.25,
+      maxZoomLevel: (zoom) => Math.max(1, zoom.fit * 6),
+      wheelToZoom: true,
       pinchToClose: true,
       closeOnVerticalDrag: true,
       bgOpacity: 0.95,
       padding: { top: 20, bottom: 40, left: 0, right: 0 },
       preload: [1, 1],
+      zoomAnimationDuration: 280,
     });
 
     const applyDisplayToIndex = (index: number, urls: SignedPhotoUrls) => {
