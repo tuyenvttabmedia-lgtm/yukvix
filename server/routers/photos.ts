@@ -28,10 +28,64 @@ import {
   assertAlbumPubliclyReadable,
   pickVisiblePhotosForNonVip,
   presentPhotosForClient,
+  presentPhotosForGrid,
   viewerFlags,
 } from "../photo-access";
 
 export const photosRouter = router({
+  // --- Album grid: all visible thumbs, no Wasabi signing ----------------------
+  albumGrid: publicProcedure
+    .input(z.object({ albumId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const album = await getAlbumById(input.albumId);
+      assertAlbumPubliclyReadable(album, ctx.user?.role);
+
+      const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
+      const access = { albumIsVip: !!album.isVip, userIsVip, isAdminUser };
+
+      if (album.isVip && !userIsVip && !isAdminUser) {
+        const previewItems = await getPreviewPhotosForNonVip(
+          input.albumId,
+          album.freePreviewCount ?? 0
+        );
+        return {
+          items: presentPhotosForGrid(
+            previewItems.map((p) => ({ ...p, isFreePreview: true })),
+            access
+          ),
+        };
+      }
+
+      const items = await getPhotosByAlbumId(input.albumId);
+      return { items: presentPhotosForGrid(items, access) };
+    }),
+
+  // --- Signed 1200px (and VIP original) for lightbox slides -------------------
+  signedVariants: publicProcedure
+    .input(z.object({
+      albumId: z.number(),
+      photoIds: z.array(z.number().int().positive()).min(1).max(8),
+    }))
+    .query(async ({ input, ctx }) => {
+      const album = await getAlbumById(input.albumId);
+      assertAlbumPubliclyReadable(album, ctx.user?.role);
+      const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
+      const access = { albumIsVip: !!album.isVip, userIsVip, isAdminUser };
+      const uniqueIds = Array.from(new Set(input.photoIds));
+      const rows = await Promise.all(uniqueIds.map((id) => getPhotoById(id)));
+      const owned = rows.filter((p): p is NonNullable<typeof p> => !!p && p.albumId === input.albumId);
+      const presented = await presentPhotosForClient(owned, access);
+      return presented
+        .filter((p) => !p.isLocked && p.displayUrl)
+        .map((p) => ({
+          id: p.id,
+          displayUrl: p.displayUrl,
+          originalUrl: p.originalUrl ?? null,
+          width: p.width ?? null,
+          height: p.height ?? null,
+        }));
+    }),
+
   // --- Paginated photos for an album (cursor-based, limit 24) -----------------
   byAlbumPaginated: publicProcedure
     .input(z.object({

@@ -159,6 +159,59 @@ export async function presentPhotosForClient(
   return Promise.all(photos.map((p) => presentPhotoForClient(p, opts)));
 }
 
+export type PhotoGridItem = {
+  id: number;
+  albumId: number;
+  width: number | null;
+  height: number | null;
+  sortOrder: number | null;
+  altText: string | null;
+  thumbUrl: string | null;
+  isLocked: boolean;
+};
+
+/**
+ * Album grid payload: public thumbs + dimensions only.
+ * Do not sign medium/original here — that blocked first paint on every photo.
+ */
+export function presentPhotoForGrid(
+  photo: PhotoLike,
+  opts: { albumIsVip: boolean; userIsVip: boolean; isAdminUser: boolean }
+): PhotoGridItem {
+  const { albumIsVip, userIsVip, isAdminUser } = opts;
+  const canSee =
+    isAdminUser || !albumIsVip || userIsVip || !!photo.isFreePreview;
+  if (!canSee) {
+    return {
+      id: photo.id,
+      albumId: photo.albumId,
+      width: null,
+      height: null,
+      sortOrder: photo.sortOrder ?? null,
+      altText: null,
+      thumbUrl: null,
+      isLocked: true,
+    };
+  }
+  return {
+    id: photo.id,
+    albumId: photo.albumId,
+    width: photo.width ?? null,
+    height: photo.height ?? null,
+    sortOrder: photo.sortOrder ?? null,
+    altText: photo.altText ?? null,
+    thumbUrl: rewritePublicMediaUrl(photo.thumbUrl) ?? null,
+    isLocked: false,
+  };
+}
+
+export function presentPhotosForGrid(
+  photos: PhotoLike[],
+  opts: { albumIsVip: boolean; userIsVip: boolean; isAdminUser: boolean }
+): PhotoGridItem[] {
+  return photos.map((p) => presentPhotoForGrid(p, opts)).filter((p) => !p.isLocked);
+}
+
 export function viewerFlags(role?: string | null) {
   return {
     userIsVip: !!role && isVipOrAdmin(role),

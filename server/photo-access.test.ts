@@ -61,6 +61,26 @@ describe("presentPhotoForClient", () => {
     expect(result.originalUrl).toBeUndefined();
   });
 
+  it("grid presenter skips Wasabi signing and drops full-size URLs", async () => {
+    const { presentPhotoForGrid, presentPhotosForGrid } = await import("./photo-access");
+    const { getSignedMediaUrl } = await import("./storage-wasabi");
+    const item = presentPhotoForGrid(photo, {
+      albumIsVip: false,
+      userIsVip: false,
+      isAdminUser: false,
+    });
+    expect(item.thumbUrl).toBe(photo.thumbUrl);
+    expect(item).not.toHaveProperty("displayUrl");
+    expect(item).not.toHaveProperty("originalUrl");
+    expect(getSignedMediaUrl).not.toHaveBeenCalled();
+    expect(
+      presentPhotosForGrid(
+        [{ ...photo, isFreePreview: false }],
+        { albumIsVip: true, userIsVip: false, isAdminUser: false }
+      )
+    ).toEqual([]);
+  });
+
   it("gives VIP viewers a medium lightbox plus a 4K original for zoom", async () => {
     const { presentPhotoForClient } = await import("./photo-access");
     const { getSignedMediaUrl } = await import("./storage-wasabi");

@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import SeoHead, { buildImageGallerySchema, buildBreadcrumbSchema } from "@/components/SeoHead";
 import { Bookmark, BookmarkCheck, Crown, Download, Eye, ImageIcon, Lock, Loader2, Share2, Tag } from "lucide-react";
 import PhotoSwipeViewer, { PhotoSwipeStyles, type PhotoSwipeItem } from "@/components/PhotoSwipeViewer";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -14,21 +14,14 @@ interface AlbumDetailProps {
   params: { slug: string };
 }
 
-const PAGE_LIMIT = 24;
+const GRID_SIZES = "(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw";
 
 export default function AlbumDetail({ params }: AlbumDetailProps) {
   const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
-
-  // Paginated photo state — accumulated across pages
-  const [allPhotos, setAllPhotos] = useState<any[]>([]);
-  const [cursor, setCursor] = useState<number | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const albumIdRef = useRef<number | null>(null);
+  const variantCacheRef = useRef<Map<number, { displayUrl: string; originalUrl?: string | null; width?: number | null; height?: number | null }>>(new Map());
 
   const isVip = user?.role === "vip" || user?.role === "admin" || user?.role === "super_admin";
   const [zipLoading, setZipLoading] = useState(false);
@@ -57,107 +50,68 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
     { enabled: !!data?.album?.id }
   );
 
-  // --- Paginated photo loader ---------------------------------------------------
-  const photosQuery = trpc.photos.byAlbumPaginated.useQuery(
-    {
-      albumId: data?.album?.id ?? 0,
-      cursor,
-      limit: PAGE_LIMIT,
-    },
-    {
-      // Note: do NOT add !loadingMore here — it would disable the query
-      // right when we need it (after setLoadingMore(true) fires), causing a freeze.
-      enabled: !!data?.album?.id && hasMore,
-    }
+  const { data: gridData, isLoading: photosLoading } = trpc.photos.albumGrid.useQuery(
+    { albumId: data?.album?.id ?? 0 },
+    { enabled: !!data?.album?.id }
   );
+  const allPhotos = gridData?.items ?? [];
 
-  // Accumulate photos as pages load
   useEffect(() => {
-    if (!photosQuery.data) return;
-    const albumId = data?.album?.id;
-    if (!albumId) return;
-
-    // Reset on album change
-    if (albumIdRef.current !== albumId) {
-      albumIdRef.current = albumId;
-      setAllPhotos([]);
-      setCursor(null);
-      setHasMore(true);
-    }
-
-    const newItems = photosQuery.data.items as any[];
-    if (newItems.length > 0) {
-      setAllPhotos((prev) => {
-        // Deduplicate by id
-        const existingIds = new Set(prev.map((p: any) => p.id));
-        const fresh = newItems.filter((p: any) => !existingIds.has(p.id));
-        return fresh.length > 0 ? [...prev, ...fresh] : prev;
-      });
-    }
-
-    const nextCursor = photosQuery.data.nextCursor;
-    if (nextCursor === null || nextCursor === undefined) {
-      setHasMore(false);
-    }
-    setLoadingMore(false);
-  }, [photosQuery.data, data?.album?.id]);
+    variantCacheRef.current.clear();
+    setLightboxIndex(null);
+  }, [params.slug]);
 
   // --- Bookmark sync ------------------------------------------------------------
   useEffect(() => {
     if (data) setBookmarked(data.bookmarked);
   }, [data]);
 
-  // --- Reset on slug change -----------------------------------------------------
-  useEffect(() => {
-    setAllPhotos([]);
-    setCursor(null);
-    setHasMore(true);
-    setLoadingMore(false);
-    albumIdRef.current = null;
-    setLightboxIndex(null);
-  }, [params.slug]);
+  const resolveUrls = useCallback(
+    async (photoId: number) => {
+      const cached = variantCacheRef.current.get(photoId);
+      if (cached?.displayUrl) return cached;
+      const albumId = data?.album?.id;
+      if (!albumId) return null;
+      const rows = await utils.photos.signedVariants.fetch({ albumId, photoIds: [photoId] });
+      const row = rows[0];
+      if (!row?.displayUrl) return null;
+      variantCacheRef.current.set(photoId, row);
+      return row;
+    },
+    [data?.album?.id, utils.photos.signedVariants]
+  );
 
-  // --- IntersectionObserver sentinel -------------------------------------------
-  useEffect(() => {
-    if (!hasMore || loadingMore || !data?.album?.id) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          // Advance cursor to load next page
-          const lastPhoto = allPhotos[allPhotos.length - 1];
-          if (lastPhoto) {
-            setLoadingMore(true);
-            setCursor(lastPhoto.sortOrder ?? allPhotos.length - 1);
-          }
-        }
-      },
-      { rootMargin: "300px" }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, allPhotos, data?.album?.id]);
-
-  // --- Lightbox helpers ---------------------------------------------------------
-  const openLightbox = (index: number) => {
-    if (allPhotos[index]) setLightboxIndex(index);
+  const openLightbox = async (index: number) => {
+    const photo = allPhotos[index];
+    if (!photo || !data?.album?.id) return;
+    const neighborIds = [index - 1, index, index + 1]
+      .map((i) => allPhotos[i]?.id)
+      .filter((id): id is number => typeof id === "number");
+    const missing = neighborIds.filter((id) => !variantCacheRef.current.has(id));
+    if (missing.length) {
+      const rows = await utils.photos.signedVariants.fetch({
+        albumId: data.album.id,
+        photoIds: missing,
+      });
+      for (const row of rows) variantCacheRef.current.set(row.id, row);
+    }
+    if (!variantCacheRef.current.get(photo.id)?.displayUrl) return;
+    setLightboxIndex(index);
   };
   const closeLightbox = () => setLightboxIndex(null);
 
-  // Map allPhotos to PhotoSwipeItem format
-  const photoSwipeItems: PhotoSwipeItem[] = allPhotos.map((p) => ({
-    id: p.id,
-    thumbUrl: p.thumbUrl,
-    mediumUrl: p.displayUrl || p.mediumUrl,
-    webpUrl: undefined,
-    originalUrl: p.originalUrl,
-    displayUrl: p.displayUrl,
-    width: p.width,
-    height: p.height,
-    altText: p.altText,
-  }));
+  const photoSwipeItems: PhotoSwipeItem[] = allPhotos.map((p) => {
+    const cached = variantCacheRef.current.get(p.id);
+    return {
+      id: p.id,
+      thumbUrl: p.thumbUrl ?? undefined,
+      displayUrl: cached?.displayUrl,
+      originalUrl: cached?.originalUrl ?? undefined,
+      width: cached?.width ?? p.width ?? undefined,
+      height: cached?.height ?? p.height ?? undefined,
+      altText: p.altText ?? undefined,
+    };
+  });
 
   const toggleBookmark = trpc.users.toggleBookmark.useMutation({
     onSuccess: (result) => {
@@ -400,66 +354,49 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
           </div>
         </div>
 
-        {/* Photo Grid — incremental, loads 24 at a time via IntersectionObserver */}
+        {/* Photo Grid — thumbs only; browser lazy-loads below the fold */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-3">
+          {photosLoading && allPhotos.length === 0 &&
+            Array.from({ length: 10 }).map((_, i) => (
+              <div key={`sk-${i}`} className="aspect-square skeleton rounded-lg" />
+            ))}
           {allPhotos.map((photo, index) => (
             <button
               key={photo.id}
-              onClick={() => openLightbox(index)}
+              onClick={() => void openLightbox(index)}
               className="relative group aspect-square overflow-hidden rounded-lg bg-muted hover:ring-2 hover:ring-primary/50 transition-all"
+              style={{ contentVisibility: "auto", containIntrinsicSize: "240px 240px" }}
             >
-              {/* Grid: use thumbUrl (400px) for fast grid loading */}
               <img
-                src={photo.thumbUrl || photo.displayUrl || ""}
+                src={photo.thumbUrl || ""}
                 alt={photo.altText || `${album.title} — photo ${index + 1}`}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                loading={index < 4 ? "eager" : "lazy"}
+                loading={index < 8 ? "eager" : "lazy"}
                 decoding="async"
                 fetchPriority={index === 0 ? "high" : "low"}
+                sizes={GRID_SIZES}
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
             </button>
           ))}
 
-          {/* Sentinel: triggers next page load when scrolled into view */}
-          {hasMore && (
-            <div ref={sentinelRef} className="col-span-full h-8" aria-hidden />
-          )}
-
-          {/* Loading indicator */}
-          {loadingMore && (
-            <div className="col-span-full flex justify-center py-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                {t("album.loadingMore")}
-              </div>
-            </div>
-          )}
-
-          {/* Locked photo placeholders for VIP albums — show blurred preview */}
           {isVipLocked &&
-            Array.from({ length: Math.min(lockedCount, 20) }).map((_, i) => {
-              // Use a photo from the gallery as background (cycle through available photos)
-              const previewPhoto = allPhotos[i % Math.max(allPhotos.length, 1)];
-              const previewUrl = previewPhoto?.thumbUrl || "";
+            Array.from({ length: Math.min(lockedCount, 8) }).map((_, i) => {
+              const previewUrl = allPhotos[i % Math.max(allPhotos.length, 1)]?.thumbUrl || "";
               return (
                 <div
                   key={`locked-${i}`}
-                  className="relative aspect-square overflow-hidden rounded-lg bg-muted border border-border/50 group cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                  className="relative aspect-square overflow-hidden rounded-lg bg-muted border border-border/50 group"
+                  style={{
+                    contentVisibility: "auto",
+                    containIntrinsicSize: "240px 240px",
+                    backgroundImage: previewUrl ? `url(${previewUrl})` : undefined,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    filter: previewUrl ? undefined : undefined,
+                  }}
                 >
-                  {/* Blurred background image — visible but blurred to tease content */}
-                  {previewUrl && (
-                    <img
-                      src={previewUrl}
-                      alt="Locked preview"
-                      className="w-full h-full object-cover blur-md scale-110"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  )}
-                  {/* Subtle dark overlay — light enough to see the blurred photo */}
-                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors" />
-                  {/* Lock icon + text overlay */}
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-md" />
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                     <div className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
                       <Lock className="w-5 h-5 text-primary" />
@@ -540,6 +477,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
           isVip={isVip}
           albumTitle={album.title}
           onClose={closeLightbox}
+          resolveUrls={resolveUrls}
         />
       )}
     </div>
