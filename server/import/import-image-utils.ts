@@ -65,20 +65,23 @@ export async function processSingleImage(
 
     const webpPath = path.join(processedDir, "webp", `${outputName}.webp`);
     await sharp(filePath)
+      .rotate()
       .resize({ width: 3840, withoutEnlargement: true })
-      .webp({ quality: 85 })
+      .webp({ quality: 88, effort: 4 })
       .toFile(webpPath);
 
     const mediumPath = path.join(processedDir, "medium", `${outputName}.webp`);
     await sharp(filePath)
-      .resize({ width: 1200, withoutEnlargement: true })
-      .webp({ quality: 80 })
+      .rotate()
+      .resize({ width: 1920, withoutEnlargement: true })
+      .webp({ quality: 85, effort: 4 })
       .toFile(mediumPath);
 
     const thumbPath = path.join(processedDir, "thumb", `${outputName}.webp`);
     await sharp(filePath)
-      .resize({ width: 400, withoutEnlargement: true })
-      .webp({ quality: 75 })
+      .rotate()
+      .resize({ width: 400, height: 400, fit: "cover", position: "attention" })
+      .webp({ quality: 80, effort: 3 })
       .toFile(thumbPath);
 
     return {

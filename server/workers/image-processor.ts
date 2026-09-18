@@ -1,6 +1,6 @@
 /**
  * Image Processor (V4.16 Final)
- * - Converts images to 3 WebP variants: 4K/full, medium (1200px), thumb (400px)
+ * - Converts images to 3 WebP variants: 4K/full, medium (1920px), thumb (400px)
  * - Strips EXIF metadata (Sharp does this automatically during WebP conversion)
  * - Deletes original after processing
  */
@@ -16,7 +16,7 @@ export interface ImageProcessOptions {
   counter: number; // 1-based sequential number for filename
   webp4kSize?: number; // default 3840
   webp4kQuality?: number; // default 88
-  mediumSize?: number; // default 1200
+  mediumSize?: number; // default 1920
   mediumQuality?: number; // default 85
   thumbSize?: number; // default 400
   thumbQuality?: number; // default 80
@@ -44,7 +44,7 @@ export async function processImage(opts: ImageProcessOptions): Promise<ImageProc
     counter,
     webp4kSize = parseInt(process.env.IMPORT_WEBP_4K_SIZE || "3840"),
     webp4kQuality = parseInt(process.env.IMPORT_WEBP_4K_QUALITY || "88"),
-    mediumSize = parseInt(process.env.IMPORT_MEDIUM_SIZE || "1200"),
+    mediumSize = parseInt(process.env.IMPORT_MEDIUM_SIZE || "1920"),
     mediumQuality = parseInt(process.env.IMPORT_MEDIUM_QUALITY || "85"),
     thumbSize = parseInt(process.env.IMPORT_THUMB_SIZE || "400"),
     thumbQuality = parseInt(process.env.IMPORT_THUMB_QUALITY || "80"),

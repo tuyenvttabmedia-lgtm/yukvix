@@ -38,9 +38,9 @@ import type { ProcessedImage } from "../types.js";
 
 // --- Configuration -----------------------------------------------------------
 const THUMB_WIDTH = 400;
-const THUMB_HEIGHT = 300;
-const WEBP_QUALITY = 82;
-const MAX_WIDTH = 1920;
+const THUMB_HEIGHT = 400;
+const WEBP_QUALITY = 88;
+const MAX_WIDTH = 3840;
 
 // Concurrency: 4 images in-flight at once (optimal for 2 cores + async I/O)
 // Each image uses ~100-150MB peak RAM → 4 × 150MB = 600MB peak (safe for 4GB)
@@ -108,7 +108,7 @@ async function processAndUpload(
     sharp(originalBuffer, { failOn: "none" })
       .rotate()
       .resize(THUMB_WIDTH, THUMB_HEIGHT, { fit: "cover", position: "attention" })
-      .webp({ quality: 70, effort: 3 })
+      .webp({ quality: 80, effort: 3 })
       .toBuffer(),
   ]);
 

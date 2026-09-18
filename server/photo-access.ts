@@ -64,7 +64,7 @@ async function signedVariantUrl(
   return photo.thumbUrl || photo.displayUrl || photo.mediumUrl || photo.webpUrl || null;
 }
 
-/** Lightbox default: 1200px medium. Never start the viewer on a square 400px thumb. */
+/** Lightbox first paint: medium WebP. Never start the viewer on a square 400px thumb. */
 async function signedDisplayUrl(photo: PhotoLike): Promise<string | null> {
   const derivedMedium = deriveMediumObjectKey(
     photo.mediumKey || photo.thumbKey || photo.webpKey,
@@ -77,9 +77,9 @@ async function signedDisplayUrl(photo: PhotoLike): Promise<string | null> {
   );
 }
 
-/** VIP zoom only. */
+/** 4K WebP for sharp viewing after medium paints. Never fall back to a 400px thumb. */
 async function signedOriginalUrl(photo: PhotoLike): Promise<string | null> {
-  return signedVariantUrl(photo, [photo.webpKey, photo.originalKey]);
+  return signedVariantUrl(photo, [photo.webpKey, photo.originalKey], { allowThumbFallback: false });
 }
 
 export type PhotoClient = PhotoLike & {
@@ -120,6 +120,7 @@ export async function presentPhotoForClient(
       altText: photo.altText,
       thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
       displayUrl: await signedDisplayUrl(photo),
+      originalUrl: await signedOriginalUrl(photo),
       isLocked: false,
     };
   }
@@ -147,7 +148,7 @@ export async function presentPhotoForClient(
     altText: photo.altText,
     thumbUrl: rewritePublicMediaUrl(photo.thumbUrl),
     displayUrl: await signedDisplayUrl(photo),
-    originalUrl: canSeeFull ? await signedOriginalUrl(photo) : undefined,
+    originalUrl: await signedOriginalUrl(photo),
     isLocked: false,
   };
 }

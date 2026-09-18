@@ -1,21 +1,15 @@
 /**
  * PhotoSwipeViewer — Premium image viewer with 3-tier loading strategy:
  *
- * Tier 1: thumb (400px)   → album grid
- * Tier 2: medium (1200px) → lightbox default
- * Tier 3: original (4K)   → on-demand when VIP user zooms > 2x
+ * Tier 1: thumb (400px)   → album grid (fast first paint)
+ * Tier 2: medium          → lightbox first paint
+ * Tier 3: original (4K)   → auto-upgrade after medium paints, for anyone who can view the photo
  *
  * Features:
  * - Desktop: scroll wheel zoom, drag pan, double-click zoom 100%, ESC close, ← → nav
  * - Mobile: pinch zoom, swipe nav, double-tap zoom, swipe-down close
- * - Guest: zoom capped at 2x, no original load
- * - VIP: unlimited zoom, lazy loads original at > 2x with smooth fade-in transition
- *
- * Original upgrade flow:
- *   1. User zooms > 2x → spinner overlay appears
- *   2. Original image preloaded in background (hidden <img>)
- *   3. When loaded: PhotoSwipe slide src swapped + CSS fade-in plays (opacity 0→1, 350ms)
- *   4. Spinner disappears, medium image seamlessly replaced by original
+ * - Guest: zoom capped at 2x; still receives 4K after first paint
+ * - VIP: unlimited zoom; overlay only if they zoom before 4K is ready
  */
 import PhotoSwipeLightbox from "photoswipe/lightbox";
 import "photoswipe/style.css";
@@ -54,7 +48,7 @@ interface PhotoSwipeViewerProps {
 // ---------------------------------------------------------------------------
 // Loading overlay — rendered via portal above PhotoSwipe (z-index 100001)
 // ---------------------------------------------------------------------------
-function OriginalLoadingOverlay({ visible }: { visible: boolean }) {
+function OriginalLoadingOverlay({ visible, isVip }: { visible: boolean; isVip?: boolean }) {
   if (!visible) return null;
   return createPortal(
     <div
@@ -107,21 +101,23 @@ function OriginalLoadingOverlay({ visible }: { visible: boolean }) {
         >
           Đang tải ảnh chất lượng cao…
         </span>
-        <span
-          style={{
-            fontSize: "11px",
-            fontFamily: "'Inter', sans-serif",
-            color: "rgba(255,165,0,0.85)",
-            background: "rgba(255,165,0,0.1)",
-            border: "1px solid rgba(255,165,0,0.25)",
-            borderRadius: "20px",
-            padding: "2px 10px",
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-          }}
-        >
-          VIP · Original 4K
-        </span>
+        {isVip ? (
+          <span
+            style={{
+              fontSize: "11px",
+              fontFamily: "'Inter', sans-serif",
+              color: "rgba(255,165,0,0.85)",
+              background: "rgba(255,165,0,0.1)",
+              border: "1px solid rgba(255,165,0,0.25)",
+              borderRadius: "20px",
+              padding: "2px 10px",
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+            }}
+          >
+            VIP · Original 4K
+          </span>
+        ) : null}
       </div>
     </div>,
     document.body
@@ -249,12 +245,63 @@ export default function PhotoSwipeViewer({
       const imgEl = pswp.currSlide?.container?.querySelector(
         ".pswp__img:not(.pswp__img--placeholder)"
       ) as HTMLImageElement | null;
-      if (imgEl && imgEl.src !== src) imgEl.src = src;
-      if (pswp.currSlide?.data) {
+      const itemId = items[index]?.id;
+      if (imgEl && imgEl.src !== src && !(itemId && originalLoadedRef.current.has(itemId))) {
+        imgEl.src = src;
+      }
+      if (pswp.currSlide?.data && !(itemId && originalLoadedRef.current.has(itemId))) {
         pswp.currSlide.data.src = src;
         if (urls.width) pswp.currSlide.data.width = Number(urls.width);
         if (urls.height) pswp.currSlide.data.height = Number(urls.height);
       }
+    };
+
+    const upgradeToOriginal = (
+      slideIndex: number,
+      originalUrl: string,
+      item: PhotoSwipeItem,
+      opts?: { silent?: boolean }
+    ) => {
+      if (originalLoadedRef.current.has(item.id) || originalLoadingRef.current.has(item.id)) return;
+      originalLoadingRef.current.add(item.id);
+      if (!opts?.silent) setLoadingOriginal(true);
+      const img = new Image();
+      const applyHq = () => {
+        const pswp = lightbox.pswp;
+        if (!pswp?.currSlide || pswp.currIndex !== slideIndex) return false;
+        const originalW = img.naturalWidth || item.width || 4000;
+        const originalH = img.naturalHeight || item.height || 2667;
+        const imgEl = pswp.currSlide.container?.querySelector(
+          ".pswp__img:not(.pswp__img--placeholder)"
+        ) as HTMLImageElement | null;
+        if (imgEl && imgEl.src !== originalUrl) imgEl.src = originalUrl;
+        pswp.currSlide.data.src = originalUrl;
+        pswp.currSlide.data.width = originalW;
+        pswp.currSlide.data.height = originalH;
+        (pswp.currSlide as PswpSlide).width = originalW;
+        (pswp.currSlide as PswpSlide).height = originalH;
+        pswp.currSlide.updateContentSize(true);
+        pswp.updateSize(true);
+        return true;
+      };
+      img.onload = () => {
+        originalLoadedRef.current.add(item.id);
+        originalLoadingRef.current.delete(item.id);
+        setLoadingOriginal(false);
+        if (!applyHq()) requestAnimationFrame(() => applyHq());
+      };
+      img.onerror = () => {
+        originalLoadingRef.current.delete(item.id);
+        setLoadingOriginal(false);
+      };
+      img.src = originalUrl;
+    };
+
+    const kickHq = (index: number, urls?: SignedPhotoUrls | null) => {
+      const item = items[index];
+      if (!item) return;
+      const hq = urls?.originalUrl || urlCacheRef.current.get(item.id)?.originalUrl || item.originalUrl;
+      if (hq) upgradeToOriginal(index, hq, item, { silent: true });
     };
 
     const ensureIndex = async (index: number) => {
@@ -263,6 +310,7 @@ export default function PhotoSwipeViewer({
       const cached = urlCacheRef.current.get(item.id);
       if (cached?.displayUrl) {
         applyDisplayToIndex(index, cached);
+        kickHq(index, cached);
         return cached;
       }
       if (item.displayUrl) {
@@ -274,6 +322,7 @@ export default function PhotoSwipeViewer({
         };
         urlCacheRef.current.set(item.id, seeded);
         applyDisplayToIndex(index, seeded);
+        kickHq(index, seeded);
         return seeded;
       }
       if (!resolveUrls) return null;
@@ -281,83 +330,19 @@ export default function PhotoSwipeViewer({
       if (!urls?.displayUrl) return null;
       urlCacheRef.current.set(item.id, urls);
       applyDisplayToIndex(index, urls);
+      kickHq(index, urls);
       return urls;
     };
 
-    const upgradeToOriginal = (slideIndex: number, originalUrl: string, item: PhotoSwipeItem) => {
-      const pswp = lightbox.pswp;
-      if (!pswp) return;
-      originalLoadingRef.current.add(item.id);
-      setLoadingOriginal(true);
-      const img = new Image();
-      img.onload = () => {
-        originalLoadedRef.current.add(item.id);
-        originalLoadingRef.current.delete(item.id);
-        setLoadingOriginal(false);
-        if (!pswp.currSlide || pswp.currIndex !== slideIndex) return;
-        const originalW = img.naturalWidth || item.width || 4000;
-        const originalH = img.naturalHeight || item.height || 2667;
-        const imgEl = pswp.currSlide.container?.querySelector(
-          ".pswp__img:not(.pswp__img--placeholder)"
-        ) as HTMLImageElement | null;
-        if (imgEl) {
-          imgEl.style.transition = "none";
-          imgEl.style.opacity = "0";
-          requestAnimationFrame(() => {
-            imgEl.src = originalUrl;
-            imgEl.onload = () => {
-              imgEl.style.transition = "opacity 0.35s cubic-bezier(0.23, 1, 0.32, 1)";
-              imgEl.style.opacity = "1";
-              imgEl.addEventListener(
-                "transitionend",
-                () => {
-                  imgEl.style.transition = "";
-                  imgEl.style.opacity = "";
-                },
-                { once: true }
-              );
-            };
-          });
-        }
-        pswp.currSlide.data.src = originalUrl;
-        pswp.currSlide.data.width = originalW;
-        pswp.currSlide.data.height = originalH;
-        (pswp.currSlide as PswpSlide).width = originalW;
-        (pswp.currSlide as PswpSlide).height = originalH;
-        pswp.currSlide.updateContentSize(true);
-        pswp.updateSize(true);
-      };
-      img.onerror = () => {
-        originalLoadingRef.current.delete(item.id);
-        setLoadingOriginal(false);
-      };
-      img.src = originalUrl;
-    };
-
     lightbox.on("zoomPanUpdate", () => {
-      if (!isVip) return;
       const pswp = lightbox.pswp;
       if (!pswp) return;
-      const currentZoom = pswp.currSlide?.currZoomLevel ?? 1;
-      const slideIndex = pswp.currIndex;
-      const item = items[slideIndex];
-      if (!item || currentZoom <= 2) return;
-      if (originalLoadedRef.current.has(item.id) || originalLoadingRef.current.has(item.id)) return;
-
-      const cachedOriginal = urlCacheRef.current.get(item.id)?.originalUrl || item.originalUrl;
-      if (cachedOriginal) {
-        upgradeToOriginal(slideIndex, cachedOriginal, item);
-        return;
+      const item = items[pswp.currIndex];
+      if (!item) return;
+      const zoom = pswp.currSlide?.currZoomLevel ?? 1;
+      if (zoom > 1.5 && originalLoadingRef.current.has(item.id) && !originalLoadedRef.current.has(item.id)) {
+        setLoadingOriginal(true);
       }
-      if (!resolveUrls) return;
-      originalLoadingRef.current.add(item.id);
-      void resolveUrls(item.id).then((urls) => {
-        originalLoadingRef.current.delete(item.id);
-        if (urls) urlCacheRef.current.set(item.id, urls);
-        if (urls?.originalUrl && pswp.currIndex === slideIndex) {
-          upgradeToOriginal(slideIndex, urls.originalUrl, item);
-        }
-      });
     });
 
     const syncSlideSize = (slide?: PswpSlide | null) => {
@@ -374,6 +359,8 @@ export default function PhotoSwipeViewer({
     });
     lightbox.on("loadComplete", (e) => {
       syncSlideSize(slideFromEvent(e) || lightbox.pswp?.currSlide);
+      const i = lightbox.pswp?.currIndex ?? initialIndex;
+      kickHq(i);
     });
     lightbox.on("change", () => {
       setLoadingOriginal(false);
@@ -386,6 +373,7 @@ export default function PhotoSwipeViewer({
     lightbox.on("openingAnimationEnd", () => {
       syncSlideSize(lightbox.pswp?.currSlide);
       const i = lightbox.pswp?.currIndex ?? initialIndex;
+      void ensureIndex(i);
       void ensureIndex(i + 1);
       void ensureIndex(i - 1);
     });
@@ -397,6 +385,7 @@ export default function PhotoSwipeViewer({
 
     lightbox.init();
     lightbox.loadAndOpen(initialIndex);
+    kickHq(initialIndex);
 
     return () => {
       lightbox.destroy();
@@ -407,7 +396,7 @@ export default function PhotoSwipeViewer({
   return (
     <>
       <div ref={containerRef} />
-      <OriginalLoadingOverlay visible={loadingOriginal} />
+      <OriginalLoadingOverlay visible={loadingOriginal} isVip={isVip} />
     </>
   );
 }

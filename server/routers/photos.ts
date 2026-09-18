@@ -60,7 +60,7 @@ export const photosRouter = router({
       return { items: presentPhotosForGrid(items, access) };
     }),
 
-  // --- Signed 1200px (and VIP original) for lightbox slides -------------------
+  // --- Signed medium (first paint) + 4K original for lightbox slides ----------
   signedVariants: publicProcedure
     .input(z.object({
       albumId: z.number(),

@@ -392,7 +392,7 @@ export async function copyObject(sourceKey: string, destKey: string): Promise<bo
 }
 
 /**
- * Process only medium (1200px) + thumbnail (400x400) from an existing buffer.
+ * Process only medium (1920px) + thumbnail (400x400) from an existing buffer.
  * Used when the input is already a high-quality WebP ≥2400px — skip the 4K encode step.
  * Returns { medium, thumbnail } buffers with metadata.
  */
@@ -408,23 +408,23 @@ export async function processImageMediumThumb(
     const sharpOpts = { limitInputPixels: 536805378 };
     const metadata = await sharp(inputBuffer, sharpOpts).metadata();
 
-    // Medium WebP (max 1200px wide, quality 80)
-    const mediumMaxWidth = 1200;
+    // Medium WebP (max 1920px wide, quality 85) — retina-friendly lightbox first paint
+    const mediumMaxWidth = 1920;
     const mediumBuffer = await sharp(inputBuffer, sharpOpts)
       .rotate()
       .resize({
         width: Math.min(metadata.width || mediumMaxWidth, mediumMaxWidth),
         withoutEnlargement: true,
       })
-      .webp({ quality: 80, effort: 3 })
+      .webp({ quality: 85, effort: 4 })
       .toBuffer();
     const mediumMeta = await sharp(mediumBuffer, sharpOpts).metadata();
 
-    // Thumbnail (400x400 cover crop, WebP quality 70)
+    // Thumbnail (400x400 cover crop, WebP quality 80)
     const thumbBuffer = await sharp(inputBuffer, sharpOpts)
       .rotate()
       .resize({ width: 400, height: 400, fit: "cover", position: "attention" })
-      .webp({ quality: 70, effort: 2 })
+      .webp({ quality: 80, effort: 3 })
       .toBuffer();
 
     console.log(`[Sharp] processImageMediumThumb done. medium=${mediumBuffer.length}b thumb=${thumbBuffer.length}b`);
@@ -480,7 +480,7 @@ export type WatermarkSettings = {
 };
 
 /**
- * Process an image: convert to WebP, generate medium (1200px), and generate thumbnail.
+ * Process an image: convert to WebP, generate medium (1920px), and generate thumbnail.
  * Optionally composites a watermark onto the full-size and medium WebP.
  * Returns { webp, medium, thumbnail } buffers with metadata.
  */
@@ -502,7 +502,7 @@ export async function processImage(
     const image = sharp(inputBuffer, sharpOpts);
     const metadata = await image.metadata();
 
-    // Full WebP conversion (max 3840px / 4K wide, quality 85)
+    // Full WebP conversion (max 3840px / 4K wide, quality 88)
     const maxWidth = 3840;
     let webpPipeline = sharp(inputBuffer, sharpOpts)
       .rotate() // auto-rotate based on EXIF
@@ -541,11 +541,11 @@ export async function processImage(
       }
     }
 
-    const webpBuffer = await webpPipeline.webp({ quality: 85, effort: 4 }).toBuffer();
+    const webpBuffer = await webpPipeline.webp({ quality: 88, effort: 4 }).toBuffer();
     const webpMeta = await sharp(webpBuffer, sharpOpts).metadata();
 
-    // Medium WebP (max 1200px wide, quality 80) — for mobile/tablet, with watermark
-    const mediumMaxWidth = 1200;
+    // Medium WebP (max 1920px wide, quality 85) — lightbox first paint, with watermark
+    const mediumMaxWidth = 1920;
     let mediumPipeline = sharp(inputBuffer, sharpOpts)
       .rotate()
       .resize({
@@ -570,14 +570,14 @@ export async function processImage(
         mediumPipeline = (mediumPipeline as any).composite([{ input: wmResized, gravity: watermark.position, blend: "over" }]);
       } catch { /* skip watermark on medium if it fails */ }
     }
-    const mediumBuffer = await mediumPipeline.webp({ quality: 80, effort: 3 }).toBuffer();
+    const mediumBuffer = await mediumPipeline.webp({ quality: 85, effort: 4 }).toBuffer();
     const mediumMeta = await sharp(mediumBuffer, sharpOpts).metadata();
 
-    // Thumbnail (400x400 cover crop, WebP quality 75) — no watermark on thumbnails
+    // Thumbnail (400x400 cover crop, WebP quality 80) — no watermark on thumbnails
     const thumbBuffer = await sharp(inputBuffer, sharpOpts)
       .rotate()
       .resize({ width: 400, height: 400, fit: "cover", position: "attention" })
-      .webp({ quality: 70, effort: 2 })
+      .webp({ quality: 80, effort: 3 })
       .toBuffer();
 
     console.log(`[Sharp] Done. webp=${webpBuffer.length}b medium=${mediumBuffer.length}b thumb=${thumbBuffer.length}b`);
@@ -606,8 +606,8 @@ export async function processImage(
 
 /**
  * Upload a photo with full processing pipeline:
- * 1. Convert to WebP (2400px)
- * 2. Generate medium WebP (1200px, mobile/tablet)
+ * 1. Convert to WebP (4K / 3840px)
+ * 2. Generate medium WebP (1920px, lightbox first paint)
  * 3. Generate thumbnail (400x400)
  * 4. Upload all variants to storage
  */
@@ -640,11 +640,11 @@ export async function uploadPhoto(
   const originalKey = `${prefix}/original/${timestamp}_${baseName}.${getExtension(mimeType)}`;
   const originalResult = await uploadToStorage(originalKey, originalBuffer, mimeType);
 
-  // Upload WebP (full, 2400px)
+  // Upload WebP (full, 4K)
   const webpKey = `${prefix}/webp/${timestamp}_${baseName}.webp`;
   const webpResult = await uploadToStorage(webpKey, webp.buffer, "image/webp");
 
-  // Upload Medium WebP (1200px, mobile/tablet)
+  // Upload Medium WebP (1920px, lightbox first paint)
   const mediumKey = `${prefix}/medium/${timestamp}_${baseName}_medium.webp`;
   const mediumResult = await uploadToStorage(mediumKey, medium.buffer, "image/webp");
 

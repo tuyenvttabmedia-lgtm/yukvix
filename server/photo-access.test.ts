@@ -30,9 +30,9 @@ describe("presentPhotoForClient", () => {
     });
     expect(result.displayUrl).toBe("https://signed.example/full.webp");
     expect(result.thumbUrl).toBe(photo.thumbUrl);
-    expect(result.originalUrl).toBeUndefined();
+    expect(result.originalUrl).toBe("https://signed.example/full.webp");
     expect(getSignedMediaUrl).toHaveBeenCalledWith(photo.mediumKey, 3600);
-    expect(getSignedMediaUrl).not.toHaveBeenCalledWith(photo.webpKey, 3600);
+    expect(getSignedMediaUrl).toHaveBeenCalledWith(photo.webpKey, 3600);
     expect("webpKey" in result).toBe(false);
   });
 
@@ -58,7 +58,7 @@ describe("presentPhotoForClient", () => {
     expect(result.isLocked).toBe(false);
     expect(result.displayUrl).toBe("https://signed.example/full.webp");
     expect(result.thumbUrl).toBe(photo.thumbUrl);
-    expect(result.originalUrl).toBeUndefined();
+    expect(result.originalUrl).toBe("https://signed.example/full.webp");
   });
 
   it("grid presenter skips Wasabi signing and drops full-size URLs", async () => {
@@ -113,7 +113,7 @@ describe("presentPhotoForClient", () => {
       "library/medium/177_Coser-Nnian_medium.webp",
       3600
     );
-    expect(getSignedMediaUrl).not.toHaveBeenCalledWith(photo.webpKey, 3600);
+    expect(getSignedMediaUrl).toHaveBeenCalledWith(photo.webpKey, 3600);
   });
 
   it("does not put a square thumb in displayUrl when no medium or webp can be signed", async () => {
