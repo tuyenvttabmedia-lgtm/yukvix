@@ -104,7 +104,7 @@ export default function Home() {
 
   const { data: popularCreators } = trpc.creators.list.useQuery({
     page: 1,
-    limit: 12,
+    limit: 20,
     sortBy: "albumCount",
     hasAlbums: true,
   });
