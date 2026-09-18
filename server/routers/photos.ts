@@ -70,11 +70,26 @@ export const photosRouter = router({
       const album = await getAlbumById(input.albumId);
       assertAlbumPubliclyReadable(album, ctx.user?.role);
       const { userIsVip, isAdminUser } = viewerFlags(ctx.user?.role);
-      const access = { albumIsVip: !!album.isVip, userIsVip, isAdminUser };
       const uniqueIds = Array.from(new Set(input.photoIds));
       const rows = await Promise.all(uniqueIds.map((id) => getPhotoById(id)));
-      const owned = rows.filter((p): p is NonNullable<typeof p> => !!p && p.albumId === input.albumId);
-      const presented = await presentPhotosForClient(owned, access);
+      let owned = rows.filter((p): p is NonNullable<typeof p> => !!p && p.albumId === input.albumId);
+
+      if (album.isVip && !userIsVip && !isAdminUser) {
+        const preview = await getPreviewPhotosForNonVip(
+          input.albumId,
+          album.freePreviewCount ?? 0
+        );
+        const allowed = new Set(preview.map((p) => p.id));
+        owned = owned
+          .filter((p) => allowed.has(p.id))
+          .map((p) => ({ ...p, isFreePreview: true }));
+      }
+
+      const presented = await presentPhotosForClient(owned, {
+        albumIsVip: !!album.isVip,
+        userIsVip,
+        isAdminUser,
+      });
       return presented
         .filter((p) => !p.isLocked && p.displayUrl)
         .map((p) => ({
