@@ -438,6 +438,17 @@ export default function ImportOperationsPanel() {
                 <div className="font-medium">Notification</div>
                 <div>{cleanup.data.notification.total}</div>
               </div>
+              {cleanup.data.archives && (
+                <div className="border rounded p-2 col-span-2">
+                  <div className="font-medium">Wasabi ZIP thừa</div>
+                  <div>
+                    {cleanup.data.archives.failedCount} failed (
+                    {(cleanup.data.archives.failedBytes / 1024 / 1024 / 1024).toFixed(1)} GB) ·{" "}
+                    {cleanup.data.archives.skippedCount} skipped ·{" "}
+                    {cleanup.data.archives.staleStagingCount} staging cũ
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

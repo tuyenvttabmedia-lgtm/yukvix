@@ -43,6 +43,19 @@ export class AlbumCreationStep extends BasePipelineStep {
     const db = await getDb();
     if (!db) throw new Error("DB not available");
 
+    if ((ctx.isV2 || ctx.pendingAlbum) && ctx.pendingAlbum && !ctx.albumId) {
+      const [slugOwner] = await db
+        .select({ id: albums.id, title: albums.title })
+        .from(albums)
+        .where(eq(albums.slug, ctx.pendingAlbum.slug))
+        .limit(1);
+      if (slugOwner) {
+        throw new Error(
+          `SLUG_COLLISION: slug "${ctx.pendingAlbum.slug}" already belongs to album #${slugOwner.id} (${slugOwner.title})`
+        );
+      }
+    }
+
     const previewCount = ctx.pendingAlbum?.freePreviewCount ?? ctx.importProfile?.preview ?? 10;
     const photoRows = ctx.allProcessed.map((p) => ({
       originalKey: p.webpKey,

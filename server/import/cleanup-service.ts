@@ -11,7 +11,7 @@ import { adminNotifications, adminSettings, zipImportJobs } from "../../drizzle/
 import { dirSizeBytes, countTempJobDirs } from "./system-metrics";
 import { purgeOldNotifications } from "./notification-service";
 
-export type CleanupCategory = "temp" | "skipped" | "checkpoint" | "logs" | "notification";
+export type CleanupCategory = "temp" | "skipped" | "checkpoint" | "logs" | "notification" | "failed" | "slugs";
 
 export interface CleanupStats {
   temp: { jobDirs: number; sizeBytes: number; path: string };
@@ -19,6 +19,14 @@ export interface CleanupStats {
   checkpoint: { jobsWithCheckpoint: number };
   logs: { jobsWithLogs: number; estimatedLogBytes: number };
   notification: { total: number; unread: number; olderThan90d: number };
+  archives: {
+    failedCount: number;
+    failedBytes: number;
+    skippedCount: number;
+    skippedBytes: number;
+    staleStagingCount: number;
+    staleStagingBytes: number;
+  };
   schedule: {
     lastCleanupAt: string | null;
     nextCleanupAt: string | null;
@@ -134,6 +142,10 @@ export async function getCleanupStats(): Promise<CleanupStats> {
     checkpoint: { jobsWithCheckpoint: checkpointCount },
     logs: { jobsWithLogs: logsCount, estimatedLogBytes: logBytes },
     notification: { total: notifTotal, unread: notifUnread, olderThan90d: notifOld },
+    archives: await (async () => {
+      const { getArchivePurgeStats } = await import("./wasabi-archive-purge");
+      return getArchivePurgeStats();
+    })(),
     schedule: {
       lastCleanupAt,
       nextCleanupAt,
@@ -261,11 +273,36 @@ async function cleanupNotifications(): Promise<CleanupResult> {
 }
 
 async function cleanupSkipped(): Promise<CleanupResult> {
+  const { purgeOldSkippedArchives } = await import("./wasabi-archive-purge");
+  const result = await purgeOldSkippedArchives();
   return {
     category: "skipped",
+    freedBytes: result.freedBytes,
+    itemsRemoved: result.deleted,
+    message: result.message,
+  };
+}
+
+async function cleanupFailed(): Promise<CleanupResult> {
+  const { purgeRedundantFailedArchives, purgeStaleStagingArchives } = await import("./wasabi-archive-purge");
+  const failed = await purgeRedundantFailedArchives();
+  const staging = await purgeStaleStagingArchives();
+  return {
+    category: "failed",
+    freedBytes: failed.freedBytes + staging.freedBytes,
+    itemsRemoved: failed.deleted + staging.deleted,
+    message: `${failed.message}; ${staging.message}`,
+  };
+}
+
+async function cleanupSlugs(): Promise<CleanupResult> {
+  const { repairQueuedAlbumSlugs } = await import("./unique-album-slug");
+  const result = await repairQueuedAlbumSlugs();
+  return {
+    category: "slugs",
     freedBytes: 0,
-    itemsRemoved: 0,
-    message: "Skipped Wasabi archives require dedicated cron — use Cleanup Now for temp/logs first",
+    itemsRemoved: result.repaired,
+    message: `Repaired ${result.repaired}/${result.scanned} queued slugs (blocked ${result.blocked})`,
   };
 }
 
@@ -288,13 +325,27 @@ export async function runCleanup(categories: CleanupCategory[]): Promise<Cleanup
       case "skipped":
         results.push(await cleanupSkipped());
         break;
+      case "failed":
+        results.push(await cleanupFailed());
+        break;
+      case "slugs":
+        results.push(await cleanupSlugs());
+        break;
     }
   }
   return results;
 }
 
 export async function runFullCleanup(): Promise<CleanupResult[]> {
-  const results = await runCleanup(["temp", "logs", "checkpoint", "notification"]);
+  const results = await runCleanup([
+    "slugs",
+    "temp",
+    "logs",
+    "checkpoint",
+    "notification",
+    "skipped",
+    "failed",
+  ]);
   const db = await getDb();
   if (db) {
     const ts = new Date().toISOString();

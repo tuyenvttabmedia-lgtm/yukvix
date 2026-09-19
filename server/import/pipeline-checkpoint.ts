@@ -282,7 +282,8 @@ export async function recordStepFailure(
   checkpoint.lastError = error;
   checkpoint.lastFailedAt = new Date().toISOString();
   const attempt = incrementStepRetry(checkpoint, step);
-  const requeue = attempt < getStepMatrix(step).retry.maxAttempts;
+  const collision = /SLUG_COLLISION|already belongs to album/i.test(error);
+  const requeue = !collision && attempt < getStepMatrix(step).retry.maxAttempts;
   await persistCheckpoint(jobId, checkpoint);
 
   const db = await getDb();
@@ -292,6 +293,8 @@ export async function recordStepFailure(
     .update(zipImportJobs)
     .set({
       status: requeue ? "waiting" : "failed",
+      lastError: error.slice(0, 4000),
+      pipelineStep: step,
       updatedAt: new Date(),
     })
     .where(eq(zipImportJobs.id, jobId));

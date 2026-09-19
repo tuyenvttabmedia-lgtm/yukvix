@@ -979,7 +979,8 @@ function JobsDashboard() {
                           </a>
                         </Button>
                       )}
-                      {job.status === "failed" && (
+                      {job.status === "failed" &&
+                        !/do not resume|SLUG_COLLISION|Cannot retarget slug/i.test(job.lastError || "") && (
                         <Button
                           variant="ghost"
                           size="icon"

@@ -46,6 +46,12 @@ export async function prepareJobResume(
     return { ok: false, error: `Cannot resume job in status: ${job.status}` };
   }
 
+  const { ensureUniquePendingSlug } = await import("./unique-album-slug");
+  const ensured = await ensureUniquePendingSlug(jobId);
+  if (!ensured.ok) {
+    return { ok: false, error: ensured.error || "Cannot resume this job safely" };
+  }
+
   const { checkpoint } = await loadJobPipelineState(jobId);
   const fromStep = getResumeStartStep(checkpoint) ?? (job.pipelineStep as PipelineStepName | null);
 

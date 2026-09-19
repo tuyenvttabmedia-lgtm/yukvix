@@ -6,7 +6,8 @@
  *
  * Key rules:
  * - AI always creates draft; admin must approve before publish
- * - Slug: Latin-only (no CJK), no pinyin hyphens (baixiaodie not bai-xiao-die)
+ * - Slug: romanize CJK (pinyin/hangul/kana) so titles do not collapse to "coser"
+
  * - Categories: Japan | China | Korea | Euro | Cosplay | Gravure (fixed 6, no new)
  * - Focus keyword: creator > collection > filename
  * - No "cosplay" keywords unless category = Cosplay
@@ -25,6 +26,7 @@ import {
   naturalAlbumSeoTitle,
   significantTitleTokens,
 } from "./seo-title";
+import { slugifyAlbumTitle } from "../../shared/album-slug";
 
 export const PROMPT_VERSION = "v4.18";
 
@@ -376,21 +378,9 @@ export function detectCreatorFromFilename(filename: string): string | null {
 
 // ─── Slug + SEO Keywords (UAT Round 4) ───────────────────────────────────────
 
-/** Standard slugify from final album title — not AI-generated. */
+/** Standard slugify from final album title — romanizes CJK instead of stripping to "coser". */
 export function slugifyTitle(title: string, maxLen = 80): string {
-  let s = title.trim();
-  s = s.replace(/\([^)]*\)/g, " ");
-  s = s.replace(/\.(zip|rar|7z)$/i, "");
-  s = s.toLowerCase();
-  s = s.replace(/\bvol\.?\s*(\d+)/gi, " vol $1 ");
-  s = s.replace(/\bno\.?\s*(\d+)/gi, " no $1 ");
-  s = s.replace(/[\u0080-\uFFFF]/g, " ");
-  s = s.replace(/([a-z0-9])\.([a-z0-9])/gi, "$1 $2");
-  s = s.replace(/\./g, " ");
-  s = s.replace(/[^a-z0-9\s-]/g, " ");
-  s = s.replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
-  s = s.replace(/-(?:photoset|photobook|photo-set|set|collection)$/i, "");
-  return s.slice(0, maxLen) || "album";
+  return slugifyAlbumTitle(title, maxLen);
 }
 
 /** Rule-engine SEO keywords: Creator + Series + Volume + Genre. */

@@ -66,10 +66,23 @@ export function startImportScheduler(): void {
   recoverDeadWorkersOnStartup().catch(console.error);
   ensureDuplicatePolicySeeded().catch(console.error);
 
+  const repairSlugs = async () => {
+    try {
+      const { repairQueuedAlbumSlugs } = await import("../import/unique-album-slug");
+      const result = await repairQueuedAlbumSlugs();
+      console.log(
+        `[ImportCron] Pending slug repair scanned=${result.scanned} repaired=${result.repaired} blocked=${result.blocked}`
+      );
+    } catch (err) {
+      console.error(`[ImportCron] Pending slug repair failed: ${(err as Error).message}`);
+    }
+  };
+
   if (SCHEDULED_ONLY) {
     console.log(
       "[ImportCron] SCHEDULED_ONLY mode — dispatch via /api/scheduled/process-import-queue only"
     );
+    repairSlugs().catch(console.error);
     cleanupOrphanJobs().catch(console.error);
     recoverDeadWorkers().catch(console.error);
 
@@ -90,7 +103,9 @@ export function startImportScheduler(): void {
     `[ImportCron] Starting interval scheduler (${SCHEDULER_INTERVAL_MS / 1000}s, maxActive=${maxActive})`
   );
 
-  dispatch({ source: "startup" }).catch(console.error);
+  repairSlugs()
+    .then(() => dispatch({ source: "startup" }))
+    .catch(console.error);
   cleanupOrphanJobs().catch(console.error);
   recoverDeadWorkers().catch(console.error);
 

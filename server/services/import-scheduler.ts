@@ -211,6 +211,7 @@ async function startJob(job: PickedJobRow): Promise<boolean> {
         .update(zipImportJobs)
         .set({
           status: "failed",
+          lastError: "Album row is missing; cannot start job",
           workerId: null,
           lockedAt: null,
           heartbeatAt: null,
@@ -222,17 +223,24 @@ async function startJob(job: PickedJobRow): Promise<boolean> {
     albumSlug = albumRow[0].slug;
     albumTitle = albumRow[0].title;
   } else if (job.pendingAlbumData) {
-    try {
-      const pending = JSON.parse(job.pendingAlbumData) as { slug: string; title: string };
-      albumSlug = pending.slug;
-      albumTitle = pending.title;
-    } catch {
+    const { ensureUniquePendingSlug } = await import("../import/unique-album-slug");
+    const ensured = await ensureUniquePendingSlug(job.id);
+    if (!ensured.ok || !ensured.slug) {
       await db
         .update(zipImportJobs)
-        .set({ status: "failed", updatedAt: new Date() })
+        .set({
+          status: "failed",
+          lastError: ensured.error || "Pending album slug is not unique",
+          workerId: null,
+          lockedAt: null,
+          heartbeatAt: null,
+          updatedAt: new Date(),
+        })
         .where(eq(zipImportJobs.id, job.id));
       return false;
     }
+    albumSlug = ensured.slug;
+    albumTitle = ensured.title || "Untitled";
   } else {
     return false;
   }

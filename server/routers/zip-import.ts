@@ -26,7 +26,6 @@ import { getDb } from "../db";
 import {
   zipImportJobs,
   albums,
-  staticPages,
   adminSettings,
   seoGenerationHistory,
   seoCache,
@@ -235,37 +234,13 @@ export const zipImportRouter = router({
         });
       }
 
-      // Generate slug from title
-      const { generateSlug } = await import("../services/seo-generator");
-      const albumSlug = generateSlug(input.title) || input.title.toLowerCase().replace(/\s+/g, "-");
-
-      // V4.17 Fix 3: Check slug + title uniqueness across albums AND static_pages
-      const [existingAlbum, existingPage] = await Promise.all([
-        db
-          .select({ id: albums.id, title: albums.title })
-          .from(albums)
-          .where(eq(albums.slug, albumSlug))
-          .limit(1),
-        db
-          .select({ id: staticPages.id, title: staticPages.title })
-          .from(staticPages)
-          .where(eq(staticPages.slug, albumSlug))
-          .limit(1)
-          .catch(() => [] as Array<{ id: number; title: string | null }>),
-      ]);
-
-      if (existingAlbum.length > 0) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: `Album slug already exists: "${albumSlug}" (album: "${existingAlbum[0].title}"). Please change the title.`,
-        });
-      }
-      if (existingPage.length > 0) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: `Slug conflicts with existing static page: "${albumSlug}". Please change the title.`,
-        });
-      }
+      // Generate a unique romanized slug (CJK titles must not collapse to "coser").
+      const { allocateUniqueAlbumSlug } = await import("../import/unique-album-slug");
+      const albumSlug = await allocateUniqueAlbumSlug({
+        title: input.title,
+        filename: input.originalFileName,
+        jobId: input.jobId,
+      });
 
       // Also check title uniqueness (case-insensitive)
       const existingTitle = await db
@@ -1072,10 +1047,11 @@ export const zipImportRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
-      const { generateSlug } = await import("../services/seo-generator");
       const { buildImportProfileSnapshot } = await import("../import/import-profile");
       const { serializePendingAlbumData } = await import("../import/pending-album");
+      const { allocateUniqueAlbumSlug, loadTakenAlbumSlugs } = await import("../import/unique-album-slug");
       const results: Array<{ jobId: number; albumId?: number; albumSlug?: string; error?: string }> = [];
+      const takenSlugs = await loadTakenAlbumSlugs();
 
       for (const item of input.jobs) {
         try {
@@ -1101,15 +1077,12 @@ export const zipImportRouter = router({
             process.env.VITE_APP_TITLE || "CosplayVault",
           );
 
-          let albumSlug = seo.slug || generateSlug(seo.albumTitle) || seo.albumTitle.toLowerCase().replace(/\s+/g, "-");
-          const existingSlug = await db
-            .select({ id: albums.id })
-            .from(albums)
-            .where(eq(albums.slug, albumSlug))
-            .limit(1);
-          if (existingSlug.length > 0) {
-            albumSlug = `${albumSlug}-${item.jobId}`;
-          }
+          const albumSlug = await allocateUniqueAlbumSlug({
+            title: seo.albumTitle,
+            filename: item.filename,
+            jobId: item.jobId,
+            taken: takenSlugs,
+          });
 
           const resolvedCreator = await resolveCreatorFromFilename(item.filename, seo.category, {
             createIfMissing: false,
@@ -1488,7 +1461,7 @@ export const zipImportRouter = router({
     .input(
       z.object({
         categories: z
-          .array(z.enum(["temp", "skipped", "checkpoint", "logs", "notification"]))
+          .array(z.enum(["temp", "skipped", "checkpoint", "logs", "notification", "failed", "slugs"]))
           .optional(),
         all: z.boolean().optional(),
       })
