@@ -65,6 +65,7 @@ import {
   FileCheck,
   Loader2,
   RefreshCw,
+  Search,
   Upload,
   X,
   Zap,
@@ -79,6 +80,7 @@ import {
   ChevronUp,
   Save,
 } from "lucide-react";
+import { keepPreviousData } from "@tanstack/react-query";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +166,34 @@ function formatDate(d: Date | string | null | undefined): string {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function formatRelative(d: Date | string | null | undefined): string {
+  if (!d) return "—";
+  const ms = Date.now() - new Date(d).getTime();
+  const min = Math.max(0, Math.round(ms / 60000));
+  if (min < 1) return "vừa xong";
+  if (min < 60) return `${min} phút trước`;
+  const hours = Math.round(min / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  return `${Math.round(hours / 24)} ngày trước`;
+}
+
+function formatDuration(
+  start: Date | string | null | undefined,
+  end: Date | string | null | undefined
+): string | null {
+  if (!start) return null;
+  const from = new Date(start).getTime();
+  const to = end ? new Date(end).getTime() : Date.now();
+  if (!Number.isFinite(from) || to < from) return null;
+  const sec = Math.round((to - from) / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  if (min < 60) return rem ? `${min}m ${rem}s` : `${min}m`;
+  const hours = Math.floor(min / 60);
+  return `${hours}h ${min % 60}m`;
 }
 
 // ─── Step 1: Upload ───────────────────────────────────────────────────────────
@@ -686,43 +716,151 @@ function ProgressStep({
 
 function JobsDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 15;
 
-  const { data, refetch, isLoading } = trpc.zipImport.listJobs.useQuery({
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
-    status: statusFilter === "all" ? undefined : statusFilter,
-  });
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const applyFilter = (next: string) => {
+    setStatusFilter(next);
+    setPage(0);
+  };
+
+  const { data, refetch, isLoading, isFetching } = trpc.zipImport.listJobs.useQuery(
+    {
+      limit: PAGE_SIZE,
+      offset: page * PAGE_SIZE,
+      status: statusFilter === "all" ? undefined : statusFilter,
+      search: debouncedSearch || undefined,
+    },
+    {
+      placeholderData: keepPreviousData,
+      refetchInterval: (query) => {
+        const jobs = query.state.data?.jobs ?? [];
+        const live = jobs.some((j) =>
+          ["processing", "scheduled", "waiting", "waiting_disk_space", "uploaded"].includes(j.status)
+        );
+        return live || statusFilter === "active" || statusFilter === "queued" ? 4000 : false;
+      },
+    }
+  );
 
   const cancelMutation = trpc.zipImport.cancel.useMutation({
-    onSuccess: () => refetch(),
+    onSuccess: () => {
+      toast.success("Đã hủy job");
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
   });
+  const resumeMutation = trpc.zipImport.resumeImportJob.useMutation({
+    onSuccess: () => {
+      toast.success("Đã đưa job vào hàng chờ chạy lại");
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const counts = data?.counts ?? {};
+  const chips = [
+    { id: "all", label: "Tất cả" },
+    { id: "active", label: "Đang chạy" },
+    { id: "queued", label: "Hàng chờ" },
+    { id: "failed", label: "Lỗi" },
+    { id: "completed", label: "Hoàn thành" },
+    { id: "cancelled", label: "Đã hủy" },
+  ] as const;
+
+  const hasQuery = statusFilter !== "all" || !!debouncedSearch;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="Lọc trạng thái" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả</SelectItem>
-              <SelectItem value="uploaded">Đã tải lên</SelectItem>
-              <SelectItem value="waiting">Đang chờ</SelectItem>
-              <SelectItem value="processing">Đang xử lý</SelectItem>
-              <SelectItem value="completed">Hoàn thành</SelectItem>
-              <SelectItem value="failed">Thất bại</SelectItem>
-              <SelectItem value="cancelled">Đã hủy</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-muted-foreground">
-            {data?.total ?? 0} jobs
+      <div className="flex flex-wrap items-center gap-2">
+        {chips.map((chip) => {
+          const n = Number(counts[chip.id] ?? 0);
+          const active = statusFilter === chip.id;
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => applyFilter(chip.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {chip.label}
+              <span className={`tabular-nums ${active ? "opacity-90" : "opacity-70"}`}>{n}</span>
+            </button>
+          );
+        })}
+        {(counts.processing || counts.queued || counts.failed) ? (
+          <span className="text-xs text-muted-foreground ml-1">
+            {counts.processing ? `${counts.processing} đang xử lý` : null}
+            {counts.processing && counts.queued ? " · " : null}
+            {counts.queued ? `${counts.queued} chờ` : null}
+            {(counts.processing || counts.queued) && counts.failed ? " · " : null}
+            {counts.failed ? `${counts.failed} lỗi` : null}
           </span>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[16rem]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Tìm theo tên file ZIP, title hoặc slug…"
+            className="pl-8 h-9"
+          />
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="w-4 h-4 mr-2" />
+        <Select value={statusFilter} onValueChange={applyFilter}>
+          <SelectTrigger className="w-48 h-9">
+            <SelectValue placeholder="Lọc trạng thái" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả</SelectItem>
+            <SelectItem value="active">Đang chạy</SelectItem>
+            <SelectItem value="queued">Hàng chờ</SelectItem>
+            <SelectItem value="uploaded">Đã tải lên</SelectItem>
+            <SelectItem value="waiting">Đang chờ</SelectItem>
+            <SelectItem value="scheduled">Đã lên lịch</SelectItem>
+            <SelectItem value="processing">Đang xử lý</SelectItem>
+            <SelectItem value="waiting_disk_space">Chờ dung lượng</SelectItem>
+            <SelectItem value="completed">Hoàn thành</SelectItem>
+            <SelectItem value="failed">Thất bại</SelectItem>
+            <SelectItem value="cancelled">Đã hủy</SelectItem>
+            <SelectItem value="expired">Hết hạn</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
+          {data?.total ?? 0} jobs
+          {isFetching && !isLoading ? " · đang cập nhật" : ""}
+        </span>
+        {hasQuery && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearch("");
+              setDebouncedSearch("");
+              applyFilter("all");
+            }}
+          >
+            Xóa lọc
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-auto">
+          <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
           Làm mới
         </Button>
       </div>
@@ -737,7 +875,7 @@ function JobsDashboard() {
               <TableHead>Tiến độ</TableHead>
               <TableHead>Kích thước</TableHead>
               <TableHead>Thời gian</TableHead>
-              <TableHead className="w-24">Hành động</TableHead>
+              <TableHead className="w-28">Hành động</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -750,11 +888,13 @@ function JobsDashboard() {
             ) : !data?.jobs.length ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  Chưa có import job nào
+                  {hasQuery ? "Không có job khớp bộ lọc" : "Chưa có import job nào"}
                 </TableCell>
               </TableRow>
             ) : (
-              data.jobs.map((job) => (
+              data.jobs.map((job) => {
+                const duration = formatDuration(job.startedAt, job.completedAt);
+                return (
                 <TableRow key={job.id}>
                   <TableCell className="font-mono text-xs text-muted-foreground">#{job.id}</TableCell>
                   <TableCell className="align-top">
@@ -776,13 +916,21 @@ function JobsDashboard() {
                           {job.albumSlug}
                         </p>
                       )}
+                      {job.status === "processing" && job.pipelineStep && (
+                        <p className="text-xs text-orange-400 mt-0.5">Bước: {job.pipelineStep}</p>
+                      )}
+                      {job.status === "failed" && job.lastError && (
+                        <p className="text-xs text-red-400 mt-0.5 line-clamp-2" title={job.lastError}>
+                          {job.lastError}
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={job.status as JobStatus} />
                   </TableCell>
                   <TableCell>
-                    {job.status === "processing" ? (
+                    {job.status === "processing" || job.status === "scheduled" || job.status === "waiting_disk_space" ? (
                       <div className="w-24">
                         <Progress value={job.progress ?? 0} className="h-1.5" />
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -791,6 +939,10 @@ function JobsDashboard() {
                       </div>
                     ) : job.status === "completed" ? (
                       <span className="text-xs text-green-500">{job.totalImages ?? 0} ảnh</span>
+                    ) : job.status === "failed" && job.processedImages ? (
+                      <span className="text-xs text-muted-foreground">
+                        {job.processedImages}/{job.totalImages || "?"} ảnh
+                      </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
@@ -799,11 +951,16 @@ function JobsDashboard() {
                     {formatBytes(job.sourceArchiveSize)}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {formatDate(job.createdAt)}
+                    <span title={formatDate(job.createdAt)}>{formatRelative(job.createdAt)}</span>
+                    {job.status === "scheduled" && job.scheduledAt ? (
+                      <p className="text-[11px] opacity-70" title={formatDate(job.scheduledAt)}>
+                        lịch {formatDate(job.scheduledAt)}
+                      </p>
+                    ) : null}
+                    {duration ? <p className="text-[11px] opacity-70">{duration}</p> : null}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      {/* V4.17: SEO Review button shows when job.status='completed' (album.publishStatus='ready_for_review') */}
                       {job.albumId && job.status === "completed" && (
                         <Button
                           variant="ghost"
@@ -822,7 +979,19 @@ function JobsDashboard() {
                           </a>
                         </Button>
                       )}
-                      {["uploaded", "waiting", "scheduled", "processing"].includes(job.status) && (
+                      {job.status === "failed" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-primary"
+                          title="Chạy lại"
+                          onClick={() => resumeMutation.mutate({ jobId: job.id })}
+                          disabled={resumeMutation.isPending}
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      {["uploaded", "waiting", "scheduled", "processing", "waiting_disk_space"].includes(job.status) && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -836,13 +1005,13 @@ function JobsDashboard() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
+              );
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
-      {/* Pagination */}
       {data && data.total > PAGE_SIZE && (
         <div className="flex items-center justify-between">
           <Button

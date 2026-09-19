@@ -32,7 +32,8 @@ import {
   seoCache,
 } from "../../drizzle/schema";
 import { checkSeoQuality } from "../services/seo-quality-check";
-import { eq, and, inArray, ne, desc, sql } from "drizzle-orm";
+import { eq, and, inArray, ne, desc, sql, or, like } from "drizzle-orm";
+import { zipJobStatusesForFilter } from "../../shared/zip-import-filters";
 import path from "path";
 import { generateSeoData, generateSeoFromFilename } from "../services/seo-generator";
 import { looksLikeCreatorName, resolveCreatorFromFilename } from "../services/creator-detect";
@@ -458,17 +459,40 @@ export const zipImportRouter = router({
         limit: z.number().int().min(1).max(100).default(20),
         offset: z.number().int().min(0).default(0),
         status: z.string().optional(),
+        search: z.string().max(120).optional(),
       })
     )
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
-      type JobStatus = "uploaded" | "waiting" | "scheduled" | "processing" | "waiting_disk_space" | "completed" | "failed" | "cancelled" | "expired" | "skipped";
-      const conditions = [];
-      if (input.status) {
-        conditions.push(eq(zipImportJobs.status, input.status as JobStatus));
-      }
+      const search = input.search?.trim().replace(/[%_]/g, "").slice(0, 80);
+      const searchCond = search
+        ? or(
+            like(zipImportJobs.sourceArchiveOriginalName, `%${search}%`),
+            like(albums.title, `%${search}%`),
+            like(albums.slug, `%${search}%`)
+          )
+        : undefined;
+
+      type ZipJobStatus = (typeof zipImportJobs.status.enumValues)[number];
+      const allowed = zipImportJobs.status.enumValues as readonly string[];
+      const rawStatuses = zipJobStatusesForFilter(input.status);
+      const statuses = rawStatuses
+        ? (rawStatuses.filter((s) => allowed.includes(s)) as ZipJobStatus[])
+        : null;
+      const statusCond =
+        statuses && statuses.length === 1
+          ? eq(zipImportJobs.status, statuses[0])
+          : statuses && statuses.length > 1
+            ? inArray(zipImportJobs.status, statuses)
+            : statuses
+              ? sql`1 = 0`
+              : undefined;
+
+      const listWhere =
+        searchCond && statusCond ? and(searchCond, statusCond) : (searchCond ?? statusCond);
+      const countWhere = searchCond;
 
       const jobs = await db
         .select({
@@ -491,6 +515,7 @@ export const zipImportRouter = router({
           updatedAt: zipImportJobs.updatedAt,
           duplicateInfo: zipImportJobs.duplicateInfo,
           pipelineStep: zipImportJobs.pipelineStep,
+          lastError: zipImportJobs.lastError,
           duplicateOverride: zipImportJobs.duplicateOverride,
           duplicateOverrideAudit: zipImportJobs.duplicateOverrideAudit,
           albumTitle: albums.title,
@@ -498,13 +523,36 @@ export const zipImportRouter = router({
         })
         .from(zipImportJobs)
         .leftJoin(albums, eq(zipImportJobs.albumId, albums.id))
+        .where(listWhere)
         .orderBy(desc(zipImportJobs.createdAt))
         .limit(input.limit)
         .offset(input.offset);
 
       const totalResult = await db
         .select({ count: sql<number>`COUNT(*)` })
-        .from(zipImportJobs);
+        .from(zipImportJobs)
+        .leftJoin(albums, eq(zipImportJobs.albumId, albums.id))
+        .where(listWhere);
+
+      const grouped = await db
+        .select({
+          status: zipImportJobs.status,
+          count: sql<number>`COUNT(*)`,
+        })
+        .from(zipImportJobs)
+        .leftJoin(albums, eq(zipImportJobs.albumId, albums.id))
+        .where(countWhere)
+        .groupBy(zipImportJobs.status);
+
+      const counts: Record<string, number> = { all: 0 };
+      for (const row of grouped) {
+        const n = Number(row.count) || 0;
+        counts[row.status] = n;
+        counts.all += n;
+      }
+      counts.active =
+        (counts.processing || 0) + (counts.scheduled || 0) + (counts.waiting_disk_space || 0);
+      counts.queued = (counts.uploaded || 0) + (counts.waiting || 0);
 
       return {
         jobs: jobs.map((j) => ({
@@ -516,7 +564,8 @@ export const zipImportRouter = router({
             ? (JSON.parse(j.duplicateOverrideAudit) as Record<string, unknown>)
             : null,
         })),
-        total: totalResult[0]?.count ?? 0,
+        total: Number(totalResult[0]?.count) || 0,
+        counts,
       };
     }),
 
