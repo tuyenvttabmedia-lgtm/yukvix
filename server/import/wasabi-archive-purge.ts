@@ -241,6 +241,29 @@ export async function purgeStaleStagingArchives(): Promise<ArchivePurgeResult> {
   for (const job of rows) {
     if (!isSafeArchiveKey(job.key)) continue;
     if (!job.key.startsWith(`imports/staging/${job.id}/`)) continue;
+
+    const [statusRow] = await db
+      .select({ status: zipImportJobs.status, name: zipImportJobs.sourceArchiveOriginalName, size: zipImportJobs.sourceArchiveSize })
+      .from(zipImportJobs)
+      .where(eq(zipImportJobs.id, job.id))
+      .limit(1);
+    if (statusRow?.status === "failed") {
+      const siblings = await db
+        .select({ id: zipImportJobs.id })
+        .from(zipImportJobs)
+        .where(
+          and(
+            ne(zipImportJobs.id, job.id),
+            inArray(zipImportJobs.status, [...ACTIVE_SIBLING]),
+            statusRow.name
+              ? sql`LOWER(${zipImportJobs.sourceArchiveOriginalName}) = ${statusRow.name.toLowerCase()}`
+              : sql`1=0`
+          )
+        )
+        .limit(1);
+      if (!siblings[0]) continue;
+    }
+
     freed += await deleteArchiveKey(job.id, job.key);
     deleted += 1;
   }

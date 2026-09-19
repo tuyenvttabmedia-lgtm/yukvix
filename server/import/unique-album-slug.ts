@@ -180,7 +180,20 @@ export async function repairQueuedAlbumSlugs(): Promise<{
   for (const row of rows) {
     const result = await ensureUniquePendingSlug(row.id);
     if (result.repaired) repaired += 1;
-    if (!result.ok) blocked += 1;
+    if (!result.ok) {
+      blocked += 1;
+      await db
+        .update(zipImportJobs)
+        .set({
+          status: "failed",
+          lastError: (result.error || "Unsafe pending slug").slice(0, 4000),
+          workerId: null,
+          lockedAt: null,
+          heartbeatAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(zipImportJobs.id, row.id));
+    }
   }
 
   const failedRows = await db
