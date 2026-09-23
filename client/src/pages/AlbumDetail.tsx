@@ -15,12 +15,15 @@ interface AlbumDetailProps {
 }
 
 const GRID_SIZES = "(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw";
+const GRID_BATCH = 24;
 
 export default function AlbumDetail({ params }: AlbumDetailProps) {
   const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
+  const [gridShown, setGridShown] = useState(GRID_BATCH);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const variantCacheRef = useRef<Map<number, { displayUrl: string; originalUrl?: string | null; width?: number | null; height?: number | null }>>(new Map());
 
   const isVip = user?.role === "vip" || user?.role === "admin" || user?.role === "super_admin";
@@ -55,16 +58,51 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
     { enabled: !!data?.album?.id }
   );
   const allPhotos = gridData?.items ?? [];
+  const visiblePhotos = allPhotos.slice(0, gridShown);
 
   useEffect(() => {
     variantCacheRef.current.clear();
     setLightboxIndex(null);
+    setGridShown(GRID_BATCH);
   }, [params.slug]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || lightboxIndex !== null) return;
+    if (gridShown >= allPhotos.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect();
+          setGridShown((n) => Math.min(n + GRID_BATCH, allPhotos.length));
+        }
+      },
+      { rootMargin: "600px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [gridShown, allPhotos.length, lightboxIndex]);
 
   // --- Bookmark sync ------------------------------------------------------------
   useEffect(() => {
     if (data) setBookmarked(data.bookmarked);
   }, [data]);
+
+  const prefetchAround = useCallback(
+    (index: number) => {
+      const albumId = data?.album?.id;
+      if (!albumId) return;
+      const ids = [index - 2, index - 1, index, index + 1, index + 2]
+        .map((i) => allPhotos[i]?.id)
+        .filter((id): id is number => typeof id === "number")
+        .filter((id) => !variantCacheRef.current.has(id));
+      if (!ids.length) return;
+      void utils.photos.signedVariants.fetch({ albumId, photoIds: ids.slice(0, 8) }).then((rows) => {
+        for (const row of rows) variantCacheRef.current.set(row.id, row);
+      });
+    },
+    [allPhotos, data?.album?.id, utils.photos.signedVariants]
+  );
 
   const resolveUrls = useCallback(
     async (photoId: number) => {
@@ -75,7 +113,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
       const rows = await utils.photos.signedVariants.fetch({ albumId, photoIds: [photoId] });
       const row = rows[0];
       if (!row?.displayUrl) return null;
-      variantCacheRef.current.set(photoId, row);
+      variantCacheRef.current.set(row.id, row);
       return row;
     },
     [data?.album?.id, utils.photos.signedVariants]
@@ -84,19 +122,16 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
   const openLightbox = async (index: number) => {
     const photo = allPhotos[index];
     if (!photo || !data?.album?.id) return;
-    const neighborIds = [index - 1, index, index + 1]
-      .map((i) => allPhotos[i]?.id)
-      .filter((id): id is number => typeof id === "number");
-    const missing = neighborIds.filter((id) => !variantCacheRef.current.has(id));
-    if (missing.length) {
+    if (!variantCacheRef.current.get(photo.id)?.displayUrl) {
       const rows = await utils.photos.signedVariants.fetch({
         albumId: data.album.id,
-        photoIds: missing,
+        photoIds: [photo.id],
       });
       for (const row of rows) variantCacheRef.current.set(row.id, row);
     }
     if (!variantCacheRef.current.get(photo.id)?.displayUrl) return;
     setLightboxIndex(index);
+    prefetchAround(index);
   };
   const closeLightbox = () => setLightboxIndex(null);
 
@@ -360,7 +395,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
             Array.from({ length: 10 }).map((_, i) => (
               <div key={`sk-${i}`} className="aspect-square skeleton rounded-lg" />
             ))}
-          {allPhotos.map((photo, index) => (
+          {visiblePhotos.map((photo, index) => (
             <button
               key={photo.id}
               onClick={() => void openLightbox(index)}
@@ -371,6 +406,8 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
                 src={photo.thumbUrl || ""}
                 alt={photo.altText || `${album.title} — photo ${index + 1}`}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                width={400}
+                height={400}
                 loading={index < 8 ? "eager" : "lazy"}
                 decoding="async"
                 fetchPriority={index === 0 ? "high" : "low"}
@@ -379,6 +416,9 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
             </button>
           ))}
+          {gridShown < allPhotos.length && (
+            <div ref={sentinelRef} className="col-span-full h-8" aria-hidden="true" />
+          )}
 
           {isVipLocked &&
             Array.from({ length: Math.min(lockedCount, 8) }).map((_, i) => {
@@ -478,6 +518,7 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
           albumTitle={album.title}
           onClose={closeLightbox}
           resolveUrls={resolveUrls}
+          onIndexChange={prefetchAround}
         />
       )}
     </div>

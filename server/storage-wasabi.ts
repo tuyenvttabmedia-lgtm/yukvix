@@ -24,6 +24,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ARCHIVE_CONTENT_TYPE, ARCHIVE_PUT_EXPIRES_SECONDS } from "./import/archive-upload";
+import { peekSignedMediaUrl, rememberSignedMediaUrl } from "./signed-url-cache";
 import sharp from "sharp";
 import { storagePut } from "./storage";
 
@@ -208,6 +209,9 @@ export async function getSignedMediaUrl(key: string, expiresInSeconds = 3600): P
     return result.url;
   }
 
+  const reused = peekSignedMediaUrl(key, expiresInSeconds);
+  if (reused) return reused;
+
   const viaCdn = shouldSignMediaViaCdn(key);
   const client = viaCdn ? getCdnSignClient() : getS3Client();
   const command = new GetObjectCommand({
@@ -215,6 +219,7 @@ export async function getSignedMediaUrl(key: string, expiresInSeconds = 3600): P
     Key: key,
   });
   const url = await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+  rememberSignedMediaUrl(key, url, expiresInSeconds);
   console.log(
     `[Wasabi] getSignedMediaUrl: key=${key} expires=${expiresInSeconds}s viaCdn=${viaCdn}`
   );

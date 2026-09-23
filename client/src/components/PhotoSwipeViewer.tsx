@@ -3,12 +3,10 @@
  *
  * Tier 1: thumb (400px)   → album grid (fast first paint)
  * Tier 2: medium          → lightbox first paint
- * Tier 3: original (4K)   → auto-upgrade after medium paints, for anyone who can view the photo
+ * Tier 3: original (4K)   → current slide only, after medium paints
  *
- * Features:
- * - Desktop: wheel zooms gradually toward the cursor, drag pan, click zooms ~2.25x then back
- * - Mobile: pinch zoom, swipe nav, double-tap zoom, swipe-down close
- * - Guest and VIP both get 4K after first paint; wheel/pinch can reach 1:1 pixels
+ * Neighbors prefetch medium (not 4K) so next/prev stays snappy. After a photo
+ * has been upgraded, its 4K URL is reused when the user comes back to it.
  */
 import PhotoSwipeLightbox from "photoswipe/lightbox";
 import "photoswipe/style.css";
@@ -42,6 +40,7 @@ interface PhotoSwipeViewerProps {
   onClose: () => void;
   onDownload?: (index: number) => void;
   resolveUrls?: (photoId: number) => Promise<SignedPhotoUrls | null>;
+  onIndexChange?: (index: number) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +166,19 @@ function applyNaturalPhotoSize(slide?: PswpSlide | null, pswp?: { updateSize?: (
   pswp?.updateSize?.(true);
 }
 
+/** Survives lightbox remounts so next/prev of already-viewed photos reuse the 4K URL. */
+const hqReadyIds = new Set<number>();
+const hqUrlById = new Map<number, string>();
+const prefetchedSrc = new Set<string>();
+
+function prefetchSrc(url?: string | null) {
+  if (!url || prefetchedSrc.has(url)) return;
+  prefetchedSrc.add(url);
+  const img = new Image();
+  img.decoding = "async";
+  img.src = url;
+}
+
 export default function PhotoSwipeViewer({
   items,
   initialIndex,
@@ -174,17 +186,27 @@ export default function PhotoSwipeViewer({
   albumTitle,
   onClose,
   resolveUrls,
+  onIndexChange,
 }: PhotoSwipeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const originalLoadedRef = useRef<Set<number>>(new Set());
+  const originalLoadedRef = useRef<Set<number>>(new Set(hqReadyIds));
   const originalLoadingRef = useRef<Set<number>>(new Set());
   const urlCacheRef = useRef<Map<number, SignedPhotoUrls>>(new Map());
+  const onIndexChangeRef = useRef(onIndexChange);
+  onIndexChangeRef.current = onIndexChange;
   const [loadingOriginal, setLoadingOriginal] = useState(false);
 
   const getDataSource = useCallback(() => {
     return items.map((item) => {
       const cached = urlCacheRef.current.get(item.id);
-      const src = cached?.displayUrl || item.displayUrl || item.mediumUrl || "";
+      const hqSrc = hqUrlById.get(item.id);
+      const viewedOriginal =
+        hqSrc ||
+        (originalLoadedRef.current.has(item.id)
+          ? cached?.originalUrl || item.originalUrl
+          : undefined);
+      const src =
+        viewedOriginal || cached?.displayUrl || item.displayUrl || item.mediumUrl || "";
       const w = Number(cached?.width || item.width) || 0;
       const h = Number(cached?.height || item.height) || 0;
       if (item.displayUrl || item.originalUrl) {
@@ -201,7 +223,7 @@ export default function PhotoSwipeViewer({
         width: w > 1 && h > 1 ? w : 1600,
         height: w > 1 && h > 1 ? h : 1600,
         alt: item.altText || albumTitle || "",
-        _originalSrc: cached?.originalUrl || item.originalUrl || item.webpUrl || "",
+        _originalSrc: hqUrlById.get(item.id) || cached?.originalUrl || item.originalUrl || item.webpUrl || "",
         _id: item.id,
       };
     });
@@ -224,35 +246,47 @@ export default function PhotoSwipeViewer({
       closeOnVerticalDrag: true,
       bgOpacity: 0.95,
       padding: { top: 20, bottom: 40, left: 0, right: 0 },
-      preload: [1, 1],
+      // Keep next/prev slides mounted so already-viewed photos do not refetch.
+      preload: [1, 2],
       zoomAnimationDuration: 280,
     });
 
-    const applyDisplayToIndex = (index: number, urls: SignedPhotoUrls) => {
-      const src = urls.displayUrl;
-      if (!src) return;
+    const persistSlideSrc = (
+      index: number,
+      src: string,
+      urls?: SignedPhotoUrls | null,
+      dims?: { width?: number; height?: number }
+    ) => {
       const slideData = dataSource[index] as {
         src?: string;
         width?: number;
         height?: number;
         _originalSrc?: string;
-      };
-      if (slideData) {
-        slideData.src = src;
-        if (urls.width) slideData.width = Number(urls.width);
-        if (urls.height) slideData.height = Number(urls.height);
-        if (urls.originalUrl) slideData._originalSrc = urls.originalUrl;
-      }
+      } | undefined;
+      if (!slideData || !src) return;
+      slideData.src = src;
+      if (urls?.originalUrl) slideData._originalSrc = urls.originalUrl;
+      const w = dims?.width || (urls?.width ? Number(urls.width) : 0);
+      const h = dims?.height || (urls?.height ? Number(urls.height) : 0);
+      if (w) slideData.width = w;
+      if (h) slideData.height = h;
+    };
+
+    const applyDisplayToIndex = (index: number, urls: SignedPhotoUrls) => {
+      const itemId = items[index]?.id;
+      const hqSrc = itemId ? hqUrlById.get(itemId) : undefined;
+      const src =
+        (itemId && originalLoadedRef.current.has(itemId) && (hqSrc || urls.originalUrl)) ||
+        urls.displayUrl;
+      if (!src) return;
+      persistSlideSrc(index, src, urls);
       const pswp = lightbox.pswp;
       if (!pswp || pswp.currIndex !== index) return;
       const imgEl = pswp.currSlide?.container?.querySelector(
         ".pswp__img:not(.pswp__img--placeholder)"
       ) as HTMLImageElement | null;
-      const itemId = items[index]?.id;
-      if (imgEl && imgEl.src !== src && !(itemId && originalLoadedRef.current.has(itemId))) {
-        imgEl.src = src;
-      }
-      if (pswp.currSlide?.data && !(itemId && originalLoadedRef.current.has(itemId))) {
+      if (imgEl && imgEl.src !== src) imgEl.src = src;
+      if (pswp.currSlide?.data) {
         pswp.currSlide.data.src = src;
         if (urls.width) pswp.currSlide.data.width = Number(urls.width);
         if (urls.height) pswp.currSlide.data.height = Number(urls.height);
@@ -262,18 +296,20 @@ export default function PhotoSwipeViewer({
     const upgradeToOriginal = (
       slideIndex: number,
       originalUrl: string,
-      item: PhotoSwipeItem,
-      opts?: { silent?: boolean }
+      item: PhotoSwipeItem
     ) => {
       if (originalLoadedRef.current.has(item.id) || originalLoadingRef.current.has(item.id)) return;
       originalLoadingRef.current.add(item.id);
-      if (!opts?.silent) setLoadingOriginal(true);
       const img = new Image();
       const applyHq = () => {
-        const pswp = lightbox.pswp;
-        if (!pswp?.currSlide || pswp.currIndex !== slideIndex) return false;
         const originalW = img.naturalWidth || item.width || 4000;
         const originalH = img.naturalHeight || item.height || 2667;
+        persistSlideSrc(slideIndex, originalUrl, { originalUrl, displayUrl: originalUrl }, {
+          width: originalW,
+          height: originalH,
+        });
+        const pswp = lightbox.pswp;
+        if (!pswp?.currSlide || pswp.currIndex !== slideIndex) return false;
         const imgEl = pswp.currSlide.container?.querySelector(
           ".pswp__img:not(.pswp__img--placeholder)"
         ) as HTMLImageElement | null;
@@ -289,6 +325,8 @@ export default function PhotoSwipeViewer({
       };
       img.onload = () => {
         originalLoadedRef.current.add(item.id);
+        hqReadyIds.add(item.id);
+        hqUrlById.set(item.id, originalUrl);
         originalLoadingRef.current.delete(item.id);
         setLoadingOriginal(false);
         if (!applyHq()) requestAnimationFrame(() => applyHq());
@@ -303,19 +341,17 @@ export default function PhotoSwipeViewer({
     const kickHq = (index: number, urls?: SignedPhotoUrls | null) => {
       const item = items[index];
       if (!item) return;
+      if (lightbox.pswp && lightbox.pswp.currIndex !== index) return;
+      if (originalLoadedRef.current.has(item.id)) return;
       const hq = urls?.originalUrl || urlCacheRef.current.get(item.id)?.originalUrl || item.originalUrl;
-      if (hq) upgradeToOriginal(index, hq, item, { silent: true });
+      if (hq) upgradeToOriginal(index, hq, item);
     };
 
-    const ensureIndex = async (index: number) => {
+    const readUrls = async (index: number): Promise<SignedPhotoUrls | null> => {
       const item = items[index];
-      if (!item) return;
+      if (!item) return null;
       const cached = urlCacheRef.current.get(item.id);
-      if (cached?.displayUrl) {
-        applyDisplayToIndex(index, cached);
-        kickHq(index, cached);
-        return cached;
-      }
+      if (cached?.displayUrl) return cached;
       if (item.displayUrl) {
         const seeded = {
           displayUrl: item.displayUrl,
@@ -324,16 +360,21 @@ export default function PhotoSwipeViewer({
           height: item.height,
         };
         urlCacheRef.current.set(item.id, seeded);
-        applyDisplayToIndex(index, seeded);
-        kickHq(index, seeded);
         return seeded;
       }
       if (!resolveUrls) return null;
       const urls = await resolveUrls(item.id);
       if (!urls?.displayUrl) return null;
       urlCacheRef.current.set(item.id, urls);
+      return urls;
+    };
+
+    const ensureIndex = async (index: number, opts?: { hq?: boolean }) => {
+      const urls = await readUrls(index);
+      if (!urls?.displayUrl) return null;
       applyDisplayToIndex(index, urls);
-      kickHq(index, urls);
+      if (opts?.hq) kickHq(index, urls);
+      else prefetchSrc(urls.displayUrl);
       return urls;
     };
 
@@ -363,21 +404,26 @@ export default function PhotoSwipeViewer({
     lightbox.on("loadComplete", (e) => {
       syncSlideSize(slideFromEvent(e) || lightbox.pswp?.currSlide);
       const i = lightbox.pswp?.currIndex ?? initialIndex;
-      kickHq(i);
+      const item = items[i];
+      if (item && !originalLoadedRef.current.has(item.id)) kickHq(i);
     });
     lightbox.on("change", () => {
       setLoadingOriginal(false);
       syncSlideSize(lightbox.pswp?.currSlide);
       const i = lightbox.pswp?.currIndex ?? 0;
-      void ensureIndex(i);
+      onIndexChangeRef.current?.(i);
+      void ensureIndex(i, { hq: true });
       void ensureIndex(i + 1);
+      void ensureIndex(i + 2);
       void ensureIndex(i - 1);
     });
     lightbox.on("openingAnimationEnd", () => {
       syncSlideSize(lightbox.pswp?.currSlide);
       const i = lightbox.pswp?.currIndex ?? initialIndex;
-      void ensureIndex(i);
+      onIndexChangeRef.current?.(i);
+      void ensureIndex(i, { hq: true });
       void ensureIndex(i + 1);
+      void ensureIndex(i + 2);
       void ensureIndex(i - 1);
     });
 
@@ -388,7 +434,6 @@ export default function PhotoSwipeViewer({
 
     lightbox.init();
     lightbox.loadAndOpen(initialIndex);
-    kickHq(initialIndex);
 
     return () => {
       lightbox.destroy();
