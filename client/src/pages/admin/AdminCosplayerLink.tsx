@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronsUpDown, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPageHeader, AdminPageShell } from "@/admin";
@@ -27,6 +27,7 @@ export default function AdminCosplayerLink() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [creatorQuery, setCreatorQuery] = useState("");
   const [debouncedCreatorQuery, setDebouncedCreatorQuery] = useState("");
+  const autoSelectKey = useRef("");
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -95,6 +96,7 @@ export default function AdminCosplayerLink() {
     onSuccess: (res, vars) => {
       setPicked({ id: res.creatorId, name: res.name });
       setCreatorQuery(res.name);
+      setSearchInput(res.name);
       if (res.linked > 0) {
         toast.success(
           (res.created ? `Đã tạo ${res.name}` : `Đã dùng ${res.name}`) +
@@ -186,13 +188,14 @@ export default function AdminCosplayerLink() {
   };
   const nameForRow = (id: number) => (rowName[id] ?? "").trim() || pastedName;
 
-  const selectAllMatching = async () => {
+  const selectAllMatching = async (opts?: { silent?: boolean }) => {
     const res = await utils.cosplayerLink.listIds.fetch({
       bucket,
       search: search || undefined,
       includeLinked: bucket === "named" && includeLinked ? true : undefined,
     });
     setSelected(res.ids);
+    if (opts?.silent) return;
     if (res.total > res.ids.length) {
       toast.message(`Đã chọn ${res.ids.length}/${res.total} album (tối đa 500)`);
     } else {
@@ -200,19 +203,37 @@ export default function AdminCosplayerLink() {
     }
   };
 
+  useEffect(() => {
+    if (!picked || !search || total === 0) return;
+    if (search !== picked.name) return;
+    const key = `${picked.id}:${search}:${bucket}:${includeLinked}:${total}`;
+    if (autoSelectKey.current === key) return;
+    autoSelectKey.current = key;
+    void selectAllMatching({ silent: true });
+  }, [picked, search, total, bucket, includeLinked]);
+
   const attachSelected = () => {
     if (!picked || selected.length === 0) return;
     link.mutate({ albumIds: selected, creatorId: picked.id });
   };
 
   const attachAllResults = () => {
-    if (!picked || !search) return;
+    if (!picked) return;
+    const q = search || picked.name;
+    if (!q) return;
     linkMatching.mutate({
       creatorId: picked.id,
       bucket,
-      search,
+      search: q,
       includeLinked: bucket === "named" && includeLinked ? true : undefined,
     });
+  };
+
+  const pickCreator = (c: PickedCreator) => {
+    setPicked(c);
+    setCreatorQuery(c.name);
+    setSearchInput(c.name);
+    setPickerOpen(false);
   };
 
   return (
@@ -335,11 +356,7 @@ export default function AdminCosplayerLink() {
                           className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted ${
                             picked?.id === c.id ? "bg-muted font-medium" : ""
                           }`}
-                          onClick={() => {
-                            setPicked(c);
-                            setCreatorQuery(c.name);
-                            setPickerOpen(false);
-                          }}
+                          onClick={() => pickCreator(c)}
                         >
                           {c.name}
                         </button>
@@ -366,11 +383,28 @@ export default function AdminCosplayerLink() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={busy || !picked || !search}
+                disabled={busy || !picked}
                 onClick={attachAllResults}
               >
                 Gắn tất cả kết quả tìm kiếm
               </Button>
+            </div>
+          )}
+          {picked && bucket !== "skipped" && total > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2">
+              <span className="text-sm">
+                {selected.length > 0 ? `Đã chọn ${selected.length}` : `Tìm thấy ${total}`} album
+                {search ? ` khớp “${search}”` : ""}. Gắn vào{" "}
+                <strong>{picked.name}</strong>
+              </span>
+              <Button size="sm" disabled={busy} onClick={attachAllResults}>
+                Gắn hết vào {picked.name}
+              </Button>
+              {selected.length > 0 && selected.length !== total && (
+                <Button size="sm" variant="secondary" disabled={busy} onClick={attachSelected}>
+                  Chỉ gắn {selected.length} dòng đã tick
+                </Button>
+              )}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -436,11 +470,20 @@ export default function AdminCosplayerLink() {
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-2 w-8">
-                    <Checkbox
-                      checked={allChecked ? true : someChecked ? "indeterminate" : false}
-                      onCheckedChange={v => toggleAll(v === true)}
-                    />
+                  <th className="p-2 w-16">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                        onCheckedChange={v => toggleAll(v === true)}
+                      />
+                      <button
+                        type="button"
+                        className="text-[11px] font-medium text-foreground hover:text-primary"
+                        onClick={() => toggleAll(!allChecked)}
+                      >
+                        {allChecked ? "Bỏ trang" : "Chọn trang"}
+                      </button>
+                    </div>
                   </th>
                   <th className="p-2 w-14">Ảnh</th>
                   <th className="p-2">Album</th>
@@ -454,7 +497,11 @@ export default function AdminCosplayerLink() {
                   return (
                     <tr
                       key={row.id}
-                      className="border-t hover:bg-muted/30"
+                      className={`border-t cursor-pointer ${
+                        selected.includes(row.id)
+                          ? "bg-primary/15 ring-1 ring-inset ring-primary/30"
+                          : "hover:bg-muted/30"
+                      }`}
                       onClick={() => toggleOne(row.id, !selected.includes(row.id))}
                     >
                       <td className="p-2" onClick={e => e.stopPropagation()}>
