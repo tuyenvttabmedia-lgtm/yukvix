@@ -79,6 +79,51 @@ function inIds(ids: number[]) {
   return inArray(albums.id, ids);
 }
 
+export const COSPLAYER_LINK_BULK_MAX = 500;
+
+/** Strip LIKE wildcards so a typed name cannot match everything. */
+export function likeContainsPattern(raw?: string): string | undefined {
+  const search = raw?.trim();
+  if (!search) return undefined;
+  const cleaned = search.replace(/[%_\\]/g, "");
+  if (!cleaned) return undefined;
+  return `%${cleaned}%`;
+}
+
+export function albumSearchCondition(search?: string) {
+  const pattern = likeContainsPattern(search);
+  if (!pattern) return undefined;
+  return or(
+    like(albums.title, pattern),
+    like(albums.cosplayer, pattern),
+    like(albums.creator, pattern)
+  );
+}
+
+function queueWhereParts(opts: {
+  bucket: CosplayerQueueBucket;
+  skipped: number[];
+  search?: string;
+  includeLinked?: boolean;
+}) {
+  const skipFilter = notInIds(opts.skipped);
+  const searchFilter = albumSearchCondition(opts.search);
+  if (opts.bucket === "skipped") {
+    return and(...[inIds(opts.skipped), searchFilter].filter(Boolean));
+  }
+  // Searching by name should find albums even when the hint is only in the title.
+  if (searchFilter) {
+    return and(
+      ...[opts.includeLinked ? undefined : unlinked, skipFilter, searchFilter].filter(Boolean)
+    );
+  }
+  const bucketParts =
+    opts.bucket === "named"
+      ? [opts.includeLinked ? undefined : unlinked, hasHint, skipFilter]
+      : [unlinked, noHint, skipFilter];
+  return and(...bucketParts.filter(Boolean));
+}
+
 /** Copy catalog name onto albums that already have creatorId but empty cosplayer. */
 export async function backfillAlbumCosplayerFromCreator(): Promise<number> {
   const db = await getDb();
@@ -127,6 +172,7 @@ export async function listCosplayerQueue(opts: {
   page: number;
   limit: number;
   search?: string;
+  includeLinked?: boolean;
 }): Promise<{
   items: Array<{
     id: number;
@@ -136,6 +182,7 @@ export async function listCosplayerQueue(opts: {
     coverUrl: string | null;
     cosplayer: string | null;
     creator: string | null;
+    creatorId: number | null;
     hint: string | null;
     suggested: { id: number; name: string } | null;
   }>;
@@ -145,23 +192,12 @@ export async function listCosplayerQueue(opts: {
   if (!db) return { items: [], total: 0 };
 
   const skipped = await loadSkippedAlbumIds();
-  const skipFilter = notInIds(skipped);
-  const search = opts.search?.trim();
-  const searchFilter = search
-    ? or(
-        like(albums.title, `%${search}%`),
-        like(albums.cosplayer, `%${search}%`),
-        like(albums.creator, `%${search}%`)
-      )
-    : undefined;
-
-  const bucketParts =
-    opts.bucket === "skipped"
-      ? [inIds(skipped)]
-      : opts.bucket === "named"
-        ? [unlinked, hasHint, skipFilter]
-        : [unlinked, noHint, skipFilter];
-  const where = and(...[...bucketParts, searchFilter].filter(Boolean));
+  const where = queueWhereParts({
+    bucket: opts.bucket,
+    skipped,
+    search: opts.search,
+    includeLinked: opts.includeLinked,
+  });
   const offset = (opts.page - 1) * opts.limit;
 
   const [countRow] = await db
@@ -177,6 +213,7 @@ export async function listCosplayerQueue(opts: {
       coverUrl: albums.coverUrl,
       cosplayer: albums.cosplayer,
       creator: albums.creator,
+      creatorId: albums.creatorId,
     })
     .from(albums)
     .where(where)
@@ -205,6 +242,35 @@ export async function listCosplayerQueue(opts: {
   };
 }
 
+export async function listCosplayerQueueIds(opts: {
+  bucket: CosplayerQueueBucket;
+  search?: string;
+  includeLinked?: boolean;
+  limit?: number;
+}): Promise<{ ids: number[]; total: number }> {
+  const db = await getDb();
+  if (!db) return { ids: [], total: 0 };
+  const skipped = await loadSkippedAlbumIds();
+  const where = queueWhereParts({
+    bucket: opts.bucket,
+    skipped,
+    search: opts.search,
+    includeLinked: opts.includeLinked,
+  });
+  const cap = Math.min(Math.max(opts.limit ?? COSPLAYER_LINK_BULK_MAX, 1), COSPLAYER_LINK_BULK_MAX);
+  const [countRow] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(albums)
+    .where(where);
+  const rows = await db
+    .select({ id: albums.id })
+    .from(albums)
+    .where(where)
+    .orderBy(desc(albums.updatedAt), desc(albums.id))
+    .limit(cap);
+  return { ids: rows.map(row => row.id), total: Number(countRow?.n ?? 0) };
+}
+
 export async function linkAlbumsToCreator(
   albumIds: number[],
   creatorId: number
@@ -221,6 +287,18 @@ export async function linkAlbumsToCreator(
     .limit(1);
   if (!creator) throw new Error("Cosplayer not found");
 
+  const previous = await db
+    .select({ creatorId: albums.creatorId })
+    .from(albums)
+    .where(inArray(albums.id, ids));
+  const previousCreatorIds = Array.from(
+    new Set(
+      previous
+        .map(row => row.creatorId)
+        .filter((id): id is number => typeof id === "number" && id > 0 && id !== creatorId)
+    )
+  );
+
   const result = await db
     .update(albums)
     .set({
@@ -236,8 +314,33 @@ export async function linkAlbumsToCreator(
   await saveSkippedAlbumIds(Array.from(skipSet));
 
   await updateCreatorAlbumCount(creatorId);
+  await Promise.all(previousCreatorIds.map(id => updateCreatorAlbumCount(id)));
   await enrichCreatorAfterLink(creatorId);
   return { linked: mysqlAffectedRows(result) };
+}
+
+export async function linkAlbumsMatchingFilter(opts: {
+  creatorId: number;
+  bucket: CosplayerQueueBucket;
+  search?: string;
+  includeLinked?: boolean;
+  albumIds?: number[];
+}): Promise<{ linked: number; matched: number }> {
+  const selected = Array.from(new Set(opts.albumIds ?? [])).filter(id => id > 0);
+  const hasSearch = Boolean(opts.search?.trim());
+  if (!selected.length && !hasSearch) {
+    throw new Error("Tìm tên cosplayer trên album hoặc tick album trước khi gắn hàng loạt");
+  }
+  const ids = selected.length
+    ? selected.slice(0, COSPLAYER_LINK_BULK_MAX)
+    : (await listCosplayerQueueIds({
+        bucket: opts.bucket,
+        search: opts.search,
+        includeLinked: opts.includeLinked,
+      })).ids;
+  if (!ids.length) return { linked: 0, matched: 0 };
+  const { linked } = await linkAlbumsToCreator(ids, opts.creatorId);
+  return { linked, matched: ids.length };
 }
 
 export async function createAndLinkAlbums(
@@ -296,7 +399,7 @@ export async function linkExactMatches(albumIds?: number[]): Promise<{
     })
     .from(albums)
     .where(and(...[unlinked, hasHint, skipFilter, idFilter].filter(Boolean)))
-    .limit(500);
+    .limit(COSPLAYER_LINK_BULK_MAX);
 
   let linked = 0;
   let unmatched = 0;

@@ -2,12 +2,15 @@ import { z } from "zod";
 import { adminProcedure, router } from "../_core/trpc";
 import {
   backfillAlbumCosplayerFromCreator,
+  COSPLAYER_LINK_BULK_MAX,
   countCosplayerQueue,
   createAndLinkAlbums,
   createQuickFromName,
+  linkAlbumsMatchingFilter,
   linkAlbumsToCreator,
   linkExactMatches,
   listCosplayerQueue,
+  listCosplayerQueueIds,
   skipAlbums,
   unskipAlbums,
   type CosplayerQueueBucket,
@@ -25,6 +28,7 @@ export const cosplayerLinkRouter = router({
         page: z.number().min(1).default(1),
         limit: z.number().min(1).max(100).default(30),
         search: z.string().optional(),
+        includeLinked: z.boolean().optional(),
       })
     )
     .query(({ input }) =>
@@ -33,6 +37,23 @@ export const cosplayerLinkRouter = router({
         page: input.page,
         limit: input.limit,
         search: input.search,
+        includeLinked: input.includeLinked,
+      })
+    ),
+
+  listIds: adminProcedure
+    .input(
+      z.object({
+        bucket: bucketEnum.default("named"),
+        search: z.string().optional(),
+        includeLinked: z.boolean().optional(),
+      })
+    )
+    .query(({ input }) =>
+      listCosplayerQueueIds({
+        bucket: input.bucket as CosplayerQueueBucket,
+        search: input.search,
+        includeLinked: input.includeLinked,
       })
     ),
 
@@ -41,7 +62,7 @@ export const cosplayerLinkRouter = router({
   link: adminProcedure
     .input(
       z.object({
-        albumIds: z.array(z.number()).min(1).max(100),
+        albumIds: z.array(z.number()).min(1).max(COSPLAYER_LINK_BULK_MAX),
         creatorId: z.number(),
       })
     )
@@ -49,15 +70,35 @@ export const cosplayerLinkRouter = router({
       linkAlbumsToCreator(input.albumIds, input.creatorId)
     ),
 
+  linkMatching: adminProcedure
+    .input(
+      z.object({
+        creatorId: z.number(),
+        bucket: bucketEnum.default("named"),
+        search: z.string().optional(),
+        includeLinked: z.boolean().optional(),
+        albumIds: z.array(z.number()).max(COSPLAYER_LINK_BULK_MAX).optional(),
+      })
+    )
+    .mutation(({ input }) =>
+      linkAlbumsMatchingFilter({
+        creatorId: input.creatorId,
+        bucket: input.bucket as CosplayerQueueBucket,
+        search: input.search,
+        includeLinked: input.includeLinked,
+        albumIds: input.albumIds,
+      })
+    ),
+
   createAndLink: adminProcedure
-    .input(z.object({ albumIds: z.array(z.number()).min(1).max(100) }))
+    .input(z.object({ albumIds: z.array(z.number()).min(1).max(COSPLAYER_LINK_BULK_MAX) }))
     .mutation(({ input }) => createAndLinkAlbums(input.albumIds)),
 
   createQuick: adminProcedure
     .input(
       z.object({
         name: z.string().min(1).max(128),
-        albumIds: z.array(z.number()).max(100).default([]),
+        albumIds: z.array(z.number()).max(COSPLAYER_LINK_BULK_MAX).default([]),
       })
     )
     .mutation(({ input }) =>
@@ -65,14 +106,14 @@ export const cosplayerLinkRouter = router({
     ),
 
   linkMatches: adminProcedure
-    .input(z.object({ albumIds: z.array(z.number()).max(100).optional() }))
+    .input(z.object({ albumIds: z.array(z.number()).max(COSPLAYER_LINK_BULK_MAX).optional() }))
     .mutation(({ input }) => linkExactMatches(input.albumIds)),
 
   skip: adminProcedure
-    .input(z.object({ albumIds: z.array(z.number()).min(1).max(100) }))
+    .input(z.object({ albumIds: z.array(z.number()).min(1).max(COSPLAYER_LINK_BULK_MAX) }))
     .mutation(({ input }) => skipAlbums(input.albumIds)),
 
   unskip: adminProcedure
-    .input(z.object({ albumIds: z.array(z.number()).min(1).max(100) }))
+    .input(z.object({ albumIds: z.array(z.number()).min(1).max(COSPLAYER_LINK_BULK_MAX) }))
     .mutation(({ input }) => unskipAlbums(input.albumIds)),
 });

@@ -16,6 +16,7 @@ import { isAdmin, isVipOrAdmin } from '@shared/const';
 import { applyCreatorImageFromPhoto, applyCreatorImagesFromAlbums, generateUniqueCreatorSlug, listCreatorAlbumIds } from "../services/creator-service";
 import { isCreatorPubliclyVisible, isLowResCreatorBanner, toPublicCreatorBannerUrl, toPublicCreatorImageUrl } from "../public-media-url";
 import { creators } from "../../drizzle/schema";
+import { desc, like } from "drizzle-orm";
 
 export const creatorsRouter = router({
   // --- Public: list all creators --------------------------------------------
@@ -86,16 +87,26 @@ export const creatorsRouter = router({
     }),
 
   adminNameList: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(500).default(500) }).optional())
+    .input(
+      z
+        .object({
+          search: z.string().optional(),
+          limit: z.number().min(1).max(200).default(50),
+        })
+        .optional()
+    )
     .query(async ({ input, ctx }) => {
       if (!isAdmin(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) return { items: [] as Array<{ id: number; name: string }> };
+      const search = input?.search?.trim().replace(/[%_\\]/g, "");
+      const limit = input?.limit ?? 50;
       const items = await db
         .select({ id: creators.id, name: creators.name })
         .from(creators)
-        .orderBy(creators.name)
-        .limit(input?.limit ?? 500);
+        .where(search ? like(creators.name, `%${search}%`) : undefined)
+        .orderBy(search ? creators.name : desc(creators.createdAt))
+        .limit(limit);
       return { items };
     }),
 
