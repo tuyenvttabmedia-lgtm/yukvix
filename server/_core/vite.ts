@@ -31,6 +31,7 @@ async function getSeoSettings() {
 }
 
 import { isNoIndexPath, resolveSpaHtml, spaHtmlCacheControl } from "./meta-injection.js";
+import { staticAssetCacheControl } from "./static-cache.js";
 
 export function invalidateSeoSettingsCache() {
   seoSettingsCache = null;
@@ -129,7 +130,16 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath, { index: false }));
+  app.use(
+    express.static(distPath, {
+      index: false,
+      setHeaders(res, filePath) {
+        const cacheControl = staticAssetCacheControl(filePath);
+        res.setHeader("Cache-Control", cacheControl);
+        res.setHeader("CDN-Cache-Control", cacheControl);
+      },
+    })
+  );
 
   app.use("*", async (req, res) => {
     try {
