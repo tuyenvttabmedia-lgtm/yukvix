@@ -144,7 +144,10 @@ function slideFromEvent(e: {
   return e.slide || e.content?.slide || null;
 }
 
-function applyNaturalPhotoSize(slide?: PswpSlide | null, pswp?: { updateSize?: (force?: boolean) => void } | null) {
+function applyNaturalPhotoSize(slide?: PswpSlide | null) {
+  // Never call pswp.updateSize() here — resizing slides after open blanks later
+  // items (PhotoSwipe drops the <img> when width/height jump from medium → 4K).
+  if (slide?.width && slide.width > 200) return;
   const img = photoImg(slide?.content);
   if (!img || img.naturalWidth < 2 || img.naturalHeight < 2) return;
   const nw = img.naturalWidth;
@@ -163,7 +166,6 @@ function applyNaturalPhotoSize(slide?: PswpSlide | null, pswp?: { updateSize?: (
     }
     slide.updateContentSize?.(true);
   }
-  pswp?.updateSize?.(true);
 }
 
 /** Survives lightbox remounts so next/prev of already-viewed photos reuse the 4K URL. */
@@ -206,7 +208,12 @@ export default function PhotoSwipeViewer({
           ? cached?.originalUrl || item.originalUrl
           : undefined);
       const src =
-        viewedOriginal || cached?.displayUrl || item.displayUrl || item.mediumUrl || "";
+        viewedOriginal ||
+        cached?.displayUrl ||
+        item.displayUrl ||
+        item.mediumUrl ||
+        item.thumbUrl ||
+        "";
       const w = Number(cached?.width || item.width) || 0;
       const h = Number(cached?.height || item.height) || 0;
       if (item.displayUrl || item.originalUrl) {
@@ -251,25 +258,27 @@ export default function PhotoSwipeViewer({
       zoomAnimationDuration: 280,
     });
 
-    const persistSlideSrc = (
-      index: number,
-      src: string,
-      urls?: SignedPhotoUrls | null,
-      dims?: { width?: number; height?: number }
-    ) => {
+    let hqTimer: ReturnType<typeof setTimeout> | null = null;
+    let hqImg: HTMLImageElement | null = null;
+
+    const persistSlideSrc = (index: number, src: string, urls?: SignedPhotoUrls | null) => {
       const slideData = dataSource[index] as {
         src?: string;
-        width?: number;
-        height?: number;
         _originalSrc?: string;
       } | undefined;
       if (!slideData || !src) return;
       slideData.src = src;
       if (urls?.originalUrl) slideData._originalSrc = urls.originalUrl;
-      const w = dims?.width || (urls?.width ? Number(urls.width) : 0);
-      const h = dims?.height || (urls?.height ? Number(urls.height) : 0);
-      if (w) slideData.width = w;
-      if (h) slideData.height = h;
+    };
+
+    const applySrcToSlide = (index: number, src: string) => {
+      const pswp = lightbox.pswp;
+      if (!pswp || pswp.currIndex !== index || !src) return;
+      const imgEl = pswp.currSlide?.container?.querySelector(
+        ".pswp__img:not(.pswp__img--placeholder)"
+      ) as HTMLImageElement | null;
+      if (imgEl && imgEl.src !== src) imgEl.src = src;
+      if (pswp.currSlide?.data) pswp.currSlide.data.src = src;
     };
 
     const applyDisplayToIndex = (index: number, urls: SignedPhotoUrls) => {
@@ -280,17 +289,21 @@ export default function PhotoSwipeViewer({
         urls.displayUrl;
       if (!src) return;
       persistSlideSrc(index, src, urls);
-      const pswp = lightbox.pswp;
-      if (!pswp || pswp.currIndex !== index) return;
-      const imgEl = pswp.currSlide?.container?.querySelector(
-        ".pswp__img:not(.pswp__img--placeholder)"
-      ) as HTMLImageElement | null;
-      if (imgEl && imgEl.src !== src) imgEl.src = src;
-      if (pswp.currSlide?.data) {
-        pswp.currSlide.data.src = src;
-        if (urls.width) pswp.currSlide.data.width = Number(urls.width);
-        if (urls.height) pswp.currSlide.data.height = Number(urls.height);
+      applySrcToSlide(index, src);
+    };
+
+    const cancelHqLoad = () => {
+      if (hqTimer) {
+        clearTimeout(hqTimer);
+        hqTimer = null;
       }
+      if (hqImg) {
+        hqImg.onload = null;
+        hqImg.onerror = null;
+        hqImg.src = "";
+        hqImg = null;
+      }
+      originalLoadingRef.current.clear();
     };
 
     const upgradeToOriginal = (
@@ -301,37 +314,19 @@ export default function PhotoSwipeViewer({
       if (originalLoadedRef.current.has(item.id) || originalLoadingRef.current.has(item.id)) return;
       originalLoadingRef.current.add(item.id);
       const img = new Image();
-      const applyHq = () => {
-        const originalW = img.naturalWidth || item.width || 4000;
-        const originalH = img.naturalHeight || item.height || 2667;
-        persistSlideSrc(slideIndex, originalUrl, { originalUrl, displayUrl: originalUrl }, {
-          width: originalW,
-          height: originalH,
-        });
-        const pswp = lightbox.pswp;
-        if (!pswp?.currSlide || pswp.currIndex !== slideIndex) return false;
-        const imgEl = pswp.currSlide.container?.querySelector(
-          ".pswp__img:not(.pswp__img--placeholder)"
-        ) as HTMLImageElement | null;
-        if (imgEl && imgEl.src !== originalUrl) imgEl.src = originalUrl;
-        pswp.currSlide.data.src = originalUrl;
-        pswp.currSlide.data.width = originalW;
-        pswp.currSlide.data.height = originalH;
-        (pswp.currSlide as PswpSlide).width = originalW;
-        (pswp.currSlide as PswpSlide).height = originalH;
-        pswp.currSlide.updateContentSize(true);
-        pswp.updateSize(true);
-        return true;
-      };
+      hqImg = img;
       img.onload = () => {
+        if (hqImg !== img) return;
         originalLoadedRef.current.add(item.id);
         hqReadyIds.add(item.id);
         hqUrlById.set(item.id, originalUrl);
         originalLoadingRef.current.delete(item.id);
         setLoadingOriginal(false);
-        if (!applyHq()) requestAnimationFrame(() => applyHq());
+        persistSlideSrc(slideIndex, originalUrl, { originalUrl, displayUrl: originalUrl });
+        applySrcToSlide(slideIndex, originalUrl);
       };
       img.onerror = () => {
+        if (hqImg !== img) return;
         originalLoadingRef.current.delete(item.id);
         setLoadingOriginal(false);
       };
@@ -345,6 +340,14 @@ export default function PhotoSwipeViewer({
       if (originalLoadedRef.current.has(item.id)) return;
       const hq = urls?.originalUrl || urlCacheRef.current.get(item.id)?.originalUrl || item.originalUrl;
       if (hq) upgradeToOriginal(index, hq, item);
+    };
+
+    const scheduleHq = (index: number, urls?: SignedPhotoUrls | null) => {
+      cancelHqLoad();
+      hqTimer = setTimeout(() => {
+        hqTimer = null;
+        kickHq(index, urls);
+      }, 400);
     };
 
     const readUrls = async (index: number): Promise<SignedPhotoUrls | null> => {
@@ -373,8 +376,13 @@ export default function PhotoSwipeViewer({
       const urls = await readUrls(index);
       if (!urls?.displayUrl) return null;
       applyDisplayToIndex(index, urls);
-      if (opts?.hq) kickHq(index, urls);
-      else prefetchSrc(urls.displayUrl);
+      if (opts?.hq) {
+        if (!lightbox.pswp || lightbox.pswp.currIndex === index) {
+          scheduleHq(index, urls);
+        }
+      } else {
+        prefetchSrc(urls.displayUrl);
+      }
       return urls;
     };
 
@@ -390,7 +398,7 @@ export default function PhotoSwipeViewer({
     });
 
     const syncSlideSize = (slide?: PswpSlide | null) => {
-      applyNaturalPhotoSize(slide, lightbox.pswp);
+      applyNaturalPhotoSize(slide);
     };
 
     lightbox.on("contentLoad", (e) => {
@@ -403,11 +411,9 @@ export default function PhotoSwipeViewer({
     });
     lightbox.on("loadComplete", (e) => {
       syncSlideSize(slideFromEvent(e) || lightbox.pswp?.currSlide);
-      const i = lightbox.pswp?.currIndex ?? initialIndex;
-      const item = items[i];
-      if (item && !originalLoadedRef.current.has(item.id)) kickHq(i);
     });
     lightbox.on("change", () => {
+      cancelHqLoad();
       setLoadingOriginal(false);
       syncSlideSize(lightbox.pswp?.currSlide);
       const i = lightbox.pswp?.currIndex ?? 0;
@@ -436,6 +442,7 @@ export default function PhotoSwipeViewer({
     lightbox.loadAndOpen(initialIndex);
 
     return () => {
+      cancelHqLoad();
       lightbox.destroy();
       setLoadingOriginal(false);
     };

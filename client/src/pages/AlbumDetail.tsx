@@ -122,14 +122,21 @@ export default function AlbumDetail({ params }: AlbumDetailProps) {
   const openLightbox = async (index: number) => {
     const photo = allPhotos[index];
     if (!photo || !data?.album?.id) return;
-    if (!variantCacheRef.current.get(photo.id)?.displayUrl) {
-      const rows = await utils.photos.signedVariants.fetch({
-        albumId: data.album.id,
-        photoIds: [photo.id],
-      });
-      for (const row of rows) variantCacheRef.current.set(row.id, row);
+    const ids = [index - 1, index, index + 1, index + 2]
+      .map((i) => allPhotos[i]?.id)
+      .filter((id): id is number => typeof id === "number")
+      .filter((id) => !variantCacheRef.current.get(id)?.displayUrl);
+    if (ids.length) {
+      try {
+        const rows = await utils.photos.signedVariants.fetch({
+          albumId: data.album.id,
+          photoIds: ids.slice(0, 8),
+        });
+        for (const row of rows) variantCacheRef.current.set(row.id, row);
+      } catch {
+        // Open on thumbs if signing fails — PhotoSwipe now falls back to thumbUrl.
+      }
     }
-    if (!variantCacheRef.current.get(photo.id)?.displayUrl) return;
     setLightboxIndex(index);
     prefetchAround(index);
   };
