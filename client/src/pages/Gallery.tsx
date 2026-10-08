@@ -232,7 +232,7 @@ export default function Gallery() {
                 className="animate-fade-in"
                 style={{ animationDelay: `${(i % LIMIT) * 20}ms` }}
               >
-                <AlbumCard album={album} />
+                <AlbumCard album={album} priority={i < 4} />
               </div>
             ))}
           </div>

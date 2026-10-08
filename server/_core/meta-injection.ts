@@ -31,6 +31,48 @@ export function isNoIndexPath(urlPath: string): boolean {
   return false;
 }
 
+/** CDN/browser cache for SPA HTML. Private surfaces stay uncached. */
+export function spaHtmlCacheControl(urlPath: string): string {
+  const path = urlPath.split("?")[0] || "/";
+  if (isNoIndexPath(path)) return "private, no-store";
+  return "public, s-maxage=60, stale-while-revalidate=300";
+}
+
+function injectLcpPreload(html: string, imageUrl: string): string {
+  if (!imageUrl || !html.includes("</head>")) return html;
+  const safe = imageUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  const tag = `<link rel="preload" as="image" href="${safe}" fetchpriority="high" />`;
+  if (html.includes('rel="preload" as="image"')) return html;
+  return html.replace("</head>", `    ${tag}\n  </head>`);
+}
+
+let homeLcpCache: { url: string; exp: number } | null = null;
+
+async function getHomeLcpCoverUrl(): Promise<string | null> {
+  const now = Date.now();
+  if (homeLcpCache && now < homeLcpCache.exp) {
+    return homeLcpCache.url || null;
+  }
+  try {
+    const { listAlbums } = await import("../db.js");
+    const featured = await listAlbums({
+      page: 1,
+      limit: 10,
+      sortBy: "popular",
+      status: "published",
+    });
+    const cover =
+      featured.items.find((a) => a.isVip && a.coverUrl)?.coverUrl ||
+      featured.items.find((a) => a.coverUrl)?.coverUrl ||
+      null;
+    const url = cover ? rewritePublicMediaUrl(cover) || cover : "";
+    homeLcpCache = { url, exp: now + 60_000 };
+    return url || null;
+  } catch {
+    return null;
+  }
+}
+
 const CMS_STATIC_SLUGS: Record<string, string> = {
   "/privacy": "privacy",
   "/terms": "terms",
@@ -359,6 +401,8 @@ export async function resolveSpaHtml(
       canonical: `${base}/`,
     });
     out = injectJsonLd(out, [buildWebSiteSchema(base), buildOrganizationSchema(base)]);
+    const lcp = await getHomeLcpCoverUrl();
+    if (lcp) out = injectLcpPreload(out, lcp);
     return { html: out, status: 200 };
   }
 

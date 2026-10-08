@@ -49,6 +49,9 @@ function HeroFadeBackground({ images }: { images: string[] }) {
         src={images[current]}
         alt=""
         className="absolute inset-0 w-full h-full object-cover"
+        loading={current === 0 ? "eager" : "lazy"}
+        fetchPriority={current === 0 ? "high" : "low"}
+        decoding={current === 0 ? "sync" : "async"}
         style={{
           opacity: 1,
           transition: "opacity 1.8s cubic-bezier(0.23,1,0.32,1)",
@@ -85,43 +88,16 @@ export default function Home() {
   const { t } = useTranslation();
   const isVip = user?.role === "vip" || user?.role === "admin" || user?.role === "super_admin";
 
-  const { data: featuredAlbums } = trpc.albums.list.useQuery({
-    page: 1,
-    limit: 10,
-    sortBy: "popular",
-  });
-
-  const { data: newAlbums } = trpc.albums.list.useQuery({
-    page: 1,
-    limit: 10,
-    sortBy: "newest",
-  });
-
-  const { data: categories } = trpc.albums.categories.useQuery();
-  const browseCategories = (categories ?? []).filter(
+  const { data: home } = trpc.albums.homeBootstrap.useQuery();
+  const featuredAlbums = home?.featured;
+  const newAlbums = home?.newest;
+  const browseCategories = (home?.categories ?? []).filter(
     (c) => ((c as { albumCount?: number }).albumCount ?? 1) > 0
   );
-
-  const { data: popularCreators } = trpc.creators.list.useQuery({
-    page: 1,
-    limit: 20,
-    sortBy: "albumCount",
-    hasAlbums: true,
-  });
-
-  const { data: trendingTags } = trpc.tags.listWithCount.useQuery({
-    sortBy: "popular",
-    minAlbums: 1,
-    page: 1,
-    limit: 16,
-  });
-  const trendingTagItems = trendingTags?.items ?? [];
-
-  // Real site stats for hero
-  const { data: siteStats } = trpc.albums.publicStats.useQuery();
-
-  // Fetch plans to show dynamic price in VIP banner (cheapest monthly plan)
-  const { data: plans } = trpc.subscriptions.plans.useQuery();
+  const popularCreators = home?.popularCreators;
+  const trendingTagItems = home?.trendingTags?.items ?? [];
+  const siteStats = home?.siteStats;
+  const plans = home?.plans;
   const cheapestMonthlyPlan = plans
     ? (plans as any[])
         .filter((p) => p.isActive && p.intervalDays <= 31)
@@ -281,8 +257,8 @@ export default function Home() {
 
           {newAlbums ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {newAlbums.items.map((album) => (
-                <AlbumCard key={album.id} album={album} />
+              {newAlbums.items.map((album, i) => (
+                <AlbumCard key={album.id} album={album} priority={i < 4} />
               ))}
             </div>
           ) : (
@@ -317,8 +293,8 @@ export default function Home() {
 
           {featuredAlbums ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {featuredAlbums.items.map((album) => (
-                <AlbumCard key={album.id} album={album} />
+              {featuredAlbums.items.map((album, i) => (
+                <AlbumCard key={album.id} album={album} priority={i < 4} />
               ))}
             </div>
           ) : (

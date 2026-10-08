@@ -7,13 +7,17 @@ import {
   deleteAlbum,
   getAlbumById,
   getAlbumBySlug,
+  getAnalytics,
+  getSubscriptionPlans,
   getTagsByAlbumId,
   getDb,
   incrementAlbumView,
   isBookmarked,
   listAlbums,
   listCategories,
+  listCreators,
   listTags,
+  listTagsWithCount,
   setAlbumTags,
   setFreePreviewPhotos,
   updateAlbum,
@@ -119,13 +123,50 @@ export const albumsRouter = router({
 
   // --- Public: Site stats (real counts for hero) ---
   publicStats: publicProcedure.query(async () => {
-    const { getAnalytics } = await import("../db");
     const stats = await getAnalytics();
     if (!stats) return { totalPhotos: 0, totalAlbums: 0, totalUsers: 0 };
     return {
       totalPhotos: stats.totalPhotos ?? 0,
       totalAlbums: stats.totalAlbums ?? 0,
       totalUsers: stats.totalUsers ?? 0,
+    };
+  }),
+
+  /** Single roundtrip for the public homepage. */
+  homeBootstrap: publicProcedure.query(async () => {
+    const [featured, newest, categories, popularCreators, trendingTags, stats, planRows] =
+      await Promise.all([
+        listAlbums({ page: 1, limit: 10, sortBy: "popular", status: "published" }),
+        listAlbums({ page: 1, limit: 10, sortBy: "newest", status: "published" }),
+        listCategories(),
+        listCreators({
+          page: 1,
+          limit: 20,
+          sortBy: "albumCount",
+          hasAlbums: true,
+          publicOnly: true,
+        }),
+        listTagsWithCount({ sortBy: "popular", minAlbums: 1, page: 1, limit: 16 }),
+        getAnalytics(),
+        getSubscriptionPlans(),
+      ]);
+    return {
+      featured: { ...featured, items: featured.items.map(withRewrittenCover) },
+      newest: { ...newest, items: newest.items.map(withRewrittenCover) },
+      categories,
+      popularCreators,
+      trendingTags,
+      siteStats: stats
+        ? {
+            totalPhotos: stats.totalPhotos ?? 0,
+            totalAlbums: stats.totalAlbums ?? 0,
+            totalUsers: stats.totalUsers ?? 0,
+          }
+        : { totalPhotos: 0, totalAlbums: 0, totalUsers: 0 },
+      plans: planRows.map((p) => ({
+        ...p,
+        features: p.features ? JSON.parse(p.features) : [],
+      })),
     };
   }),
 

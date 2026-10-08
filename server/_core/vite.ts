@@ -30,7 +30,7 @@ async function getSeoSettings() {
   }
 }
 
-import { resolveSpaHtml } from "./meta-injection.js";
+import { isNoIndexPath, resolveSpaHtml, spaHtmlCacheControl } from "./meta-injection.js";
 
 export function invalidateSeoSettingsCache() {
   seoSettingsCache = null;
@@ -47,8 +47,13 @@ function injectSeoIntoHtml(html: string, settings: { gtmContainerId?: string | n
   }
 
   if (settings.gtmContainerId) {
-    const gtmScript = `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${settings.gtmContainerId}');</script>`;
-    injected = injected.replace(/<\/head>/, `  ${gtmScript}\n  </head>`);
+    const id = String(settings.gtmContainerId).replace(/[^A-Z0-9-]/gi, "");
+    const gtmScript = `<script>window.addEventListener("load",function(){setTimeout(function(){(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${id}');},1);});</script>`;
+    if (injected.includes("</body>")) {
+      injected = injected.replace(/<\/body>/, `  ${gtmScript}\n  </body>`);
+    } else {
+      injected = injected.replace(/<\/head>/, `  ${gtmScript}\n  </head>`);
+    }
   }
 
   return injected;
@@ -63,7 +68,14 @@ async function sendSpaHtml(
   html = injectSeoIntoHtml(html, seoSettings);
   const siteUrl = process.env.SITE_URL || `${req.protocol}://${req.get("host")}`;
   const { html: finalHtml, status } = await resolveSpaHtml(html, req.originalUrl, siteUrl);
-  res.status(status).set({ "Content-Type": "text/html" }).end(finalHtml);
+  const cacheControl = spaHtmlCacheControl(req.originalUrl);
+  res.status(status).set({
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": cacheControl,
+    "CDN-Cache-Control": isNoIndexPath(req.originalUrl)
+      ? "no-store"
+      : "public, max-age=60, stale-while-revalidate=300",
+  }).end(finalHtml);
 }
 
 export async function setupVite(app: Express, server: Server) {

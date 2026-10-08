@@ -164,6 +164,19 @@ export default defineConfig(({ command }) => ({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@trpc") || id.includes("@tanstack") || id.includes("superjson")) {
+            return "query";
+          }
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+            return "react";
+          }
+        },
+      },
+    },
   },
   server: {
     host: true,

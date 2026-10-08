@@ -101,9 +101,9 @@ async function startServer() {
     contentSecurityPolicy: process.env.NODE_ENV === "production" ? {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"], // shadcn radix needs inline
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: ["'self'", "https:", "wss:"],
         frameSrc: ["'none'"],

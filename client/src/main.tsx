@@ -1,6 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import "./lib/i18n"; // Initialize i18n before app renders
-import { applyGeoLanguage } from "./lib/i18n";
+import { applyGeoLanguage, initI18n } from "./lib/i18n";
 import { HelmetProvider } from "react-helmet-async";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -54,14 +53,15 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-void applyGeoLanguage();
-
-createRoot(document.getElementById("root")!).render(
-  <HelmetProvider>
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </trpc.Provider>
-  </HelmetProvider>
-);
+void initI18n().then(() => {
+  void applyGeoLanguage();
+  createRoot(document.getElementById("root")!).render(
+    <HelmetProvider>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <App />
+        </QueryClientProvider>
+      </trpc.Provider>
+    </HelmetProvider>
+  );
+});

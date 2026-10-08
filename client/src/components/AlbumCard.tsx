@@ -23,9 +23,11 @@ interface AlbumCardProps {
   isBookmarked?: boolean;
   onBookmarkChange?: (albumId: number, bookmarked: boolean) => void;
   className?: string;
+  /** First-row cards: fetch immediately for LCP. */
+  priority?: boolean;
 }
 
-export default function AlbumCard({ album, isBookmarked: initialBookmarked = false, onBookmarkChange, className }: AlbumCardProps) {
+export default function AlbumCard({ album, isBookmarked: initialBookmarked = false, onBookmarkChange, className, priority = false }: AlbumCardProps) {
   const { isAuthenticated } = useAuth();
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -62,7 +64,9 @@ export default function AlbumCard({ album, isBookmarked: initialBookmarked = fal
               src={album.coverUrl}
               alt={album.title}
               className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
-              loading="lazy"
+              loading={priority ? "eager" : "lazy"}
+              fetchPriority={priority ? "high" : "auto"}
+              decoding={priority ? "async" : "async"}
               onLoad={() => setImageLoaded(true)}
             />
           ) : (

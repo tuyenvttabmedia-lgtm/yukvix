@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { LANG_STORAGE_KEY, SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n";
+import { changeAppLanguage, SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,8 +34,7 @@ export function LanguageSwitcher({ variant = "icon", className }: LanguageSwitch
   const currentFlag = LANG_FLAGS[currentLang.code] ?? "🌐";
 
   const handleChange = (code: LanguageCode) => {
-    i18n.changeLanguage(code);
-    localStorage.setItem(LANG_STORAGE_KEY, code);
+    void changeAppLanguage(code);
   };
 
   return (

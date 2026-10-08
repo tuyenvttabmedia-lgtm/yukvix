@@ -3,11 +3,6 @@ import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 
 import en from "../locales/en.json";
-import ja from "../locales/ja.json";
-import ko from "../locales/ko.json";
-import vi from "../locales/vi.json";
-import zhTW from "../locales/zh-TW.json";
-import zhCN from "../locales/zh-CN.json";
 import {
   countryToLanguage,
   parseCloudflareTrace,
@@ -25,6 +20,14 @@ export const SUPPORTED_LANGUAGES = [
 ] as const;
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
+
+const localeLoaders: Record<Exclude<LanguageCode, "en">, () => Promise<{ default?: unknown }>> = {
+  ja: () => import("../locales/ja.json"),
+  ko: () => import("../locales/ko.json"),
+  vi: () => import("../locales/vi.json"),
+  "zh-TW": () => import("../locales/zh-TW.json"),
+  "zh-CN": () => import("../locales/zh-CN.json"),
+};
 
 /**
  * Normalize a raw browser/stored locale string to one of our supported codes.
@@ -85,11 +88,23 @@ function getInitialLanguage(): string {
   return readStoredLanguage() || readBrowserLanguage() || "en";
 }
 
-const initialLng = getInitialLanguage();
-
 function syncDocumentLang(lng: string) {
   if (typeof document === "undefined") return;
   document.documentElement.lang = lng;
+}
+
+function isLanguageCode(value: string): value is LanguageCode {
+  return SUPPORTED_LANGUAGES.some((l) => l.code === value);
+}
+
+async function loadLocale(code: string): Promise<LanguageCode> {
+  const lng = isLanguageCode(code) ? code : "en";
+  if (lng === "en" || i18n.hasResourceBundle(lng, "translation")) return lng;
+  const loader = localeLoaders[lng];
+  const mod = await loader();
+  const resources = (mod.default ?? mod) as Record<string, unknown>;
+  i18n.addResourceBundle(lng, "translation", resources, true, true);
+  return lng;
 }
 
 i18n
@@ -98,13 +113,8 @@ i18n
   .init({
     resources: {
       en: { translation: en },
-      ja: { translation: ja },
-      ko: { translation: ko },
-      vi: { translation: vi },
-      "zh-TW": { translation: zhTW },
-      "zh-CN": { translation: zhCN },
     },
-    lng: initialLng,
+    lng: "en",
     fallbackLng: "en",
     supportedLngs: ["en", "ja", "ko", "vi", "zh-TW", "zh-CN"],
     detection: {
@@ -112,6 +122,7 @@ i18n
       caches: [],
     },
     load: "currentOnly",
+    partialBundledLanguages: true,
     cleanCode: false,
     lowerCaseLng: false,
     interpolation: {
@@ -121,6 +132,25 @@ i18n
 
 i18n.on("languageChanged", syncDocumentLang);
 syncDocumentLang(i18n.language);
+
+export async function initI18n(): Promise<void> {
+  const initial = getInitialLanguage();
+  if (initial !== "en") {
+    await loadLocale(initial);
+    await i18n.changeLanguage(initial);
+  }
+  syncDocumentLang(i18n.language);
+}
+
+export async function changeAppLanguage(code: LanguageCode): Promise<void> {
+  try {
+    localStorage.setItem(LANG_STORAGE_KEY, code);
+  } catch {
+    /* private mode */
+  }
+  await loadLocale(code);
+  await i18n.changeLanguage(code);
+}
 
 async function detectCountry(): Promise<string | null> {
   try {
@@ -147,6 +177,7 @@ export async function applyGeoLanguage(): Promise<void> {
   if (readStoredLanguage()) return;
   const language = countryToLanguage(await detectCountry());
   if (!language || language === i18n.language) return;
+  await loadLocale(language);
   await i18n.changeLanguage(language);
 }
 
